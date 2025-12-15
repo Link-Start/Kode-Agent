@@ -61,7 +61,7 @@
   },
   {
     "id": "task-011",
-    "status": "pending",
+    "status": "doing",
     "task_description": "系统级 sandbox：调研并对齐现有实现缺口，优先补齐可落地的部分（例如 Linux 上的隔离执行、网络/文件访问策略落地），并对 macOS/Windows 的系统能力给出可执行的实现方案（可先以可选开关方式集成）；同时评估 all-in-bun 的收益/折中并形成结论与建议。",
     "requirements": "完成 task-003；需要输出设计与落地改动（至少包含可选开关与默认安全行为）；需要通过 `bun run typecheck` 与 `bun test`。"
   },
