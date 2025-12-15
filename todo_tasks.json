@@ -19,7 +19,7 @@
   },
   {
     "id": "task-004",
-    "status": "doing",
+    "status": "to_review",
     "task_description": "模型指针重构：移除 `reasoning` 指针（类型、配置读写、UI、默认值、命令等），新增 `compact` 指针用于上下文压缩模型选择；确保现有 `main/task/quick` 行为不变，并提供配置迁移（旧字段存在时的兼容策略）。",
     "requirements": "完成 task-003；需要更新相关类型、配置解析与 UI；需要通过 `bun run typecheck` 与 `bun test`。"
   },
