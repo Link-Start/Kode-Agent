@@ -1,0 +1,74 @@
+[
+  {
+    "id": "task-001",
+    "status": "pending",
+    "task_description": "对齐 `kode mcp` CLI：实现 `mcp add` 的 `--transport (stdio|sse|http)`、`--scope (local|user|project)`、`--header` 参数与行为；当未显式指定 transport 且参数看起来像 URL 时输出警告并仍按 stdio 处理；完善 `mcp remove` 的“无 scope 自动定位/多 scope 提示/指定 scope 删除”；保持现有额外命令（如 add-ws）作为扩展但不影响默认对齐。",
+    "requirements": "当前工作区应可通过 `bun run typecheck` 与 `bun test`；修改完成后需要补齐/更新与 MCP CLI 相关的单元测试与文档提示（不在本任务内更新 README）。"
+  },
+  {
+    "id": "task-002",
+    "status": "pending",
+    "task_description": "完善 MCP 健康检查与输出：`kode mcp list` 与 `kode mcp get` 输出包含连接状态（connected/failed/pending/rejected/disconnected），并为 URL/stdio/headers/env 等字段提供与 CLI 输出一致且可读的展示；补充 `MCP_TOOL_TIMEOUT` 与 `MCP_SERVER_CONNECTION_BATCH_SIZE` 等环境变量文档与默认值说明。",
+    "requirements": "完成 task-001；不得破坏现有交互命令 `/mcp` 的展示；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-003",
+    "status": "pending",
+    "task_description": "清理代码注释与文档中不必要的 “claude/CLAUDE/Claude Code”等字样：仅清理注释/文档/提示文案中的话术，不重命名文件或导出 API；替换为中性描述（例如“上游行为”“参考实现”“默认行为”），并保证含义不变。",
+    "requirements": "在 repo 内执行一次大小写不敏感搜索确认清理范围；不得改动用户配置字段名（例如 `CLAUDE_CONFIG_DIR` 环境变量仍需兼容）；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-004",
+    "status": "pending",
+    "task_description": "模型指针重构：移除 `reasoning` 指针（类型、配置读写、UI、默认值、命令等），新增 `compact` 指针用于上下文压缩模型选择；确保现有 `main/task/quick` 行为不变，并提供配置迁移（旧字段存在时的兼容策略）。",
+    "requirements": "完成 task-003；需要更新相关类型、配置解析与 UI；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-005",
+    "status": "pending",
+    "task_description": "修复 `option+m` 快捷键无法真实切换主对话模型的问题：确保切换会更新 `main` 指针并立即影响下一次请求；同时在切换时对比“目标模型上下文窗口”与“当前已占用 tokens”，不足则提示并回退到可用模型（或保持原模型）。",
+    "requirements": "完成 task-004；需要新增/更新一个可自动化验证的测试用例；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-006",
+    "status": "pending",
+    "task_description": "上下文自动压缩策略升级：将触发阈值下调到 90% * context window；压缩时使用 `compact` 指针模型；压缩前后更新会话状态并确保不会造成工具调用/系统提示错乱；当 compact 指针未配置时提供明确提示与安全回退策略。",
+    "requirements": "完成 task-005；需要为自动压缩触发逻辑新增/更新测试；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-007",
+    "status": "pending",
+    "task_description": "模型配置可分享 YAML：设计并实现一个可被团队共享的 YAML 文件格式（不包含明文密钥的推荐写法），并提供 import/export 命令或自动读取策略；能力需覆盖现有模型 profile 与指针配置（字段能力完全一致），并在 README 中提供示例与迁移指南。",
+    "requirements": "完成 task-006；需要评估 YAML 解析依赖（优先复用已有依赖）；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-008",
+    "status": "pending",
+    "task_description": "交互 UI：改进等待模型响应时的状态呈现（例如更清晰的“正在思考/正在调用工具/正在流式输出”提示），并评估是否需要更“朴素”的显示模式；对比并吸收上游实现的关键交互细节但避免引入不必要复杂度。",
+    "requirements": "完成 task-006；需要在交互层（Ink 组件）中完成改动；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-009",
+    "status": "pending",
+    "task_description": "TODO UI：审查并修复当前 TODO 默认渲染位置与交互体验（例如总在最底部、刷新时机等），对齐更符合用户预期的展示位置与更新策略，并确保不会影响工具调用输出流。",
+    "requirements": "完成 task-008；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-010",
+    "status": "pending",
+    "task_description": "输入框特性对齐：完善文本粘贴/多行粘贴/多文件路径粘贴的处理与占位符行为；完善图片粘贴、多图片粘贴与发送、以及多轮图片交互时的消息状态维护；补齐相关协议层消息封装与 UI 回显的一致性。",
+    "requirements": "完成 task-008；需要在输入组件与消息归一化/网络请求层完成改动；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-011",
+    "status": "pending",
+    "task_description": "系统级 sandbox：调研并对齐现有实现缺口，优先补齐可落地的部分（例如 Linux 上的隔离执行、网络/文件访问策略落地），并对 macOS/Windows 的系统能力给出可执行的实现方案（可先以可选开关方式集成）；同时评估 all-in-bun 的收益/折中并形成结论与建议。",
+    "requirements": "完成 task-003；需要输出设计与落地改动（至少包含可选开关与默认安全行为）；需要通过 `bun run typecheck` 与 `bun test`。"
+  },
+  {
+    "id": "task-012",
+    "status": "pending",
+    "task_description": "更新用户文档（英文与中文 README）：提供清晰引导（MCP 注册示例、审批机制、常见排障、模型指针/自动压缩/快捷键、粘贴与图片交互、sandbox 开关与限制），并确保措辞中不出现多余的“claude code/参考某 CLI”等表述。",
+    "requirements": "完成 task-001 到 task-011；需要同时更新 `README.md` 与 `README.zh-CN.md`；需要通过 `bun run typecheck` 与 `bun test`。"
+  }
+]
