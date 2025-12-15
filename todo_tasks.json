@@ -31,7 +31,7 @@
   },
   {
     "id": "task-006",
-    "status": "to_review",
+    "status": "to_test",
     "task_description": "上下文自动压缩策略升级：将触发阈值下调到 90% * context window；压缩时使用 `compact` 指针模型；压缩前后更新会话状态并确保不会造成工具调用/系统提示错乱；当 compact 指针未配置时提供明确提示与安全回退策略。",
     "requirements": "完成 task-005；需要为自动压缩触发逻辑新增/更新测试；需要通过 `bun run typecheck` 与 `bun test`。"
   },
