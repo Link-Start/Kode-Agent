@@ -55,7 +55,7 @@
   },
   {
     "id": "task-010",
-    "status": "to_review",
+    "status": "to_test",
     "task_description": "输入框特性对齐：完善文本粘贴/多行粘贴/多文件路径粘贴的处理与占位符行为；完善图片粘贴、多图片粘贴与发送、以及多轮图片交互时的消息状态维护；补齐相关协议层消息封装与 UI 回显的一致性。",
     "requirements": "完成 task-008；需要在输入组件与消息归一化/网络请求层完成改动；需要通过 `bun run typecheck` 与 `bun test`。"
   },
