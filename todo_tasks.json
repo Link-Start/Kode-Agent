@@ -31,7 +31,7 @@
   },
   {
     "id": "task-006",
-    "status": "doing",
+    "status": "to_review",
     "task_description": "上下文自动压缩策略升级：将触发阈值下调到 90% * context window；压缩时使用 `compact` 指针模型；压缩前后更新会话状态并确保不会造成工具调用/系统提示错乱；当 compact 指针未配置时提供明确提示与安全回退策略。",
     "requirements": "完成 task-005；需要为自动压缩触发逻辑新增/更新测试；需要通过 `bun run typecheck` 与 `bun test`。"
   },
@@ -43,7 +43,7 @@
   },
   {
     "id": "task-008",
-    "status": "pending",
+    "status": "doing",
     "task_description": "交互 UI：改进等待模型响应时的状态呈现（例如更清晰的“正在思考/正在调用工具/正在流式输出”提示），并评估是否需要更“朴素”的显示模式；对比并吸收上游实现的关键交互细节但避免引入不必要复杂度。",
     "requirements": "完成 task-006；需要在交互层（Ink 组件）中完成改动；需要通过 `bun run typecheck` 与 `bun test`。"
   },
