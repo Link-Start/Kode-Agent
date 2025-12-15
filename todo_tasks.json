@@ -67,7 +67,7 @@
   },
   {
     "id": "task-012",
-    "status": "to_test",
+    "status": "success",
     "task_description": "更新用户文档（英文与中文 README）：提供清晰引导（MCP 注册示例、审批机制、常见排障、模型指针/自动压缩/快捷键、粘贴与图片交互、sandbox 开关与限制），并确保措辞中不出现多余的“claude code/参考某 CLI”等表述。",
     "requirements": "完成 task-001 到 task-011；需要同时更新 `README.md` 与 `README.zh-CN.md`；需要通过 `bun run typecheck` 与 `bun test`。"
   }
