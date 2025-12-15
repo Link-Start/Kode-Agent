@@ -1,7 +1,7 @@
 [
   {
     "id": "task-001",
-    "status": "to_review",
+    "status": "to_test",
     "task_description": "对齐 `kode mcp` CLI：实现 `mcp add` 的 `--transport (stdio|sse|http)`、`--scope (local|user|project)`、`--header` 参数与行为；当未显式指定 transport 且参数看起来像 URL 时输出警告并仍按 stdio 处理；完善 `mcp remove` 的“无 scope 自动定位/多 scope 提示/指定 scope 删除”；保持现有额外命令（如 add-ws）作为扩展但不影响默认对齐。",
     "requirements": "当前工作区应可通过 `bun run typecheck` 与 `bun test`；修改完成后需要补齐/更新与 MCP CLI 相关的单元测试与文档提示（不在本任务内更新 README）。"
   },
