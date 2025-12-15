@@ -13,7 +13,7 @@
   },
   {
     "id": "task-003",
-    "status": "to_review",
+    "status": "to_test",
     "task_description": "清理代码注释与文档中不必要的 “claude/CLAUDE/Claude Code”等字样：仅清理注释/文档/提示文案中的话术，不重命名文件或导出 API；替换为中性描述（例如“上游行为”“参考实现”“默认行为”），并保证含义不变。",
     "requirements": "在 repo 内执行一次大小写不敏感搜索确认清理范围；不得改动用户配置字段名（例如 `CLAUDE_CONFIG_DIR` 环境变量仍需兼容）；需要通过 `bun run typecheck` 与 `bun test`。"
   },
