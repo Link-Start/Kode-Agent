@@ -25,7 +25,7 @@
   },
   {
     "id": "task-005",
-    "status": "doing",
+    "status": "to_review",
     "task_description": "修复 `option+m` 快捷键无法真实切换主对话模型的问题：确保切换会更新 `main` 指针并立即影响下一次请求；同时在切换时对比“目标模型上下文窗口”与“当前已占用 tokens”，不足则提示并回退到可用模型（或保持原模型）。",
     "requirements": "完成 task-004；需要新增/更新一个可自动化验证的测试用例；需要通过 `bun run typecheck` 与 `bun test`。"
   },
