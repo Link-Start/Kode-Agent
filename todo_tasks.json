@@ -7,7 +7,7 @@
   },
   {
     "id": "task-002",
-    "status": "to_test",
+    "status": "success",
     "task_description": "完善 MCP 健康检查与输出：`kode mcp list` 与 `kode mcp get` 输出包含连接状态（connected/failed/pending/rejected/disconnected），并为 URL/stdio/headers/env 等字段提供与 CLI 输出一致且可读的展示；补充 `MCP_TOOL_TIMEOUT` 与 `MCP_SERVER_CONNECTION_BATCH_SIZE` 等环境变量文档与默认值说明。",
     "requirements": "完成 task-001；不得破坏现有交互命令 `/mcp` 的展示；需要通过 `bun run typecheck` 与 `bun test`。"
   },
