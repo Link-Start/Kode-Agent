@@ -37,7 +37,7 @@
   },
   {
     "id": "task-007",
-    "status": "pending",
+    "status": "doing",
     "task_description": "模型配置可分享 YAML：设计并实现一个可被团队共享的 YAML 文件格式（不包含明文密钥的推荐写法），并提供 import/export 命令或自动读取策略；能力需覆盖现有模型 profile 与指针配置（字段能力完全一致），并在 README 中提供示例与迁移指南。",
     "requirements": "完成 task-006；需要评估 YAML 解析依赖（优先复用已有依赖）；需要通过 `bun run typecheck` 与 `bun test`。"
   },
