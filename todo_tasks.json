@@ -49,7 +49,7 @@
   },
   {
     "id": "task-009",
-    "status": "doing",
+    "status": "pending",
     "task_description": "TODO UI：审查并修复当前 TODO 默认渲染位置与交互体验（例如总在最底部、刷新时机等），对齐更符合用户预期的展示位置与更新策略，并确保不会影响工具调用输出流。",
     "requirements": "完成 task-008；需要通过 `bun run typecheck` 与 `bun test`。"
   },
