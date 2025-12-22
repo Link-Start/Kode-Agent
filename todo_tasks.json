@@ -1,74 +1,170 @@
 [
   {
-    "id": "task-001",
+    "id": "CC001",
     "status": "success",
-    "task_description": "对齐 `kode mcp` CLI：实现 `mcp add` 的 `--transport (stdio|sse|http)`、`--scope (local|user|project)`、`--header` 参数与行为；当未显式指定 transport 且参数看起来像 URL 时输出警告并仍按 stdio 处理；完善 `mcp remove` 的“无 scope 自动定位/多 scope 提示/指定 scope 删除”；保持现有额外命令（如 add-ws）作为扩展但不影响默认对齐。",
-    "requirements": "当前工作区应可通过 `bun run typecheck` 与 `bun test`；修改完成后需要补齐/更新与 MCP CLI 相关的单元测试与文档提示（不在本任务内更新 README）。"
+    "task_description": "Produce a Claude Code v2.0.75 parity delta report for Kode: digest `CHANGELOG.md` + obfuscated `cli.js` to enumerate missing/changed features (tools, tool schemas, system/tool prompts, session JSONL records, structured stdio control protocol, UI strings/order); write the findings and a concrete gap list to `docs/claude_code_parity_delta_v2_0_75.md`.",
+    "requirements": "Read official sources: `/Users/baicai/Desktop/MyT/Kode/pr/cc_official/claude-code-main 2/CHANGELOG.md` and `/Users/baicai/Desktop/MyT/Kode/pr/cc_official/claude-code-main 2/node_modules/@anthropic-ai/claude-code/cli.js`, plus key Kode files (src/query.ts, src/permissions.ts, src/entrypoints/cli.tsx, src/utils/claudeCode*). Cross-check the current Kode behavior and record all mismatches that matter for protocol parity + UI driving."
   },
   {
-    "id": "task-002",
+    "id": "CC002",
     "status": "success",
-    "task_description": "完善 MCP 健康检查与输出：`kode mcp list` 与 `kode mcp get` 输出包含连接状态（connected/failed/pending/rejected/disconnected），并为 URL/stdio/headers/env 等字段提供与 CLI 输出一致且可读的展示；补充 `MCP_TOOL_TIMEOUT` 与 `MCP_SERVER_CONNECTION_BATCH_SIZE` 等环境变量文档与默认值说明。",
-    "requirements": "完成 task-001；不得破坏现有交互命令 `/mcp` 的展示；需要通过 `bun run typecheck` 与 `bun test`。"
+    "task_description": "Align Kode structured stdio protocol to Claude Code v2.0.75: implement additional `control_request` subtypes (at minimum: initialize, set_permission_mode, set_model, set_max_thinking_tokens, mcp_status, mcp_message, mcp_set_servers, rewind_files) and `keep_alive`; update `can_use_tool` request/response payloads to include official fields (permission_suggestions, blocked_path, decision_reason, tool_use_id, agent_id) and parse richer allow/deny responses; add unit tests.",
+    "requirements": "Use the CC001 delta report and the official structured-input implementation in `cli.js` (search for `control_request`, `createCanUseTool`, `sendRequest`, and the structured input loop handling subtypes). Keep backward compatibility with current `--print --input-format stream-json` usage and do not break one-shot modes."
   },
   {
-    "id": "task-003",
+    "id": "CC003",
     "status": "success",
-    "task_description": "清理代码注释与文档中不必要的 “claude/CLAUDE/Claude Code”等字样：仅清理注释/文档/提示文案中的话术，不重命名文件或导出 API；替换为中性描述（例如“上游行为”“参考实现”“默认行为”），并保证含义不变。",
-    "requirements": "在 repo 内执行一次大小写不敏感搜索确认清理范围；不得改动用户配置字段名（例如 `CLAUDE_CONFIG_DIR` 环境变量仍需兼容）；需要通过 `bun run typecheck` 与 `bun test`。"
+    "task_description": "Implement Claude Code-style persistent stream-json sessions in Kode print mode: when `--print --output-format stream-json --input-format stream-json`, keep the process alive, accept multiple user messages, maintain conversation history in-memory, emit SDK stream messages + per-turn result messages, and support `interrupt` to cancel in-flight requests; implement duplicate-uuid replay acknowledgment behavior; add an integration test that drives stdin/stdout across multiple turns.",
+    "requirements": "CC002 completed. Mirror the official structured loop semantics (queueing prompts, abort handling, replay/duplication checks, and message emission ordering). Ensure non-stream and one-shot `--print` behavior remains unchanged."
   },
   {
-    "id": "task-004",
+    "id": "CC004",
     "status": "success",
-    "task_description": "模型指针重构：移除 `reasoning` 指针（类型、配置读写、UI、默认值、命令等），新增 `compact` 指针用于上下文压缩模型选择；确保现有 `main/task/quick` 行为不变，并提供配置迁移（旧字段存在时的兼容策略）。",
-    "requirements": "完成 task-003；需要更新相关类型、配置解析与 UI；需要通过 `bun run typecheck` 与 `bun test`。"
+    "task_description": "Upgrade Claude Code session JSONL persistence to v2.0.75: update the record envelope to include official fields (`logicalParentUuid`, `agentId`, `slug`, correct `isSidechain` semantics, `gitBranch` best-effort), and add support for official record types (`summary`, `custom-title`, `tag`) while keeping existing `file-history-snapshot`; update the session loader to read these records; add tests + fixtures.",
+    "requirements": "Use CC001 findings and the official session persistence implementation in `cli.js` (search for `insertMessageChain`, `appendEntry`, `type:\\\"summary\\\"`, `custom-title`, `tag`, and `Jm(`). Maintain best-effort semantics: persistence failures must never crash interactive sessions."
   },
   {
-    "id": "task-005",
+    "id": "CC005",
     "status": "success",
-    "task_description": "修复 `option+m` 快捷键无法真实切换主对话模型的问题：确保切换会更新 `main` 指针并立即影响下一次请求；同时在切换时对比“目标模型上下文窗口”与“当前已占用 tokens”，不足则提示并回退到可用模型（或保持原模型）。",
-    "requirements": "完成 task-004；需要新增/更新一个可自动化验证的测试用例；需要通过 `bun run typecheck` 与 `bun test`。"
+    "task_description": "Add named session support like Claude Code: implement `/rename` (custom title) and `/tag` commands that persist to JSONL (`custom-title`/`tag` records) and reflect on the current session; add minimal helpers to update current-session metadata; add tests for record writes and lookups.",
+    "requirements": "CC004 completed. Base behavior must match Claude Code data model (sessionId-scoped custom-title/tag records in the same project directory). Keep existing Kode commands intact; add new commands without breaking old ones."
   },
   {
-    "id": "task-006",
-    "status": "success",
-    "task_description": "上下文自动压缩策略升级：将触发阈值下调到 90% * context window；压缩时使用 `compact` 指针模型；压缩前后更新会话状态并确保不会造成工具调用/系统提示错乱；当 compact 指针未配置时提供明确提示与安全回退策略。",
-    "requirements": "完成 task-005；需要为自动压缩触发逻辑新增/更新测试；需要通过 `bun run typecheck` 与 `bun test`。"
+    "id": "CC006",
+    "status": "pending",
+    "task_description": "Bring Kode resume UX to Claude Code parity: migrate `/resume` UI (and `kode --resume`) to list Claude Code sessions from JSONL (including custom titles/tags/summaries), support resume by UUID or by exact session name, support `--resume` with no value opening the selector, and show an explicit “different directory” message when resuming from another cwd; add tests for session discovery + selection.",
+    "requirements": "CC004 and CC005 completed. Follow official logic (project dir sanitization, list+sort jsonl files, customTitle search, fork-session semantics) as derived in CC001."
   },
   {
-    "id": "task-007",
-    "status": "success",
-    "task_description": "模型配置可分享 YAML：设计并实现一个可被团队共享的 YAML 文件格式（不包含明文密钥的推荐写法），并提供 import/export 命令或自动读取策略；能力需覆盖现有模型 profile 与指针配置（字段能力完全一致），并在 README 中提供示例与迁移指南。",
-    "requirements": "完成 task-006；需要评估 YAML 解析依赖（优先复用已有依赖）；需要通过 `bun run typecheck` 与 `bun test`。"
+    "id": "CC007",
+    "status": "pending",
+    "task_description": "Add `--disable-slash-commands` parity: wire CLI flag through to REPL and toolset so slash commands are fully disabled (parsing, UI suggestions, SlashCommandTool), and ensure stream-json init messages expose `slash_commands` only when enabled; add tests.",
+    "requirements": "Use CC001 findings and official `disableSlashCommands` behavior (passed into the REPL component). Ensure disabling does not affect non-slash tool calls or print mode."
   },
   {
-    "id": "task-008",
-    "status": "success",
-    "task_description": "交互 UI：改进等待模型响应时的状态呈现（例如更清晰的“正在思考/正在调用工具/正在流式输出”提示），并评估是否需要更“朴素”的显示模式；对比并吸收上游实现的关键交互细节但避免引入不必要复杂度。",
-    "requirements": "完成 task-006；需要在交互层（Ink 组件）中完成改动；需要通过 `bun run typecheck` 与 `bun test`。"
+    "id": "CC008",
+    "status": "pending",
+    "task_description": "Implement MCP permission wildcard `mcp__server__*` like Claude Code v2.0.75: allow/deny/ask rules can match all tools from a specific MCP server while preserving exact tool matching; add unit tests for matching and persistence.",
+    "requirements": "Derive the expected rule format from official changelog entry and CLI behavior (CC001). Update Kode permission matching without changing existing stored rule strings."
   },
   {
-    "id": "task-009",
-    "status": "success",
-    "task_description": "TODO UI：审查并修复当前 TODO 默认渲染位置与交互体验（例如总在最底部、刷新时机等），对齐更符合用户预期的展示位置与更新策略，并确保不会影响工具调用输出流。",
-    "requirements": "完成 task-008；需要通过 `bun run typecheck` 与 `bun test`。"
+    "id": "CC009",
+    "status": "pending",
+    "task_description": "Implement Claude Code hooks (minimal but useful parity): load `hooks` config from `.claude/settings.json`, support `PreToolUse` command hooks (`type: command`) with stdin JSON payload and official exit-code semantics (0 allow, 2 block + show stderr to model, 1 warn user-only); integrate into tool execution pipeline (at least Bash, FileWrite, FileEdit); add tests.",
+    "requirements": "Use CC001 findings and official hook behavior (reference `examples/hooks/bash_command_validator_example.py` in the Claude Code repo and hook runner behavior in `cli.js`). Ensure hooks do not block yolo/script runs unless they explicitly exit 2."
   },
   {
-    "id": "task-010",
-    "status": "success",
-    "task_description": "输入框特性对齐：完善文本粘贴/多行粘贴/多文件路径粘贴的处理与占位符行为；完善图片粘贴、多图片粘贴与发送、以及多轮图片交互时的消息状态维护；补齐相关协议层消息封装与 UI 回显的一致性。",
-    "requirements": "完成 task-008；需要在输入组件与消息归一化/网络请求层完成改动；需要通过 `bun run typecheck` 与 `bun test`。"
+    "id": "CC010",
+    "status": "pending",
+    "task_description": "Add the Claude Code LSP tool (best-effort parity): implement `Lsp` tool with official schema and formatted output; enable when a backend is available (TypeScript language service via project deps); implement at least goToDefinition/findReferences/hover/documentSymbol; add tests for schema validation + formatting + enabling logic.",
+    "requirements": "Use CC001 findings and official LSP tool schema/prompt in `cli.js` (search for `isLsp` / `goToDefinition`). Keep the tool disabled when no backend is available, matching Claude Code’s conditional enabling."
   },
   {
-    "id": "task-011",
-    "status": "success",
-    "task_description": "系统级 sandbox：调研并对齐现有实现缺口，优先补齐可落地的部分（例如 Linux 上的隔离执行、网络/文件访问策略落地），并对 macOS/Windows 的系统能力给出可执行的实现方案（可先以可选开关方式集成）；同时评估 all-in-bun 的收益/折中并形成结论与建议。",
-    "requirements": "完成 task-003；需要输出设计与落地改动（至少包含可选开关与默认安全行为）；需要通过 `bun run typecheck` 与 `bun test`。"
+    "id": "CC011",
+    "status": "pending",
+    "task_description": "Final parity sweep + validation: update `claude_code_parity_audit.md` to reflect Claude Code v2.0.75 truth-source, add any missing regression tests uncovered by CC001–CC010, and run `bun test`, `bun run typecheck`, and `bun run build` to ensure no regressions.",
+    "requirements": "All previous tasks CC001–CC010 completed and status set to success. Ensure the final report cites concrete filepaths/flags and that all validations pass locally."
   },
   {
-    "id": "task-012",
+    "id": "BR001",
     "status": "success",
-    "task_description": "更新用户文档（英文与中文 README）：提供清晰引导（MCP 注册示例、审批机制、常见排障、模型指针/自动压缩/快捷键、粘贴与图片交互、sandbox 开关与限制），并确保措辞中不出现多余的“claude code/参考某 CLI”等表述。",
-    "requirements": "完成 task-001 到 task-011；需要同时更新 `README.md` 与 `README.zh-CN.md`；需要通过 `bun run typecheck` 与 `bun test`。"
+    "task_description": "Rebrand user-facing strings and prompts: replace visible mentions of \"Claude Code\"/\"Anthropic\"/\"Anthropic account\" (help text, UI copy, tool prompts, co-author footer) with \"Kode Agent\" and \"ShareAI Lab\"; remove or replace external links pointing to anthropic.com that are not required for core model API usage.",
+    "requirements": "Audit user-visible strings in `src/components/**`, `src/commands/**`, and `src/tools/**/prompt.ts`. Ensure behavior stays identical (only text/links change) and run `bun run typecheck` + a small targeted test subset."
+  },
+  {
+    "id": "BR002",
+    "status": "success",
+    "task_description": "Remove telemetry/feedback code paths that could send data to Anthropic: delete dead/commented-out HTTP calls to anthropic endpoints, remove any analytics hooks that transmit events off-box, and ensure any remaining logging is strictly local-file or no-op.",
+    "requirements": "Search for `api.anthropic.com`, `anthropic.com`, `claude_cli_feedback`, `telemetry`, `statsig`, and HTTP POSTs in `src/**`. Keep model-provider API calls intact; only remove non-essential reporting/telemetry. Run `bun run typecheck`."
+  },
+  {
+    "id": "BR003",
+    "status": "success",
+    "task_description": "Rename Claude-Code-branded protocol modules: migrate `src/utils/claudeCodeStructuredStdio.ts`, `src/utils/claudeCodeStreamJson*.ts`, and related imports/tests to neutral Kode naming (e.g. `kodeAgentStructuredStdio`, `kodeAgentStreamJson*`) while preserving exact runtime behavior and CLI flags.",
+    "requirements": "BR001 completed. Update all imports in `src/**` and `src/test/**` and keep output schema unchanged. Run `bun test` for affected unit tests + `bun run typecheck`."
+  },
+  {
+    "id": "BR004",
+    "status": "success",
+    "task_description": "Rename session persistence utilities to remove Claude/ClaudeCode naming: migrate `claudeCodeSessionId`, `claudeCodeSessionLoad`, `claudeCodeSessionLog` and any `sanitizeClaudeProjectName` helpers to Kode-neutral naming; update imports/tests without changing persisted JSONL format.",
+    "requirements": "BR003 completed. Preserve on-disk layout and schema for backwards compatibility. Run `bun test` for session JSONL tests + `bun run typecheck`."
+  },
+  {
+    "id": "BR005",
+    "status": "success",
+    "task_description": "Rename remaining Claude-branded helpers/modules (e.g. `claudeSandbox`, `claudePlanSlugWords`, `claudeToolUseJson`) and scrub internal identifiers where safe; keep behavior identical.",
+    "requirements": "BR004 completed. Update any references in `src/**` and relevant tests. Run `bun run typecheck`."
+  },
+  {
+    "id": "BR006",
+    "status": "success",
+    "task_description": "Scrub repository text: remove \"Claude Code parity\" wording from code comments/tests/docs and replace with neutral language (e.g. \"reference CLI parity\" / \"protocol parity\"), and rename test descriptions/files where they leak upstream branding; keep assertions/semantics unchanged.",
+    "requirements": "BR005 completed. Use `rg` to locate remaining references and update without touching functional logic. Run `bun test` for any renamed test files + `bun run typecheck`."
+  },
+  {
+    "id": "REPO001",
+    "status": "success",
+    "task_description": "Create a clean baseline commit before the large refactor: ensure `bun test`, `bun run typecheck`, and `bun run build` pass; then commit all currently intended tracked changes (exclude local temp dirs).",
+    "requirements": "Working tree contains many uncommitted changes from previous parity and rebrand work; confirm repo still builds/tests before committing. If failures exist, fix only what is needed to restore green."
+  },
+  {
+    "id": "REPO002",
+    "status": "pending",
+    "task_description": "Repository cleanup & hygiene pass: remove obvious local artifacts (e.g. .DS_Store, .tmp*, temp_code, large scratch files), move any valuable notes into `docs/` with neutral names, and tighten `.gitignore` so these do not reappear; ensure no core functionality is affected.",
+    "requirements": "REPO001 success. Do not delete files that are referenced by build/runtime unless first migrated. Validate with `bun run build` after cleanup."
+  },
+  {
+    "id": "REPO003",
+    "status": "pending",
+    "task_description": "Bump package versioning to 2.0.0: update `package.json` (and any docs/automation that reference versions) and ensure publish scripts/workflows can produce both stable and dev prerelease versions from this baseline.",
+    "requirements": "REPO001 success. Identify every place that assumes the old version scheme (scripts, workflows, docs)."
+  },
+  {
+    "id": "BIN001",
+    "status": "pending",
+    "task_description": "All-in-Bun binary build: add a Bun-powered build target that produces a single-file executable per platform via `bun build --compile` (macOS/Linux/Windows), with a deterministic output layout under `dist/bin/` and a `bun run build:binary` script.",
+    "requirements": "REPO001 success. Must not break the existing `cli.js` wrapper distribution; binary build is additive."
+  },
+  {
+    "id": "BIN002",
+    "status": "pending",
+    "task_description": "NPM + binary distribution strategy (Windows OOTB): implement an install/runtime path that prefers the native binary (no WSL/Git Bash required) while preserving current JS wrapper behavior as fallback; document the policy and failure modes (offline install, no permissions).",
+    "requirements": "BIN001 success. Decide between (A) postinstall download from GitHub Releases with cache, or (B) optionalDependencies per-platform packages; implement the chosen approach with tests."
+  },
+  {
+    "id": "CI001",
+    "status": "pending",
+    "task_description": "CI modernization (all-in-bun): replace/update GitHub Actions to run `bun install`, `bun run format:check`, `bun run typecheck`, `bun test`, and `bun run build` on pull requests and main pushes across macOS/Linux/Windows; remove Node-18/pnpm assumptions that conflict with the repo engines.",
+    "requirements": "REPO001 success. Keep workflows minimal and fast; ensure Windows runners work without extra shell dependencies."
+  },
+  {
+    "id": "REL001",
+    "status": "pending",
+    "task_description": "Dev releases on main: add GitHub Actions that on each main update builds binaries (matrix) and publishes an npm `dev` dist-tag prerelease; attach binaries to a GitHub prerelease artifact set; document required secrets (e.g. NPM_TOKEN).",
+    "requirements": "CI001 success and BIN001 success. Versioning must avoid collisions; publishing must be fully non-interactive."
+  },
+  {
+    "id": "REL002",
+    "status": "pending",
+    "task_description": "Stable releases on tags: add GitHub Actions that on `v*` tags builds binaries (matrix), creates GitHub Releases with checksums, and publishes npm `latest`; ensure reproducible artifacts and clear release notes policy.",
+    "requirements": "CI001 success and BIN001 success and REPO003 success. Tag format must be documented and validated."
+  },
+  {
+    "id": "HOOK001",
+    "status": "pending",
+    "task_description": "Developer workflow enforcement: ensure local hooks (husky) and CI together provide consistent gating (format/typecheck/tests) without breaking contributors; document how to bypass locally vs CI enforcement policy.",
+    "requirements": "CI001 success. Hooks must remain fast; do not require extra global tooling beyond bun."
+  },
+  {
+    "id": "DOC001",
+    "status": "pending",
+    "task_description": "Documentation refresh for 2.0: update README(s) and docs to describe Windows/macOS/Linux installation (npm and binary), dev vs stable channels, required env vars/keys, and troubleshooting; remove outdated shell/WSL guidance.",
+    "requirements": "REPO003 success and BIN002 success and CI001 success. Ensure docs match the actual release automation."
+  },
+  {
+    "id": "TEST001",
+    "status": "pending",
+    "task_description": "Testing expansion & stabilization: add/adjust unit/integration/e2e tests for the binary selection/installation logic and the most critical CLI flows; run the full suite and fix any regressions discovered (or adjust expectations if they were wrong).",
+    "requirements": "BIN002 success and CI001 success. Do not add a new test framework; extend the existing `bun test` setup."
   }
 ]
