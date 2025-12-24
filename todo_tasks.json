@@ -31,37 +31,37 @@
   },
   {
     "id": "CC006",
-    "status": "pending",
+    "status": "success",
     "task_description": "Bring Kode resume UX to Claude Code parity: migrate `/resume` UI (and `kode --resume`) to list Claude Code sessions from JSONL (including custom titles/tags/summaries), support resume by UUID or by exact session name, support `--resume` with no value opening the selector, and show an explicit “different directory” message when resuming from another cwd; add tests for session discovery + selection.",
     "requirements": "CC004 and CC005 completed. Follow official logic (project dir sanitization, list+sort jsonl files, customTitle search, fork-session semantics) as derived in CC001."
   },
   {
     "id": "CC007",
-    "status": "pending",
+    "status": "success",
     "task_description": "Add `--disable-slash-commands` parity: wire CLI flag through to REPL and toolset so slash commands are fully disabled (parsing, UI suggestions, SlashCommandTool), and ensure stream-json init messages expose `slash_commands` only when enabled; add tests.",
     "requirements": "Use CC001 findings and official `disableSlashCommands` behavior (passed into the REPL component). Ensure disabling does not affect non-slash tool calls or print mode."
   },
   {
     "id": "CC008",
-    "status": "pending",
+    "status": "success",
     "task_description": "Implement MCP permission wildcard `mcp__server__*` like Claude Code v2.0.75: allow/deny/ask rules can match all tools from a specific MCP server while preserving exact tool matching; add unit tests for matching and persistence.",
     "requirements": "Derive the expected rule format from official changelog entry and CLI behavior (CC001). Update Kode permission matching without changing existing stored rule strings."
   },
   {
     "id": "CC009",
-    "status": "pending",
+    "status": "success",
     "task_description": "Implement Claude Code hooks (minimal but useful parity): load `hooks` config from `.claude/settings.json`, support `PreToolUse` command hooks (`type: command`) with stdin JSON payload and official exit-code semantics (0 allow, 2 block + show stderr to model, 1 warn user-only); integrate into tool execution pipeline (at least Bash, FileWrite, FileEdit); add tests.",
     "requirements": "Use CC001 findings and official hook behavior (reference `examples/hooks/bash_command_validator_example.py` in the Claude Code repo and hook runner behavior in `cli.js`). Ensure hooks do not block yolo/script runs unless they explicitly exit 2."
   },
   {
     "id": "CC010",
-    "status": "pending",
+    "status": "success",
     "task_description": "Add the Claude Code LSP tool (best-effort parity): implement `Lsp` tool with official schema and formatted output; enable when a backend is available (TypeScript language service via project deps); implement at least goToDefinition/findReferences/hover/documentSymbol; add tests for schema validation + formatting + enabling logic.",
     "requirements": "Use CC001 findings and official LSP tool schema/prompt in `cli.js` (search for `isLsp` / `goToDefinition`). Keep the tool disabled when no backend is available, matching Claude Code’s conditional enabling."
   },
   {
     "id": "CC011",
-    "status": "pending",
+    "status": "success",
     "task_description": "Final parity sweep + validation: update `claude_code_parity_audit.md` to reflect Claude Code v2.0.75 truth-source, add any missing regression tests uncovered by CC001–CC010, and run `bun test`, `bun run typecheck`, and `bun run build` to ensure no regressions.",
     "requirements": "All previous tasks CC001–CC010 completed and status set to success. Ensure the final report cites concrete filepaths/flags and that all validations pass locally."
   },
@@ -109,62 +109,200 @@
   },
   {
     "id": "REPO002",
-    "status": "pending",
+    "status": "success",
     "task_description": "Repository cleanup & hygiene pass: remove obvious local artifacts (e.g. .DS_Store, .tmp*, temp_code, large scratch files), move any valuable notes into `docs/` with neutral names, and tighten `.gitignore` so these do not reappear; ensure no core functionality is affected.",
     "requirements": "REPO001 success. Do not delete files that are referenced by build/runtime unless first migrated. Validate with `bun run build` after cleanup."
   },
   {
     "id": "REPO003",
-    "status": "pending",
+    "status": "success",
     "task_description": "Bump package versioning to 2.0.0: update `package.json` (and any docs/automation that reference versions) and ensure publish scripts/workflows can produce both stable and dev prerelease versions from this baseline.",
     "requirements": "REPO001 success. Identify every place that assumes the old version scheme (scripts, workflows, docs)."
   },
   {
     "id": "BIN001",
-    "status": "pending",
+    "status": "success",
     "task_description": "All-in-Bun binary build: add a Bun-powered build target that produces a single-file executable per platform via `bun build --compile` (macOS/Linux/Windows), with a deterministic output layout under `dist/bin/` and a `bun run build:binary` script.",
     "requirements": "REPO001 success. Must not break the existing `cli.js` wrapper distribution; binary build is additive."
   },
   {
     "id": "BIN002",
-    "status": "pending",
+    "status": "success",
     "task_description": "NPM + binary distribution strategy (Windows OOTB): implement an install/runtime path that prefers the native binary (no WSL/Git Bash required) while preserving current JS wrapper behavior as fallback; document the policy and failure modes (offline install, no permissions).",
     "requirements": "BIN001 success. Decide between (A) postinstall download from GitHub Releases with cache, or (B) optionalDependencies per-platform packages; implement the chosen approach with tests."
   },
   {
     "id": "CI001",
-    "status": "pending",
+    "status": "success",
     "task_description": "CI modernization (all-in-bun): replace/update GitHub Actions to run `bun install`, `bun run format:check`, `bun run typecheck`, `bun test`, and `bun run build` on pull requests and main pushes across macOS/Linux/Windows; remove Node-18/pnpm assumptions that conflict with the repo engines.",
     "requirements": "REPO001 success. Keep workflows minimal and fast; ensure Windows runners work without extra shell dependencies."
   },
   {
     "id": "REL001",
-    "status": "pending",
+    "status": "success",
     "task_description": "Dev releases on main: add GitHub Actions that on each main update builds binaries (matrix) and publishes an npm `dev` dist-tag prerelease; attach binaries to a GitHub prerelease artifact set; document required secrets (e.g. NPM_TOKEN).",
     "requirements": "CI001 success and BIN001 success. Versioning must avoid collisions; publishing must be fully non-interactive."
   },
   {
     "id": "REL002",
-    "status": "pending",
+    "status": "success",
     "task_description": "Stable releases on tags: add GitHub Actions that on `v*` tags builds binaries (matrix), creates GitHub Releases with checksums, and publishes npm `latest`; ensure reproducible artifacts and clear release notes policy.",
     "requirements": "CI001 success and BIN001 success and REPO003 success. Tag format must be documented and validated."
   },
   {
     "id": "HOOK001",
-    "status": "pending",
+    "status": "success",
     "task_description": "Developer workflow enforcement: ensure local hooks (husky) and CI together provide consistent gating (format/typecheck/tests) without breaking contributors; document how to bypass locally vs CI enforcement policy.",
     "requirements": "CI001 success. Hooks must remain fast; do not require extra global tooling beyond bun."
   },
   {
     "id": "DOC001",
-    "status": "pending",
+    "status": "success",
     "task_description": "Documentation refresh for 2.0: update README(s) and docs to describe Windows/macOS/Linux installation (npm and binary), dev vs stable channels, required env vars/keys, and troubleshooting; remove outdated shell/WSL guidance.",
     "requirements": "REPO003 success and BIN002 success and CI001 success. Ensure docs match the actual release automation."
   },
   {
     "id": "TEST001",
-    "status": "pending",
+    "status": "success",
     "task_description": "Testing expansion & stabilization: add/adjust unit/integration/e2e tests for the binary selection/installation logic and the most critical CLI flows; run the full suite and fix any regressions discovered (or adjust expectations if they were wrong).",
     "requirements": "BIN002 success and CI001 success. Do not add a new test framework; extend the existing `bun test` setup."
+  },
+  {
+    "id": "PLUGMARKET001",
+    "status": "success",
+    "task_description": "Marketplace compatibility: update marketplace manifest parsing/validation to accept the official Claude Plugins marketplace format (extra top-level fields like description/$schema, richer plugin entries like version/author/category/homepage/lspServers/mcpServers). Preserve strict validation of path safety, but allow unknown fields via passthrough. Add unit tests that validate parsing and path checks with an 'official-shaped' fixture.",
+    "requirements": "Study the official marketplace example at `/Users/baicai/Desktop/MyT/Kode/pr/cc_official/claude-plugins-official-main/.claude-plugin/marketplace.json` and keep backwards compatibility with current marketplaces. Update `src/services/skillMarketplace.ts` `MarketplaceManifestSchema` and `src/services/pluginValidation.ts` accordingly."
+  },
+  {
+    "id": "PLUGINSTALL001",
+    "status": "success",
+    "task_description": "Full plugin pack install/runtime: extend `/plugin install|uninstall|enable|disable` so marketplace plugins that have a real plugin root (e.g. `.claude-plugin/plugin.json`) are installed as full plugin directories (including hooks/agents/mcp/output-styles), not just copied skills/commands. Load enabled installed plugins automatically at startup (and merge with `--plugin-dir` session plugins) without breaking existing skill-pack installs. Add unit tests using a fixture plugin pack.",
+    "requirements": "PLUGMARKET001 success. Reuse the existing session plugin loader in `src/services/pluginRuntime.ts` and keep current `installSkillPlugin` behavior for marketplaces that only declare skills/commands."
+  },
+  {
+    "id": "HOOKPROMPT001",
+    "status": "success",
+    "task_description": "Hooks parity upgrade: implement prompt-based hooks (`type: prompt`) and JSON stdout semantics for command hooks across key events (at minimum PreToolUse, PostToolUse, Stop, SubagentStop, UserPromptSubmit, SessionEnd). Ensure hook outputs can: deny/allow/ask tool use, update tool input, block stop, and inject systemMessage/additionalContext. Add unit tests that cover JSON decisions and that the official `hookify` plugin can block/allow based on its JSON outputs.",
+    "requirements": "PLUGINSTALL001 success. Use the hook spec in `/Users/baicai/Desktop/MyT/Kode/pr/cc_official/claude-plugins-official-main/plugins/plugin-dev/skills/hook-development/SKILL.md` and align behavior with the official `cli.js` hook runner. Keep safe mode behavior conservative."
+  },
+  {
+    "id": "MCPPLUG001",
+    "status": "success",
+    "task_description": "Plugin MCP integration: load MCP server definitions from plugin `.mcp.json` and `plugin.json` `mcpServers`, expand `${CLAUDE_PLUGIN_ROOT}` and env vars, and register tools under official-style namespacing (`mcp__plugin_<plugin>_<server>__<tool>`). Ensure `/mcp` shows plugin servers, permission rules support wildcards, and servers are started/connected on demand. Add unit tests with a fixture plugin `.mcp.json`.",
+    "requirements": "PLUGINSTALL001 success. Follow the official plugin MCP guidance in `/Users/baicai/Desktop/MyT/Kode/pr/cc_official/claude-plugins-official-main/plugins/plugin-dev/skills/mcp-integration/SKILL.md` and keep cross-platform behavior (Windows OOTB)."
+  },
+  {
+    "id": "OUTPUTSTYLE001",
+    "status": "success",
+    "task_description": "Slash command parity: implement `/output-style` (menu + direct set + inline help) and persist `outputStyle` in local settings. Ensure output style influences the system prompt in a way compatible with the official CLI guidance (even though styles are deprecated), and document how plugins can replace output styles. Add unit tests for command parsing and settings persistence.",
+    "requirements": "PLUGINSTALL001 success. Mirror official `/output-style` behavior from `/Users/baicai/Desktop/MyT/Kode/pr/cc_official/claude-code-main 2/node_modules/@anthropic-ai/claude-code/cli.js` (search `/output-style`)."
+  },
+  {
+    "id": "STATUSLINE001",
+    "status": "success",
+    "task_description": "Slash command parity: implement `/statusline` using a built-in `statusline-setup` agent (TaskTool subagent) to edit the user's settings and store a status line command, matching the official non-interactive gating. Add unit tests for command wiring and ensure the status line appears in the UI/status bar consistently across platforms.",
+    "requirements": "OUTPUTSTYLE001 success. Mirror official `/statusline` behavior (see `cli.js` around the built-in agentType `statusline-setup`) and keep `.claude/settings.json` + `.kode` compatibility."
+  },
+  {
+    "id": "BRAND001",
+    "status": "success",
+    "task_description": "Rebrand and de-Claude the codebase: remove/replace user-facing references to \"Claude Code\" / Anthropic-maintained phrasing in prompts, UI strings, docs, and filenames where feasible; keep provider/model support intact, but make Kode the primary branding everywhere.",
+    "requirements": "None. Keep runtime behavior unchanged; update tests and docs as needed."
+  },
+  {
+    "id": "DIR001",
+    "status": "success",
+    "task_description": "Make `.kode` the primary config/settings storage location: read `.kode` first and treat `.claude` as legacy compatibility; update all settings read/write paths (project/local/user) so writes go to `.kode` (and optionally sync legacy `.claude` only when needed for compatibility). Include safe one-time migration (copy) from legacy `.claude` to `.kode` when `.kode` is missing.",
+    "requirements": "BRAND001 to_review (so naming/doc changes don’t fight storage refactors)."
+  },
+  {
+    "id": "PLUGIN001",
+    "status": "success",
+    "task_description": "Add `.kode-plugin` support for plugin packs/marketplaces/manifests: prefer `.kode-plugin/plugin.json` and `.kode-plugin/marketplace.json`, but keep `.claude-plugin/*` as legacy-compatible fallback. Update plugin runtime loading, marketplace install/validation, and related docs/tests.",
+    "requirements": "DIR001 success (needs finalized settings/legacy-path helpers)."
+  },
+  {
+    "id": "RENAME001",
+    "status": "success",
+    "task_description": "Rename internal source files/modules that include `claude`/`claude-code` in filenames or exported symbol names to `kode`/neutral names, updating imports/exports and documentation references to reduce Claude Code traces without breaking functionality.",
+    "requirements": "PLUGIN001 success (avoid churn while plugin-path support is being updated)."
+  },
+  {
+    "id": "TELEM001",
+    "status": "success",
+    "task_description": "Audit and remove any telemetry/reporting logic that could send non-essential data to Anthropic (or any third party) beyond explicit model API requests. Ensure the CLI runs without hidden telemetry; update docs to clearly state what network calls occur.",
+    "requirements": "RENAME001 to_review (so any file moves are stabilized before auditing)."
+  },
+  {
+    "id": "AGENTS001",
+    "status": "success",
+    "task_description": "Remove `KODE.md` project-instruction support and enforce `AGENTS.md` as the single canonical instruction file; keep legacy compatibility reading `CLAUDE.md` when present, but do not create new proprietary instruction files. Update any code paths that write or reference `KODE.md` (hash command, comments, context builder).",
+    "requirements": "None. Must not break existing CLI behavior; only change instruction-file discovery and writing behavior."
+  },
+  {
+    "id": "AGENTS002",
+    "status": "success",
+    "task_description": "Align AGENTS.md discovery with Codex semantics: find git repo root; read and concatenate project instructions from git root → current working directory; in each directory prefer `AGENTS.override.md` over `AGENTS.md`; enforce a total size cap (default 32KiB) and deterministic ordering.",
+    "requirements": "AGENTS001 success (so there is no `KODE.md` branch to accidentally keep)."
+  },
+  {
+    "id": "AGENTS003",
+    "status": "success",
+    "task_description": "Document AGENTS.md behavior and best practices: explain search/merge order (git root → cwd), override file (`AGENTS.override.md`), legacy compatibility (`CLAUDE.md`, `.claude` read-only), and how this aligns with the AGENTS.md ecosystem. Update `README.md` and `README.zh-CN.md` plus any internal docs that mention `KODE.md`.",
+    "requirements": "AGENTS002 success (docs must match actual behavior)."
+  },
+  {
+    "id": "AGENTS004",
+    "status": "success",
+    "task_description": "Add unit tests for AGENTS.md discovery and composition: cover git-root boundary, root+subdir stacking, override precedence, size-cap truncation behavior, and legacy `CLAUDE.md` fallback. Ensure tests run on macOS/Linux/Windows paths.",
+    "requirements": "AGENTS002 success (tests must target the new implementation)."
+  },
+  {
+    "id": "DOCS001",
+    "status": "success",
+    "task_description": "Prune low-value/temporary documentation: remove one-off analysis notes, scratch plans, and terminal/tab behavior test writeups from `docs/` that are not part of user/developer documentation. Ensure no broken references remain.",
+    "requirements": "None. Must not remove core docs (install, config, security, sandbox, MCP, skills, distribution)."
+  },
+  {
+    "id": "DOCS002",
+    "status": "success",
+    "task_description": "Reorganize remaining documentation into an explicit, minimal structure: add `docs/README.md` index, group docs under stable categories (user, develop, reference), and update README links accordingly without changing runtime behavior.",
+    "requirements": "DOCS001 success."
+  },
+  {
+    "id": "SRC001",
+    "status": "success",
+    "task_description": "Refactor `src/` module layout into a cleaner, more discoverable structure (entrypoints, screens, tools, services, utils, commands), minimizing churn while preserving public APIs and behavior. Update imports/paths and keep tests passing.",
+    "requirements": "DOCS002 success."
+  },
+  {
+    "id": "SRC002",
+    "status": "success",
+    "task_description": "Modularize `src/components/ModelSelector.tsx`: extract reusable subcomponents/hooks into a `src/components/ModelSelector/` folder, fix confusing import ordering (no mid-file imports), and keep the exported `ModelSelector` API/behavior unchanged. Reduce file size and improve readability without changing UX.",
+    "requirements": "SRC001 success. Must keep all existing flows working (onboarding, pointer targeting, provider setup)."
+  },
+  {
+    "id": "SRC003",
+    "status": "success",
+    "task_description": "Modularize `src/commands/agents.tsx`: split the large agent-management command into smaller modules (`ui`, `storage`, `generation`, `tooling`) while preserving CLI behavior. Ensure `.kode` is the primary agent storage location and `.claude` remains legacy-compatible.",
+    "requirements": "SRC002 success (so shared UI patterns can be reused)."
+  },
+  {
+    "id": "SRC004",
+    "status": "success",
+    "task_description": "Modularize `src/entrypoints/cli.tsx` (bootstrap): extract early startup logic (env/packaged detection, yoga wasm resolution, onboarding/trust setup, init helpers) into `src/entrypoints/cli/` modules and keep `src/entrypoints/cli.tsx` as a small orchestrator.",
+    "requirements": "SRC003 success. Must not change CLI flags, print-mode protocols, or startup behavior."
+  },
+  {
+    "id": "SRC005",
+    "status": "success",
+    "task_description": "Modularize `src/entrypoints/cli.tsx` (print/stdio): extract stream-json, structured stdio control loop, and print-mode handling into dedicated modules under `src/entrypoints/cli/`, keeping message ordering and protocol parity unchanged.",
+    "requirements": "SRC004 success."
+  },
+  {
+    "id": "SRC006",
+    "status": "success",
+    "task_description": "Reduce complexity of `src/hooks/useUnifiedCompletion.ts`: extract pure helpers (context parsing, scoring, suggestion generation) into `src/utils/completion/` modules and leave the hook focused on state+Ink input wiring. Keep completion UX identical.",
+    "requirements": "SRC005 success."
   }
 ]

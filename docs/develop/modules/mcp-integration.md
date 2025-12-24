@@ -821,15 +821,15 @@ class MCPErrorRecovery {
 
 ## Integration Examples
 
-### Claude Desktop Import
+### Desktop Config Import
 
 ```typescript
-class ClaudeDesktopImporter {
+class DesktopConfigImporter {
   async importServers(): Promise<ImportResult> {
-    const configPath = this.getClaudeDesktopConfigPath()
+    const configPath = this.getDesktopConfigPath()
     
     if (!existsSync(configPath)) {
-      throw new Error('Claude Desktop configuration not found')
+      throw new Error('Desktop MCP host configuration not found')
     }
     
     const config = JSON.parse(

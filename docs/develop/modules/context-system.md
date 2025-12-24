@@ -57,9 +57,9 @@ interface CompleteContext {
   dependencies?: Dependencies
   
   // Documentation
-  contextFile?: string      // AGENTS.md content
-  claudeFile?: string       // CLAUDE.md content
-  readmeContent?: string    // README.md content
+  instructionFilesNote?: string // Discovered instruction files (paths)
+  projectDocs?: string          // Project instruction docs (AGENTS.md stack + legacy CLAUDE.md)
+  readme?: string              // README.md content
   
   // System information
   platform?: string
@@ -192,141 +192,25 @@ class ProjectAnalyzer {
 
 ## Context Files
 
-### AGENTS.md
+### Project Instructions (AGENTS.md)
 
-```typescript
-class ContextFileLoader {
-  private readonly CONTEXT_PATHS = [
-    'AGENTS.md',
-    '.claude/AGENTS.md',
-    'docs/AGENTS.md',
-    '.github/AGENTS.md'
-  ]
-  
-  async loadContextFile(): Promise<string | null> {
-    for (const path of this.CONTEXT_PATHS) {
-      const fullPath = join(getCwd(), path)
-      
-      if (existsSync(fullPath)) {
-        try {
-          const content = await fs.readFile(fullPath, 'utf-8')
-          return this.processContextFile(content)
-        } catch (error) {
-          console.warn(`Failed to read ${path}:`, error)
-        }
-      }
-    }
-    
-    return null
-  }
-  
-  private processContextFile(content: string): string {
-    // Process includes
-    content = this.processIncludes(content)
-    
-    // Process variables
-    content = this.processVariables(content)
-    
-    // Process conditionals
-    content = this.processConditionals(content)
-    
-    return content
-  }
-  
-  private processIncludes(content: string): string {
-    const INCLUDE_REGEX = /<!-- include: (.+) -->/g
-    
-    return content.replace(INCLUDE_REGEX, (match, filePath) => {
-      try {
-        const fullPath = join(getCwd(), filePath.trim())
-        if (existsSync(fullPath)) {
-          return readFileSync(fullPath, 'utf-8')
-        }
-      } catch (error) {
-        console.warn(`Failed to include ${filePath}:`, error)
-      }
-      return match
-    })
-  }
-  
-  private processVariables(content: string): string {
-    const variables = {
-      PROJECT_NAME: this.getProjectName(),
-      CWD: getCwd(),
-      DATE: new Date().toISOString(),
-      GIT_BRANCH: this.getCurrentBranch(),
-      NODE_VERSION: process.version
-    }
-    
-    return content.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-      return variables[key] || match
-    })
-  }
-}
-```
+Kode uses the AGENTS.md ecosystem standard as the canonical way to provide project instructions to coding agents.
 
-### CLAUDE.md
+Discovery rules (Codex-compatible):
 
-```typescript
-class ClaudeFileLoader {
-  private readonly CLAUDE_PATHS = [
-    'CLAUDE.md',
-    '.claude/CLAUDE.md'
-  ]
-  
-  private readonly GLOBAL_CLAUDE_PATH = join(homedir(), '.claude', 'CLAUDE.md')
-  
-  async loadClaudeFile(): Promise<ClaudeFileContent> {
-    const [projectFile, globalFile] = await Promise.all([
-      this.loadProjectClaudeFile(),
-      this.loadGlobalClaudeFile()
-    ])
-    
-    return {
-      project: projectFile,
-      global: globalFile,
-      merged: this.mergeClaudeFiles(projectFile, globalFile)
-    }
-  }
-  
-  private async loadProjectClaudeFile(): Promise<string | null> {
-    for (const path of this.CLAUDE_PATHS) {
-      const fullPath = join(getCwd(), path)
-      
-      if (existsSync(fullPath)) {
-        return fs.readFile(fullPath, 'utf-8')
-      }
-    }
-    
-    return null
-  }
-  
-  private async loadGlobalClaudeFile(): Promise<string | null> {
-    if (existsSync(this.GLOBAL_CLAUDE_PATH)) {
-      return fs.readFile(this.GLOBAL_CLAUDE_PATH, 'utf-8')
-    }
-    
-    return null
-  }
-  
-  private mergeClaudeFiles(
-    project: string | null,
-    global: string | null
-  ): string {
-    const parts: string[] = []
-    
-    if (global) {
-      parts.push('# Global Instructions\n\n' + global)
-    }
-    
-    if (project) {
-      parts.push('# Project Instructions\n\n' + project)
-    }
-    
-    return parts.join('\n\n---\n\n')
-  }
-}
-```
+1. Determine the Git repository root by walking upward from `cwd` until a `.git` directory or file is found. If no Git root is found, only `cwd` is considered.
+2. For each directory from git root → `cwd` (inclusive), include at most one file:
+   - Prefer `AGENTS.override.md`
+   - Otherwise use `AGENTS.md`
+3. Concatenate the discovered files from root → leaf and enforce a combined size limit (default: 32 KiB). Override with `KODE_PROJECT_DOC_MAX_BYTES`.
+
+Implementation:
+- Discovery + concatenation: `src/utils/projectInstructions.ts`
+- Injection: `src/context.ts` (`projectDocs`, `instructionFilesNote`)
+
+### Legacy Instructions (CLAUDE.md)
+
+If a `CLAUDE.md` file exists in `cwd`, Kode reads it as a legacy instruction file for Claude Code-compatible projects and appends it after the AGENTS.md stack.
 
 ## Directory Structure Analysis
 

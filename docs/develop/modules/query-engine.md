@@ -482,10 +482,7 @@ interface QueryMetrics {
 }
 
 function trackQuery(metrics: QueryMetrics): void {
-  // Log to analytics
-  analytics.track('query_completed', metrics)
-  
-  // Update cost tracking
+  // Local-only: update cost tracking and optionally log performance diagnostics
   updateCostTracking(metrics.tokensUsed, metrics.modelUsed)
   
   // Performance monitoring
