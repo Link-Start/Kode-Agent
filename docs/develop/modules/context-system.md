@@ -210,7 +210,7 @@ Implementation:
 
 ### Legacy Instructions (CLAUDE.md)
 
-If a `CLAUDE.md` file exists in `cwd`, Kode reads it as a legacy instruction file for Claude Code-compatible projects and appends it after the AGENTS.md stack.
+If a `CLAUDE.md` file exists in `cwd`, Kode reads it as a legacy instruction file (compatibility with `.claude` workflows) and appends it after the AGENTS.md stack.
 
 ## Directory Structure Analysis
 
