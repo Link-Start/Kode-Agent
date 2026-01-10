@@ -36,6 +36,7 @@ export class ModelManager {
 ```
 
 **Key Responsibilities:**
+
 - **Profile Management**: Centralized storage and retrieval of model configurations
 - **Intelligent Selection**: Choose optimal models based on context, cost, and requirements
 - **Context Analysis**: Evaluate conversation context for model compatibility
@@ -49,36 +50,42 @@ Each model profile contains comprehensive configuration for provider integration
 
 ```typescript
 interface ModelProfile {
-  id: string                    // Unique identifier
-  name: string                  // Display name
-  provider: ModelProvider       // Provider type
+  id: string // Unique identifier
+  name: string // Display name
+  provider: ModelProvider // Provider type
   config: {
-    model: string              // API model identifier
-    baseURL?: string           // Custom endpoint override
-    apiKey?: string            // Provider API key
-    maxTokens?: number         // Maximum output tokens
-    temperature?: number       // Sampling temperature
-    topP?: number             // Nucleus sampling
-    topK?: number             // Top-K sampling
-    stopSequences?: string[]   // Stop sequences
-    systemPrompt?: string      // Default system prompt
-    headers?: Record<string, string>  // Custom headers
-    timeout?: number           // Request timeout
+    model: string // API model identifier
+    baseURL?: string // Custom endpoint override
+    apiKey?: string // Provider API key
+    maxTokens?: number // Maximum output tokens
+    temperature?: number // Sampling temperature
+    topP?: number // Nucleus sampling
+    topK?: number // Top-K sampling
+    stopSequences?: string[] // Stop sequences
+    systemPrompt?: string // Default system prompt
+    headers?: Record<string, string> // Custom headers
+    timeout?: number // Request timeout
     retryConfig?: RetryConfig // Retry configuration
   }
+  requestStrategy?:
+    | 'auto'
+    | 'kode'
+    | 'claude_code_headers'
+    | 'claude_code_headers_system'
+    | 'claude_code_full'
   capabilities?: {
-    supportsTools: boolean     // Tool/function calling support
-    supportsVision: boolean    // Image input support
+    supportsTools: boolean // Tool/function calling support
+    supportsVision: boolean // Image input support
     supportsStreaming: boolean // Streaming response support
-    maxContextTokens: number   // Context window size
+    maxContextTokens: number // Context window size
     costPer1kTokens: {
       input: number
       output: number
     }
   }
   metadata?: {
-    description?: string       // Profile description
-    tags?: string[]           // Classification tags
+    description?: string // Profile description
+    tags?: string[] // Classification tags
     createdAt?: Date
     updatedAt?: Date
     usageCount?: number
@@ -86,23 +93,33 @@ interface ModelProfile {
 }
 ```
 
+### Claude Model Compatibility (Request Profiles)
+
+Some Claude‑family gateways/proxies enforce a specific client fingerprint (headers/UA/system prompt/tools) and may reject third‑party clients. Kode keeps default behavior for normal providers and only uses these profiles for Claude models when the provider signals a restriction, or when the user explicitly selects a strategy during model setup. Compatibility prompts intentionally omit Kode‑specific additions (such as Output Styles and permission summaries) to preserve a strict fingerprint.
+
+Code references:
+
+- Fallback plan + classification: `packages/core/src/ai/llm/claudeCodeFallback.ts`
+- Per-request wiring (headers/prompt/tools per fallback step): `packages/core/src/ai/llm.ts:337`
+
 ### Model Pointers
 
 Model pointers enable semantic model selection for different use cases:
 
 ```typescript
 interface ModelPointers {
-  main: string        // Primary conversation model
-  task: string        // Task execution model (fast, efficient)
-  reasoning: string   // Complex reasoning model (powerful)
-  quick: string       // Quick responses (ultra-fast)
-  vision?: string     // Image analysis model
-  code?: string       // Code-specific model
-  [key: string]: string | undefined  // Custom pointers
+  main: string // Primary conversation model
+  task: string // Task execution model (fast, efficient)
+  reasoning: string // Complex reasoning model (powerful)
+  quick: string // Quick responses (ultra-fast)
+  vision?: string // Image analysis model
+  code?: string // Code-specific model
+  [key: string]: string | undefined // Custom pointers
 }
 ```
 
 **Usage Example:**
+
 ```typescript
 // Select model for complex reasoning task
 const reasoningModel = modelManager.resolveModel('reasoning')
@@ -162,14 +179,14 @@ export const MODEL_CAPABILITIES_REGISTRY: Record<string, ModelCapabilities> = {
   'gpt-4o-mini': CHAT_COMPLETIONS_CAPABILITIES,
 
   // O1 series - Special reasoning models
-  'o1': {
+  o1: {
     ...CHAT_COMPLETIONS_CAPABILITIES,
     parameters: {
       ...CHAT_COMPLETIONS_CAPABILITIES.parameters,
       maxTokensField: 'max_completion_tokens',
-      temperatureMode: 'fixed_one'
-    }
-  }
+      temperatureMode: 'fixed_one',
+    },
+  },
 }
 ```
 
@@ -178,7 +195,9 @@ export const MODEL_CAPABILITIES_REGISTRY: Record<string, ModelCapabilities> = {
 For unregistered models, the system intelligently infers capabilities based on naming patterns:
 
 ```typescript
-export function inferModelCapabilities(modelName: string): ModelCapabilities | null {
+export function inferModelCapabilities(
+  modelName: string,
+): ModelCapabilities | null {
   const lowerName = modelName.toLowerCase()
 
   // GPT-5 series - Use Responses API
@@ -193,8 +212,8 @@ export function inferModelCapabilities(modelName: string): ModelCapabilities | n
       parameters: {
         ...CHAT_COMPLETIONS_CAPABILITIES.parameters,
         maxTokensField: 'max_completion_tokens',
-        temperatureMode: 'fixed_one'
-      }
+        temperatureMode: 'fixed_one',
+      },
     }
   }
 
@@ -204,8 +223,8 @@ export function inferModelCapabilities(modelName: string): ModelCapabilities | n
       ...CHAT_COMPLETIONS_CAPABILITIES,
       toolCalling: {
         ...CHAT_COMPLETIONS_CAPABILITIES.toolCalling,
-        supportsAllowedTools: false
-      }
+        supportsAllowedTools: false,
+      },
     }
   }
 
@@ -285,7 +304,7 @@ class ModelSelector {
     // Score each candidate
     const scored = candidates.map(model => ({
       model,
-      score: this.scoreModel(model, context)
+      score: this.scoreModel(model, context),
     }))
 
     // Sort by score and select best
@@ -293,10 +312,7 @@ class ModelSelector {
     return scored[0].model
   }
 
-  private scoreModel(
-    model: ModelProfile,
-    context: SelectionContext
-  ): number {
+  private scoreModel(model: ModelProfile, context: SelectionContext): number {
     let score = 0
 
     // Context size compatibility
@@ -314,7 +330,7 @@ class ModelSelector {
     }
 
     // Cost optimization
-    const costScore = 100 - (model.capabilities.costPer1kTokens.input * 10)
+    const costScore = 100 - model.capabilities.costPer1kTokens.input * 10
     score += costScore * context.costWeight
 
     // Speed optimization
@@ -323,7 +339,10 @@ class ModelSelector {
     }
 
     // Quality optimization
-    if (context.prioritizeQuality && model.metadata?.tags?.includes('powerful')) {
+    if (
+      context.prioritizeQuality &&
+      model.metadata?.tags?.includes('powerful')
+    ) {
       score += 50
     }
 
@@ -353,8 +372,8 @@ class ContextAnalyzer {
         tokenCount,
         hasImages,
         codeRatio,
-        complexity
-      })
+        complexity,
+      }),
     }
   }
 
@@ -363,7 +382,7 @@ class ContextAnalyzer {
       multiStep: /step \d+|first|then|finally/i,
       technical: /algorithm|optimize|refactor|architecture/i,
       analysis: /analyze|explain|compare|evaluate/i,
-      creative: /create|design|generate|imagine/i
+      creative: /create|design|generate|imagine/i,
     }
 
     let score = 0
@@ -393,7 +412,7 @@ class ModelSwitcher {
   async switchModel(
     reason: SwitchReason,
     currentModel: ModelProfile,
-    context: SwitchContext
+    context: SwitchContext,
   ): Promise<ModelProfile> {
     switch (reason) {
       case 'CONTEXT_OVERFLOW':
@@ -425,7 +444,7 @@ class ModelSwitcher {
       'claude-3-5-sonnet': 'claude-3-5-haiku',
       'claude-3-5-haiku': 'gpt-4o',
       'gpt-4o': 'gpt-3.5-turbo',
-      'gpt-3.5-turbo': 'claude-3-5-haiku'
+      'gpt-3.5-turbo': 'claude-3-5-haiku',
     }
 
     const backupId = backupChain[current.id]
@@ -444,16 +463,12 @@ Comprehensive tracking of model usage and costs:
 class CostTracker {
   private usage: Map<string, ModelUsage> = new Map()
 
-  track(
-    model: ModelProfile,
-    inputTokens: number,
-    outputTokens: number
-  ): void {
+  track(model: ModelProfile, inputTokens: number, outputTokens: number): void {
     const usage = this.usage.get(model.id) || {
       inputTokens: 0,
       outputTokens: 0,
       cost: 0,
-      requests: 0
+      requests: 0,
     }
 
     usage.inputTokens += inputTokens
@@ -461,8 +476,10 @@ class CostTracker {
     usage.requests += 1
 
     // Calculate cost
-    const inputCost = (inputTokens / 1000) * model.capabilities.costPer1kTokens.input
-    const outputCost = (outputTokens / 1000) * model.capabilities.costPer1kTokens.output
+    const inputCost =
+      (inputTokens / 1000) * model.capabilities.costPer1kTokens.input
+    const outputCost =
+      (outputTokens / 1000) * model.capabilities.costPer1kTokens.output
     usage.cost += inputCost + outputCost
 
     this.usage.set(model.id, usage)
@@ -474,7 +491,7 @@ class CostTracker {
 
     if (summary.totalCost >= limit) {
       throw new CostLimitExceededError(
-        `Cost limit of $${limit} exceeded. Current: $${summary.totalCost.toFixed(4)}`
+        `Cost limit of $${limit} exceeded. Current: $${summary.totalCost.toFixed(4)}`,
       )
     }
 
@@ -508,8 +525,8 @@ class ProfileManager {
       metadata: {
         ...profile.metadata,
         createdAt: new Date(),
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     })
 
     await this.saveProfiles()
@@ -549,7 +566,7 @@ class ProviderErrorHandler {
   async handleError(
     error: Error,
     provider: AIProvider,
-    request: MessageRequest
+    request: MessageRequest,
   ): Promise<MessageResponse> {
     if (this.isRateLimitError(error)) {
       return this.handleRateLimit(provider, request)
@@ -573,7 +590,7 @@ class ProviderErrorHandler {
 
   private async handleRateLimit(
     provider: AIProvider,
-    request: MessageRequest
+    request: MessageRequest,
   ): Promise<MessageResponse> {
     const retryAfter = this.extractRetryAfter(error)
 
