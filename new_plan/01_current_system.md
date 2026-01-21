@@ -117,7 +117,7 @@
 
 为满足“至少阅读 20 个关键模块/代表性文件”的要求，本次分析覆盖（节选）：
 
-- 入口/构建：`apps/kode/src/index.ts`、`apps/kode/src/entrypoints/cli.tsx`、`apps/kode/src/entrypoints/acp.ts`、`packages/host-mcp/src/server.ts`、`scripts/build.mjs`、`scripts/build-binary.mjs`、`cli.js`、`scripts/cli-wrapper.cjs`、`scripts/postinstall.js`
+- 入口/构建：`apps/kode/src/index.ts`、`apps/kode/src/entrypoints/cli.tsx`、`apps/kode/src/entrypoints/acp.ts`、`packages/host-mcp/src/server.ts`、`scripts/build.mjs`、`scripts/build-binary.mjs`、`cli.js`、`scripts/cli-wrapper.cjs`
 - CLI 主链路：`packages/host-cli/src/app/entrypoints/cli/cliParser.tsx`、`packages/host-cli/src/app/entrypoints/cli/interactive/renderers.tsx`、`packages/host-cli/src/app/entrypoints/cli/print/runPrintMode.ts`、`ui/ink/src/screens/REPL.tsx`
 - Core：`packages/core/src/query/index.ts`、`packages/core/src/tooling/Tool.ts`、`packages/tools-builtin/src/registry.ts`、`packages/core/src/permissions/index.ts`
 - 协议：`packages/protocol/src/agentEvent.ts`、`packages/core/src/utils/protocol/kodeAgentStreamJson.ts`、`packages/core/src/utils/protocol/kodeAgentStructuredStdio.ts`、`packages/core/src/utils/protocol/kodeAgentSessionLog.ts`、`packages/core/src/utils/protocol/kodeAgentStreamJsonSession.ts`

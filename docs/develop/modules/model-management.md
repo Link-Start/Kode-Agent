@@ -70,9 +70,12 @@ interface ModelProfile {
   requestStrategy?:
     | 'auto'
     | 'kode'
-    | 'claude_code_headers'
-    | 'claude_code_headers_system'
-    | 'claude_code_full'
+    | 'compat_headers'
+    | 'compat_headers_system'
+    | 'compat_full'
+    | 'claude_code_headers' // legacy alias
+    | 'claude_code_headers_system' // legacy alias
+    | 'claude_code_full' // legacy alias
   capabilities?: {
     supportsTools: boolean // Tool/function calling support
     supportsVision: boolean // Image input support
@@ -99,8 +102,8 @@ Some Claude‑family gateways/proxies enforce a specific client fingerprint (hea
 
 Code references:
 
-- Fallback plan + classification: `packages/core/src/ai/llm/claudeCodeFallback.ts`
-- Per-request wiring (headers/prompt/tools per fallback step): `packages/core/src/ai/llm.ts:337`
+- Fallback plan + restricted-client classification: `packages/core/src/ai/llm/restrictedClientCompat.ts`
+- Per-request wiring (headers/prompt/tools per fallback step): `packages/core/src/ai/llm.ts`
 
 ### Model Pointers
 

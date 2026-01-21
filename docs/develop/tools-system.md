@@ -105,6 +105,7 @@ export abstract class Tool {
   - Context lines support (-A, -B, -C)
   - File type filtering
 - **Implementation**: Uses ripgrep binary for performance
+- **Distribution**: npm releases ship ripgrep via per-platform optionalDependencies (`@shareai-lab/kode-ripgrep-<platform>-<arch>`). Set `USE_BUILTIN_RIPGREP=0` to prefer system `rg`.
 
 #### GlobTool
 
