@@ -141,87 +141,82 @@ export async function runCli(): Promise<void> {
 
 ## B2) 配置系统与数据根目录（Kode-first + `.claude` fallback）
 
-### B2.1 用户级 base dir：支持 `KODE_CONFIG_DIR`，并兼容 `CLAUDE_CONFIG_DIR`
+### B2.1 用户级 base dir：`KODE_CONFIG_DIR`（Kode-first），`CLAUDE_CONFIG_DIR` 仅 legacy 兼容
 
-- 结论：核心数据根目录由 `getKodeBaseDir()` 决定，优先 `KODE_CONFIG_DIR`，其次 `CLAUDE_CONFIG_DIR`，否则默认 `~/.kode`（由 `CONFIG_BASE_DIR` 决定）。
-- 证据：`packages/core/src/utils/env.ts:11`
+- 结论：核心数据根目录由 `resolveDataRoots().kodeRoot` 决定，**只**尊重 `KODE_CONFIG_DIR`（以及 `ANYKODE_CONFIG_DIR`），否则默认 `~/.kode`。
+- `CLAUDE_CONFIG_DIR` 仅影响 legacy 读取兼容根目录（`resolveDataRoots().claudeCompatRoots`），不会改变 Kode primary 根目录。
+- 证据：`packages/config/src/dataRoots.ts:54`
 
 ```ts
-export function getKodeBaseDir(): string {
-  return (
-    process.env.KODE_CONFIG_DIR ??
-    process.env.CLAUDE_CONFIG_DIR ??
-    join(homedir(), CONFIG_BASE_DIR)
+function getKodeOverride(homeDir: string): string | null {
+  return normalizeOverride(
+    process.env.KODE_CONFIG_DIR ?? process.env.ANYKODE_CONFIG_DIR,
+    homeDir,
   )
+}
+
+function getClaudeOverride(homeDir: string): string | null {
+  return normalizeOverride(process.env[LEGACY_ENV.configDir], homeDir)
+}
+
+export function resolveDataRoots(options?: ResolveDataRootsOptions): DataRoots {
+  const homeDir = options?.homeDir ?? getDefaultHomeDir()
+  const respectEnvOverride =
+    options?.respectEnvOverride ?? options?.homeDir === undefined
+
+  const kodeRoot = respectEnvOverride
+    ? (getKodeOverride(homeDir) ?? join(homeDir, '.kode'))
+    : join(homeDir, '.kode')
+
+  const claudeCompatRoots = respectEnvOverride
+    ? dedupeStrings([
+        getClaudeOverride(homeDir),
+        join(homeDir, LEGACY_CONFIG_DIRNAME),
+      ])
+    : [join(homeDir, LEGACY_CONFIG_DIRNAME)]
+
+  const allRoots = dedupeStrings([kodeRoot, ...claudeCompatRoots])
+
+  return { kodeRoot, claudeCompatRoots, allRoots }
 }
 ```
 
 ### B2.2 Settings 文件候选：primary `.kode` + legacy `.claude`（用户/项目/本地）
 
-- 结论：`packages/config/src/files.ts` 将 settings 按 destination 分三类（`localSettings/projectSettings/userSettings`），每类都给出 primary（`.kode/...`）与 legacy（`.claude/...`）候选路径；并且对 env override 做路径 resolve。
-- 证据：`packages/config/src/files.ts:64`
+- 结论：`packages/config/src/files.ts` 将 settings 按 destination 分三类（`localSettings/projectSettings/userSettings`），每类都给出 primary（`.kode/...`）与 legacy（`.claude/...`）候选路径；userSettings 的 primary/legacy roots 由 `resolveDataRoots()` 提供（Kode-first + legacy read-compat）。
+- 证据：`packages/config/src/files.ts:35`
 
 ```ts
-function getUserKodeBaseDir(options?: {
-  homeDir?: string
-  respectEnvOverride?: boolean
-}): string {
-  const respectEnvOverride = options?.respectEnvOverride ?? true
-  if (respectEnvOverride) {
-    const override = normalizeOverride(
-      process.env.KODE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR,
-    )
-    if (override) return override
-  }
-  const home = options?.homeDir ?? getDefaultHomeDir()
-  return join(home, '.kode')
-}
-
-function getUserLegacyBaseDir(options?: {
-  homeDir?: string
-  respectEnvOverride?: boolean
-}): string {
-  const respectEnvOverride = options?.respectEnvOverride ?? true
-  if (respectEnvOverride) {
-    const override = normalizeOverride(process.env.CLAUDE_CONFIG_DIR)
-    if (override) return override
-  }
-  const home = options?.homeDir ?? getDefaultHomeDir()
-  return join(home, '.claude')
-}
-
 export function getSettingsFileCandidates(options: {
   destination: SettingsDestination
   projectDir?: string
   homeDir?: string
 }): { primary: string; legacy: string[] } | null {
   const projectDir = options.projectDir ?? getCwd()
-  const homeDir = options.homeDir ?? getDefaultHomeDir()
   const respectEnvOverride = options.homeDir === undefined
 
   switch (options.destination) {
     case 'localSettings': {
       const primary = join(projectDir, '.kode', 'settings.local.json')
-      const legacy = [join(projectDir, '.claude', 'settings.local.json')]
+      const legacy = [
+        legacyConfigPathInProject(projectDir, 'settings.local.json'),
+      ]
       return { primary, legacy }
     }
     case 'projectSettings': {
       const primary = join(projectDir, '.kode', 'settings.json')
-      const legacy = [join(projectDir, '.claude', 'settings.json')]
+      const legacy = [legacyConfigPathInProject(projectDir, 'settings.json')]
       return { primary, legacy }
     }
     case 'userSettings': {
-      const primary = join(
-        getUserKodeBaseDir({ homeDir, respectEnvOverride }),
-        'settings.json',
+      const roots = resolveDataRoots({
+        homeDir: options.homeDir,
+        respectEnvOverride,
+      })
+      const primary = join(roots.kodeRoot, 'settings.json')
+      const legacy = roots.claudeCompatRoots.map(root =>
+        join(root, 'settings.json'),
       )
-      const legacy = dedupeStrings([
-        join(
-          getUserLegacyBaseDir({ homeDir, respectEnvOverride }),
-          'settings.json',
-        ),
-        join(homeDir, '.claude', 'settings.json'),
-      ])
       return { primary, legacy }
     }
     default:
@@ -899,28 +894,26 @@ Notes:
 
 ## B7) 会话持久化与恢复（jsonl under config/projects）
 
-### B7.1 会话落盘 roots：`KODE_CONFIG_DIR` / `CLAUDE_CONFIG_DIR` 覆盖，否则默认 `~/.kode` 与 `~/.claude`
+### B7.1 会话落盘 roots：读 roots = `resolveDataRoots().allRoots`；写 root = `getKodeRoot()`
 
-- 结论：协议层会话存储 roots 通过 `getSessionStoreRoots()` 决定；如存在 env override 则优先使用 override，否则返回 `~/.kode` 与 `~/.claude`（去重）。
-- 证据：`packages/protocol/src/utils/kodeAgentSessionLog.ts:96`
+- 结论：协议层会话存储 roots 通过 `getSessionStoreRoots()` 决定，读取时会遍历 `resolveDataRoots().allRoots`（包含 Kode primary + legacy read-compat roots）。
+- 写入路径始终以 `getKodeRoot()` 为 primary 根目录（Kode-first）。
+- 证据：`packages/protocol/src/utils/kodeAgentSessionLog.ts:82`
 
 ```ts
 export function getSessionStoreRoots(): string[] {
-  const kodeOverride = normalizeRoot(process.env.KODE_CONFIG_DIR)
-  const claudeOverride = normalizeRoot(process.env.CLAUDE_CONFIG_DIR)
+  return resolveDataRoots().allRoots
+}
 
-  if (kodeOverride || claudeOverride) {
-    return dedupeRoots([kodeOverride, claudeOverride])
-  }
-
-  return dedupeRoots([join(homedir(), '.kode'), join(homedir(), '.claude')])
+function getPrimarySessionStoreRoot(): string {
+  return getKodeRoot()
 }
 ```
 
 ### B7.2 会话文件布局：`<root>/projects/<sanitizedCwd>/<sessionId>.jsonl`
 
 - 结论：会话日志存储于 `projects/` 下；项目目录名为 `cwd` 的“仅字母数字 + 其它字符替换为 '-'”的 sanitize 结果。
-- 证据：`packages/protocol/src/utils/kodeAgentSessionLog.ts:111`
+- 证据：`packages/protocol/src/utils/kodeAgentSessionLog.ts:90`
 
 ```ts
 export function sanitizeProjectNameForSessionStore(cwd: string): string {

@@ -1,6 +1,6 @@
 # Kode CLI × Claude Code CLI — 全量对齐审计（evidence-backed）+ 差异清单（DP-001+）+ 最小摩擦产品方案
 
-> 审计目标：以 **Claude Code CLI 官方发布物**（本机当前证据锚点：`@anthropic-ai/claude-code@2.1.12` 的 `cli.js` 与官方 `CHANGELOG.md`）为最高优先级证据源，验证 Kode CLI 与其关键机制是否 **1:1 对齐**，并给出可落地修正路线图与回归策略。  
+> 审计目标：以 **Claude Code CLI 官方发布物**（本机当前证据锚点：`@anthropic-ai/claude-code@2.1.22` 的 `cli.js` 与官方 `CHANGELOG.md`）为最高优先级证据源，验证 Kode CLI 与其关键机制是否 **1:1 对齐**，并给出可落地修正路线图与回归策略。  
 > 严谨性：所有 “Claude 官方行为” 结论都给出 **cli.js / CHANGELOG** 的可定位证据（搜索 needle + sha pinning；仅在版本一致时使用 `path:line`）。无法从静态证据证明的一律标注 **UNKNOWN** 并给出补证路径。
 
 ---
@@ -9,7 +9,7 @@
 
 ### A. Claude Code（官方真实行为证据）
 
-- `cli.js`（sha256: `5ab5ab592cc2342aa4602eab4e84e82bcff91765bd22cb4dcd51284cf20b8e86`）
+- `cli.js`（sha256: `da39b2c9fe9de2406e05b2f78451610416f2cba2ac624bc21d35d51a50c2d761`）
   - `<CLAUDE_CODE_PKG_ROOT>/cli.js`（版本/哈希锚点见 `docs/research/claude-code/01_inventory.md`）
 - 官方变更记录
   - `<CLAUDE_CODE_ROOT>/CHANGELOG.md`
@@ -128,7 +128,7 @@
   - Kode：`packages/core/src/engine/pipeline/**` + unit tests（`packages/core/src/test/unit/tool-scheduler-concurrency.*`）。
 - task/todo/ask user/plan 的 UI 组件与状态 → **Partially aligned**
   - Claude：todos/plan/status 等命令面存在（DP-041）。
-  - Kode：`apps/cli/src/commands/builtin/todos.tsx`、plan mode tooling、permission requests UI。
+  - Kode：`apps/cli/src/commands/builtin/work.tsx`（alias: `todos`/`tasklist`）、plan mode tooling、permission requests UI。
 - 子代理（Task tool）：inherit 权限上下文/恢复 → **Aligned（设计约束满足），仍需更强回归**
   - Claude：CHANGELOG 有多处 subagents 相关修复（如 `docs/research/reference/changelog.lines.md:48`、`docs/research/reference/changelog.lines.md:171`）。
   - Kode：显式约束 “Subagents inherit parent toolPermissionContext”（见 repo `AGENTS.md`）+ `packages/core/src/test/unit/task-tool.test.ts`。
@@ -235,8 +235,8 @@
     - Chat：`ctrl+s` stash，`ctrl+_` undo，`alt+p` model picker，`alt+t` thinking toggle，`ctrl+g` external editor
   - shortcuts panel：`double tap esc to clear input`、`shift+tab … to auto-accept edits`（`cli.js` search needle：`double tap esc to clear input`）
 - Kode 当前行为（证据）
-  - 全局 keybindings：`apps/cli/src/ui/screens/REPL/useReplController.tsx:303`（`ctrl+t` todos）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:308`（`ctrl+o` transcript）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:323`（`ctrl+r` history search）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:328`（`alt+t` thinking toggle）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:336`（`alt+p` model picker）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:354`（`?` shortcuts/help）
-  - 输入层：`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:682`（`ctrl+s` stash）、`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:721`（`ctrl+_` undo）、`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:647`（queued prompts）、`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:750`（double-Esc clear）
+  - 全局 keybindings：`apps/cli/src/ui/screens/REPL/useReplController.tsx:552`（`ctrl+t` work tasks）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:557`（`ctrl+o` transcript）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:572`（`ctrl+r` history search）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:577`（`alt+t` thinking toggle）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:603`（`alt+p` model picker）、`apps/cli/src/ui/screens/REPL/useReplController.tsx:621`（`?` shortcuts/help）
+  - 输入层：`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:1146`（`ctrl+s` stash）、`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:1185`（`ctrl+_` undo）、`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:503`（queued prompts）、`apps/cli/src/ui/components/PromptInput/PromptInput.tsx:160`（double-Esc clear）
   - Key parser：`apps/cli/src/ui/contexts/KeypressContext.tsx:440`（`ctrl+_` 支持）
   - External editor：`apps/cli/src/ui/utils/promptInputSpecialKey.ts:30`（`ctrl+g`）
 - 验收标准

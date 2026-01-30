@@ -198,14 +198,19 @@ export abstract class Tool {
   - Hidden from user output
 - **Implementation**: Special message formatting
 
-#### TodoWriteTool
+#### Task List Tools (TaskCreate/TaskUpdate/TaskList/TaskGet)
 
-- **Purpose**: Task management and tracking
+- **Purpose**: Persistent, Linear-style work task tracking (cross-session, cross-agent)
 - **Key Features**:
-  - Persistent todo lists
+  - Create/update/list/get tasks with stable IDs
   - Status tracking (pending, in_progress, completed)
-  - Progress visualization
-  - Automatic task breakdown
+  - Enforces a single in_progress task (via tool validation)
+  - Optional dependency tracking (blocks/blockedBy)
+
+#### TodoWriteTool (legacy)
+
+- **Purpose**: Legacy todo-list compatibility only
+- **Notes**: Disabled by default; enabled via `KODE_ENABLE_LEGACY_TODO=1`
 
 ### 5. External Integration Tools
 

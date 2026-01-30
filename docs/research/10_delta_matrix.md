@@ -36,7 +36,7 @@
 
 ## P0 — 兼容性与低摩擦底座差异
 
-### D01 (P0 / Reliability) — 默认数据根目录：Claude 默认 `.claude`，Kode 默认 `.kode`（同时兼容 `CLAUDE_CONFIG_DIR`）
+### D01 (P0 / Reliability) — 默认数据根目录：Claude 默认 `.claude`，Kode 默认 `.kode`（legacy read-compat：`CLAUDE_CONFIG_DIR`）
 
 **影响**
 
@@ -50,15 +50,28 @@ function FQ() {
 }
 ```
 
-**Kode 证据**（`packages/core/src/utils/env.ts:11`）
+**Kode 证据**（`packages/config/src/dataRoots.ts:65`）
 
 ```ts
-export function getKodeBaseDir(): string {
-  return (
-    process.env.KODE_CONFIG_DIR ??
-    process.env.CLAUDE_CONFIG_DIR ??
-    join(homedir(), CONFIG_BASE_DIR)
-  )
+export function resolveDataRoots(options?: ResolveDataRootsOptions): DataRoots {
+  const homeDir = options?.homeDir ?? getDefaultHomeDir()
+  const respectEnvOverride =
+    options?.respectEnvOverride ?? options?.homeDir === undefined
+
+  const kodeRoot = respectEnvOverride
+    ? (getKodeOverride(homeDir) ?? join(homeDir, '.kode'))
+    : join(homeDir, '.kode')
+
+  const claudeCompatRoots = respectEnvOverride
+    ? dedupeStrings([
+        getClaudeOverride(homeDir),
+        join(homeDir, LEGACY_CONFIG_DIRNAME),
+      ])
+    : [join(homeDir, LEGACY_CONFIG_DIRNAME)]
+
+  const allRoots = dedupeStrings([kodeRoot, ...claudeCompatRoots])
+
+  return { kodeRoot, claudeCompatRoots, allRoots }
 }
 ```
 
@@ -78,18 +91,19 @@ function FQ() {
 }
 ```
 
-**Kode 证据**（`packages/protocol/src/utils/kodeAgentSessionLog.ts:96`）
+**Kode 证据**（`packages/protocol/src/utils/kodeAgentSessionLog.ts:82`）
 
 ```ts
 export function getSessionStoreRoots(): string[] {
-  const kodeOverride = normalizeRoot(process.env.KODE_CONFIG_DIR)
-  const claudeOverride = normalizeRoot(process.env.CLAUDE_CONFIG_DIR)
+  return resolveDataRoots().allRoots
+}
 
-  if (kodeOverride || claudeOverride) {
-    return dedupeRoots([kodeOverride, claudeOverride])
-  }
+function getPrimarySessionStoreRoot(): string {
+  return getKodeRoot()
+}
 
-  return dedupeRoots([join(homedir(), '.kode'), join(homedir(), '.claude')])
+export function getSessionProjectsDir(): string {
+  return join(getPrimarySessionStoreRoot(), 'projects')
 }
 ```
 
