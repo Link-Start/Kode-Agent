@@ -107,6 +107,7 @@ export type ProviderType =
   | 'opendev'
   | 'xai'
   | 'groq'
+  | 'openrouter'
   | 'gemini'
   | 'ollama'
   | 'azure'
@@ -175,6 +176,7 @@ export type GlobalConfig = {
   modelPointers?: ModelPointers
   defaultModelName?: string
   lastDismissedUpdateVersion?: string
+  shiftEnterKeyBindingInstalled?: boolean
 }
 
 export const GLOBAL_CONFIG_KEYS = [

@@ -43,6 +43,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs'
 import { ModelAdapterFactory } from './modelAdapterFactory'
 import { UnifiedRequestParams } from '@kode-types/modelCapabilities'
+import { getModelCapabilities } from '@constants/modelCapabilities'
 import { responseStateManager, getConversationId } from './responseStateManager'
 import type { ToolUseContext } from '@tool'
 import type {
@@ -605,8 +606,7 @@ function convertOpenAIResponseToAnthropic(
       let toolArgs = {}
       try {
         toolArgs = tool?.arguments ? JSON.parse(tool.arguments) : {}
-      } catch (e) {
-      }
+      } catch (e) {}
 
       contentBlocks.push({
         type: 'tool_use',
@@ -738,7 +738,6 @@ export function resetAnthropicClient(): void {
   anthropicClient = null
 }
 
-
 function applyCacheControlWithLimits(
   systemBlocks: TextBlockParam[],
   messageParams: MessageParam[],
@@ -860,7 +859,6 @@ export function assistantMessageToMessageParam(
 }
 
 function splitSysPromptPrefix(systemPrompt: string[]): string[] {
-
   const systemPromptFirstBlock = systemPrompt[0] || ''
   const systemPromptRest = systemPrompt.slice(1)
   return [systemPromptFirstBlock, systemPromptRest.join('\n')].filter(Boolean)
@@ -955,19 +953,12 @@ export async function queryLLM(
     delete cleanOptions.__testQueryLLMWithPromptCaching
 
     const runQuery = () =>
-      queryFn(
-        messages,
-        systemPrompt,
-        maxThinkingTokens,
-        tools,
-        signal,
-        {
-          ...cleanOptions,
-          model: resolvedModel,
-          modelProfile,
-          toolUseContext,
-        },
-      )
+      queryFn(messages, systemPrompt, maxThinkingTokens, tools, signal, {
+        ...cleanOptions,
+        model: resolvedModel,
+        modelProfile,
+        toolUseContext,
+      })
 
     const result = options.__testQueryLLMWithPromptCaching
       ? await runQuery()
@@ -1177,12 +1168,12 @@ async function queryAnthropicNative(
     applyCacheControlWithLimits(system, anthropicMessages)
   const startIncludingRetries = Date.now()
 
-    logSystemPromptConstruction({
-      basePrompt: systemPrompt.join('\n'),
-      kodeContext: generateKodeContext() || '',
-      reminders: [],
-      finalPrompt: systemPrompt.join('\n'),
-    })
+  logSystemPromptConstruction({
+    basePrompt: systemPrompt.join('\n'),
+    kodeContext: generateKodeContext() || '',
+    reminders: [],
+    finalPrompt: systemPrompt.join('\n'),
+  })
 
   let start = Date.now()
   let attemptNumber = 0
@@ -1799,7 +1790,10 @@ async function queryOpenAI(
 
         if (toolSchemas.length > 0) {
           opts.tools = toolSchemas
-          opts.tool_choice = 'auto'
+          const caps = getModelCapabilities(modelProfile?.modelName || '')
+          if (caps.toolCalling.mode !== 'none') {
+            opts.tool_choice = 'auto'
+          }
         }
         const reasoningEffort = await getReasoningEffort(modelProfile, messages)
         if (reasoningEffort) {
@@ -1908,8 +1902,7 @@ function buildAssistantMessageFromUnifiedResponse(
       let toolArgs = {}
       try {
         toolArgs = tool?.arguments ? JSON.parse(tool.arguments) : {}
-      } catch (e) {
-      }
+      } catch (e) {}
 
       contentBlocks.push({
         type: 'tool_use',
@@ -2037,7 +2030,6 @@ export async function queryModel(
     },
   )
 }
-
 
 export async function queryQuick({
   systemPrompt = [],

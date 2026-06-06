@@ -367,9 +367,7 @@ function applyModelSpecificTransformations(
         opts.reasoning_effort = 'medium'
       }
     }
-  }
-
-  else {
+  } else {
     if (
       features.usesMaxCompletionTokens &&
       'max_tokens' in opts &&
@@ -379,7 +377,6 @@ function applyModelSpecificTransformations(
       delete opts.max_tokens
     }
   }
-
 }
 
 async function applyModelErrorFixes(
@@ -559,6 +556,7 @@ export async function getCompletionWithProfile(
         'mistral',
         'xai',
         'groq',
+        'openrouter',
         'custom-openai',
       ].includes(provider)
 
@@ -661,7 +659,10 @@ export async function getCompletionWithProfile(
           debugLogger.warn('OPENAI_API_ERROR_PARSE_FAILED', {
             model: opts.model,
             status: response.status,
-            error: parseError instanceof Error ? parseError.message : String(parseError),
+            error:
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError),
           })
 
           logAPIError({
@@ -716,6 +717,7 @@ export async function getCompletionWithProfile(
       'mistral',
       'xai',
       'groq',
+      'openrouter',
       'custom-openai',
     ].includes(provider)
 
@@ -803,7 +805,10 @@ export async function getCompletionWithProfile(
         debugLogger.warn('OPENAI_API_ERROR_PARSE_FAILED', {
           model: opts.model,
           status: response.status,
-          error: parseError instanceof Error ? parseError.message : String(parseError),
+          error:
+            parseError instanceof Error
+              ? parseError.message
+              : String(parseError),
         })
       }
 
@@ -1125,9 +1130,7 @@ async function getGPT5CompletionWithProfile(
         provider: modelProfile.provider,
       })
     }
-  }
-
-  else if (opts.stream) {
+  } else if (opts.stream) {
     debugLogger.api('GPT5_STREAMING_MODE', {
       model: opts.model,
       baseURL: modelProfile.baseURL || 'official',

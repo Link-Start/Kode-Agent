@@ -421,11 +421,9 @@ export function ModelSelector({
 
       if (responseData.data && Array.isArray(responseData.data)) {
         models = responseData.data
-      }
-      else if (Array.isArray(responseData.models)) {
+      } else if (Array.isArray(responseData.models)) {
         models = responseData.models
-      }
-      else if (Array.isArray(responseData)) {
+      } else if (Array.isArray(responseData)) {
         models = responseData
       } else {
         throw new Error(
@@ -603,6 +601,7 @@ export function ModelSelector({
       'glm',
       'minimax',
       'baidu-qianfan',
+      'openrouter',
       'custom-openai',
     ].includes(selectedProvider)
 
@@ -938,6 +937,7 @@ export function ModelSelector({
         'mistral',
         'xai',
         'groq',
+        'openrouter',
         'custom-openai',
       ].includes(selectedProvider)
 
@@ -1263,7 +1263,9 @@ export function ModelSelector({
           model: selectedModel,
           status: response.status,
           error:
-            errorData?.error?.message || errorData?.message || response.statusText,
+            errorData?.error?.message ||
+            errorData?.message ||
+            response.statusText,
         })
 
         let details = `Responses API Error: ${errorMessage}`
@@ -1388,8 +1390,7 @@ export function ModelSelector({
 
     if (provider === 'azure') {
       baseURL = `https://${resourceName}.openai.azure.com/openai/deployments/${model}`
-    }
-    else if (provider === 'custom-openai') {
+    } else if (provider === 'custom-openai') {
       baseURL = customBaseUrl
     }
 
@@ -1742,10 +1743,6 @@ export function ModelSelector({
         activeFieldIndex === formFields.length - 1
       ) {
         handleModelParamsSubmit()
-      } else if (currentField.component === 'select') {
-        setActiveFieldIndex(current =>
-          Math.min(current + 1, formFields.length - 1),
-        )
       }
       return
     }
@@ -2014,10 +2011,11 @@ export function ModelSelector({
       <ModelSelectionScreen
         theme={theme}
         exitState={exitState}
-        providerLabel={getProviderLabel(
-          selectedProvider,
-          availableModels.length,
-        ).split(' (')[0]!}
+        providerLabel={
+          getProviderLabel(selectedProvider, availableModels.length).split(
+            ' (',
+          )[0]!
+        }
         modelTypeText={modelTypeText}
         availableModels={availableModels}
         modelSearchQuery={modelSearchQuery}
@@ -2711,7 +2709,6 @@ export function ModelSelector({
   }
 
   if (currentScreen === 'confirmation') {
-
     const providerDisplayName = getProviderLabel(selectedProvider, 0).split(
       ' (',
     )[0]
