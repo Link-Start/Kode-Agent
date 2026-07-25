@@ -15,6 +15,10 @@ import {
   unregisterMcpClientRequestHandlers,
 } from '#core/mcp/client/roots'
 import {
+  __resetMcpSamplingForTests,
+  __setMcpSamplingEnabledForTests,
+} from '#core/mcp/client/sampling'
+import {
   __resetCwdChangedListenersForTests,
   getCwd,
   setCwd,
@@ -23,6 +27,7 @@ import {
 describe('MCP client roots', () => {
   afterEach(() => {
     __resetMcpRootsForTests()
+    __resetMcpSamplingForTests()
     __resetCwdChangedListenersForTests()
   })
 
@@ -34,6 +39,7 @@ describe('MCP client roots', () => {
   })
 
   test('declares roots capability only for trusted workspaces', () => {
+    __setMcpSamplingEnabledForTests(false)
     __setMcpRootsTrustOverrideForTests(false)
     expect(getMcpClientCapabilities()).toEqual({})
 
@@ -59,7 +65,7 @@ describe('MCP client roots', () => {
       } as any)
 
       expect(handler).not.toBeNull()
-      expect(await handler?.()).toEqual({
+      expect(await (handler as any)?.()).toEqual({
         roots: createMcpRootsForCwd(projectDir),
       })
     } finally {
