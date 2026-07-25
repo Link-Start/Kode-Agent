@@ -52,6 +52,7 @@ type RootCommandOptions = {
   planModeRequired?: boolean
   permissionPromptTool?: string
   safe?: boolean
+  trust?: boolean
   disableSlashCommands?: boolean
   pluginDir?: unknown
   model?: string
@@ -106,6 +107,7 @@ export function createRootAction(args: {
       planModeRequired,
       permissionPromptTool,
       safe,
+      trust,
       disableSlashCommands,
       pluginDir,
       model,
@@ -160,8 +162,12 @@ export function createRootAction(args: {
     }
     const normalizedPermissionMode =
       typeof permissionMode === 'string' ? permissionMode.trim() : ''
+    // --trust flag sets the permission mode to 'yolo' (auto-approve safe operations)
+    const effectivePermissionMode = trust
+      ? 'yolo'
+      : normalizedPermissionMode
     const bypassPermissionsRequested =
-      normalizedPermissionMode === 'bypassPermissions' ||
+      effectivePermissionMode === 'bypassPermissions' ||
       dangerouslySkipPermissions === true
 
     if (bypassPermissionsRequested) {
@@ -492,7 +498,7 @@ export function createRootAction(args: {
         commands,
         ask,
         initialMessages,
-        permissionMode,
+        permissionMode: effectivePermissionMode || permissionMode,
         systemPromptOverride,
         appendSystemPrompt,
         disableSlashCommands: disableSlashCommands === true,
@@ -509,7 +515,10 @@ export function createRootAction(args: {
     }
 
     // Update check can be slow (npm + network); do it after UI mounts so startup stays snappy.
-    const updateInfo = { version: null, commands: null }
+    const updateInfo: { version: string | null; commands: string[] | null } = {
+      version: null,
+      commands: null,
+    }
 
     if (needsResumeSelector) {
       const sessions = listKodeAgentSessions({ cwd })
