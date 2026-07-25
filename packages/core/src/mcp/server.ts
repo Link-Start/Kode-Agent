@@ -3,8 +3,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   type ContentBlock,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { extname, join, relative, resolve, sep } from 'node:path'
 import { setCwd } from '#core/utils/state'
 import { logError } from '#core/utils/log'
 import { createAssistantMessage } from '#core/utils/messages'
@@ -138,7 +142,7 @@ function convertToolPayloadItemToMcpContent(
         type: 'resource_link',
         uri: item.uri,
         title: optionalString(item.title),
-        name: optionalString(item.name),
+        name: optionalString(item.name) ?? item.uri,
         description: optionalString(item.description),
         mimeType: optionalString(item.mimeType),
       },
@@ -343,6 +347,97 @@ function getMcpServerName(): string {
   return trimmed || 'kode/tengu'
 }
 
+// ---------------------------------------------------------------------------
+// Resources support (resources/list + resources/read)
+// ---------------------------------------------------------------------------
+
+const MCP_RESOURCES_MAX_FILES = 500
+const MCP_RESOURCES_MAX_FILE_SIZE = 1024 * 1024 // 1 MiB per file
+const MCP_RESOURCES_SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'coverage',
+  '.next',
+  '.cache',
+  'vendor',
+])
+
+const TEXT_MIME_BY_EXT: Record<string, string> = {
+  '.ts': 'text/x-typescript',
+  '.tsx': 'text/x-typescript',
+  '.js': 'text/javascript',
+  '.jsx': 'text/javascript',
+  '.json': 'application/json',
+  '.md': 'text/markdown',
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.py': 'text/x-python',
+  '.go': 'text/x-go',
+  '.rs': 'text/x-rust',
+  '.java': 'text/x-java',
+  '.yaml': 'text/yaml',
+  '.yml': 'text/yaml',
+  '.toml': 'text/toml',
+  '.txt': 'text/plain',
+  '.sh': 'text/x-shellscript',
+}
+
+function guessMimeType(filePath: string): string {
+  return TEXT_MIME_BY_EXT[extname(filePath).toLowerCase()] ?? 'text/plain'
+}
+
+function fileUriForPath(rootDir: string, filePath: string): string {
+  const rel = relative(rootDir, filePath).split(sep).join('/')
+  return `file:///${rel}`
+}
+
+/**
+ * Resolve a file:// resource URI back to an absolute path, enforcing that
+ * the result stays inside rootDir (path traversal protection).
+ */
+function resolveResourceUri(rootDir: string, uri: string): string | null {
+  if (!uri.startsWith('file:///')) return null
+  const rel = decodeURIComponent(uri.slice('file:///'.length))
+  const abs = resolve(rootDir, rel)
+  const normalizedRoot = resolve(rootDir)
+  if (abs !== normalizedRoot && !abs.startsWith(normalizedRoot + sep)) {
+    return null
+  }
+  return abs
+}
+
+async function listProjectFiles(
+  rootDir: string,
+  maxFiles: number,
+): Promise<string[]> {
+  const out: string[] = []
+  const queue: string[] = [rootDir]
+
+  while (queue.length > 0 && out.length < maxFiles) {
+    const dir = queue.shift()!
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      if (out.length >= maxFiles) break
+      if (entry.name.startsWith('.') && entry.name !== '.env.example') continue
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!MCP_RESOURCES_SKIP_DIRS.has(entry.name)) queue.push(full)
+      } else if (entry.isFile()) {
+        out.push(full)
+      }
+    }
+  }
+
+  return out
+}
+
 export async function startMCPServer(
   cwd: string,
   tools: Iterable<Tool>,
@@ -359,9 +454,56 @@ export async function startMCPServer(
     {
       capabilities: {
         tools: {},
+        resources: {},
       },
     },
   )
+
+  // -------------------------------------------------------------------------
+  // resources/list — expose project files (bounded, skips vendored dirs)
+  // -------------------------------------------------------------------------
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    const files = await listProjectFiles(cwd, MCP_RESOURCES_MAX_FILES)
+    return {
+      resources: files.map(filePath => ({
+        uri: fileUriForPath(cwd, filePath),
+        name: relative(cwd, filePath),
+        mimeType: guessMimeType(filePath),
+      })),
+    }
+  })
+
+  // -------------------------------------------------------------------------
+  // resources/read — read a single project file (path traversal protected)
+  // -------------------------------------------------------------------------
+  server.setRequestHandler(ReadResourceRequestSchema, async request => {
+    const uri = request.params.uri
+    const filePath = resolveResourceUri(cwd, uri)
+    if (!filePath) {
+      throw new Error(`Invalid or out-of-project resource URI: ${uri}`)
+    }
+
+    const fileStat = await stat(filePath).catch(() => null)
+    if (!fileStat?.isFile()) {
+      throw new Error(`Resource not found: ${uri}`)
+    }
+    if (fileStat.size > MCP_RESOURCES_MAX_FILE_SIZE) {
+      throw new Error(
+        `Resource too large (${fileStat.size} bytes > ${MCP_RESOURCES_MAX_FILE_SIZE} limit): ${uri}`,
+      )
+    }
+
+    const text = await readFile(filePath, 'utf8')
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: guessMimeType(filePath),
+          text,
+        },
+      ],
+    }
+  })
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: await Promise.all(
@@ -451,7 +593,8 @@ export async function startMCPServer(
 
       const result = tool.call(toolInput as never, toolUseContext)
       const reportProgress = createMcpProgressReporter(extra, name)
-      let finalResult: Awaited<ReturnType<typeof result.next>>['value']
+      let finalResult: Awaited<ReturnType<typeof result.next>>['value'] |
+        undefined
 
       for await (const update of result) {
         if (isRecord(update) && update.type === 'progress') {
