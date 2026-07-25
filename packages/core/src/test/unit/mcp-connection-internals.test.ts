@@ -10,6 +10,10 @@ import {
   __resetMcpRootsForTests,
   __setMcpRootsTrustOverrideForTests,
 } from '#core/mcp/client/roots'
+import {
+  __resetMcpSamplingForTests,
+  __setMcpSamplingEnabledForTests,
+} from '#core/mcp/client/sampling'
 import { MACRO } from '#core/constants/macros'
 import { PRODUCT_COMMAND } from '#core/constants/product'
 import {
@@ -39,6 +43,7 @@ describe('MCP connection internals', () => {
     else process.env.MCP_CONNECTION_TIMEOUT_MS = originalTimeout
 
     __resetMcpRootsForTests()
+    __resetMcpSamplingForTests()
     __resetMcpListChangedForTests()
     clearNotifications()
   })
@@ -104,6 +109,7 @@ describe('MCP connection internals', () => {
   })
 
   test('builds SDK options with roots and list_changed refresh hooks', () => {
+    __setMcpSamplingEnabledForTests(false)
     __setMcpRootsTrustOverrideForTests(true)
 
     const options = createMcpClientSdkOptions('srv') as any

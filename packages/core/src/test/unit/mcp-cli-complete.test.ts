@@ -5,6 +5,10 @@ import {
   __resetMcpRootsForTests,
   __setMcpRootsTrustOverrideForTests,
 } from '#core/mcp/client/roots'
+import {
+  __resetMcpSamplingForTests,
+  __setMcpSamplingEnabledForTests,
+} from '#core/mcp/client/sampling'
 import { runMcpCli } from '#host-cli/entrypoints/mcpCli'
 
 async function captureMcpCli(argv: string[]): Promise<{
@@ -143,6 +147,7 @@ describe('mcp-cli client-capabilities', () => {
   afterEach(() => {
     __setMcpClientsForTests(null)
     __resetMcpRootsForTests()
+    __resetMcpSamplingForTests()
   })
 
   test('prints client capabilities as JSON', async () => {
@@ -154,7 +159,8 @@ describe('mcp-cli client-capabilities', () => {
     expect(result.stderr).toBe('')
     expect(JSON.parse(result.stdout)).toEqual({
       roots: { enabled: true, listChanged: true },
-      sampling: { enabled: false, context: false, tools: false },
+      // Sampling defaults to enabled (sampling/createMessage support).
+      sampling: { enabled: true, context: false, tools: false },
       elicitation: { enabled: false, form: false, url: false },
       tasks: {
         enabled: false,
@@ -168,6 +174,7 @@ describe('mcp-cli client-capabilities', () => {
 
   test('prints disabled client capabilities in text output', async () => {
     __setMcpRootsTrustOverrideForTests(false)
+    __setMcpSamplingEnabledForTests(false)
 
     const result = await captureMcpCli(['client-capabilities'])
 
