@@ -61,67 +61,73 @@ describe('BashTool ctrl+b backgrounding parity (Reference CLI K41 + gH5)', () =>
     }
   })
 
-  test('can request background and returns a background id', async () => {
-    if (process.platform === 'win32') return
-    if (process.env.CI) return // timing-sensitive; unreliable on CI runners
-    const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))
-    process.env.KODE_CONFIG_DIR = configDir
+  test(
+    'can request background and returns a background id',
+    async () => {
+      if (process.platform === 'win32') return
+      if (process.env.CI) return // timing-sensitive; unreliable on CI runners
+      const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))
+      process.env.KODE_CONFIG_DIR = configDir
 
-    try {
-      BunShell.restart()
+      try {
+        BunShell.restart()
 
-      let triggered = false
-      const ctx = makeContext({
-        setToolJSX: (value: any) => {
-          if (triggered) return
-          if (!value || !value.jsx) return
-          const onKeypress = value.onKeypress
-          if (typeof onKeypress !== 'function') return
-          triggered = true
-          setTimeout(
-            () => onKeypress('b', { ctrl: true, meta: false, shift: false }),
-            0,
-          )
-        },
-      })
+        let triggered = false
+        const ctx = makeContext({
+          setToolJSX: (value: any) => {
+            if (triggered) return
+            if (!value || !value.jsx) return
+            const onKeypress = value.onKeypress
+            if (typeof onKeypress !== 'function') return
+            triggered = true
+            setTimeout(
+              () => onKeypress('b', { ctrl: true, meta: false, shift: false }),
+              0,
+            )
+          },
+        })
 
-      const gen = BashTool.call(
-        {
-          command:
-            'i=0; while [ $i -lt 30 ]; do i=$((i+1)); echo "tick-$i"; sleep 0.1; done',
-          description: 'Emit progress ticks',
-          timeout: 30_000,
-        },
-        ctx,
-      )
+        const gen = BashTool.call(
+          {
+            command:
+              'i=0; while [ $i -lt 30 ]; do i=$((i+1)); echo "tick-$i"; sleep 0.1; done',
+            description: 'Emit progress ticks',
+            timeout: 30_000,
+          },
+          ctx,
+        )
 
-      const events: any[] = []
-      for await (const ev of gen) events.push(ev)
+        const events: any[] = []
+        for await (const ev of gen) events.push(ev)
 
-      const result = events.find(e => e.type === 'result')
-      expect(result).toBeTruthy()
-      expect(result.data.bashId).toBeTruthy()
-      expect(result.data.backgroundTaskId).toBe(result.data.bashId)
+        const result = events.find(e => e.type === 'result')
+        expect(result).toBeTruthy()
+        expect(result.data.bashId).toBeTruthy()
+        expect(result.data.backgroundTaskId).toBe(result.data.bashId)
 
-      const bashId = result.data.bashId as string
-      await new Promise(resolve => setTimeout(resolve, 300))
-      const first = BunShell.getInstance().readBackgroundOutput(bashId)
-      expect(first).not.toBeNull()
-      expect(first?.stdout).not.toBe('')
+        const bashId = result.data.bashId as string
+        await new Promise(resolve => setTimeout(resolve, 300))
+        const first = BunShell.getInstance().readBackgroundOutput(bashId)
+        expect(first).not.toBeNull()
+        expect(first?.stdout).not.toBe('')
 
-      await new Promise(resolve => setTimeout(resolve, 500))
-      const second = BunShell.getInstance().readBackgroundOutput(bashId)
-      expect(second).not.toBeNull()
-      expect(second?.stdout).not.toBe('')
+        await new Promise(resolve => setTimeout(resolve, 500))
+        const second = BunShell.getInstance().readBackgroundOutput(bashId)
+        expect(second).not.toBeNull()
+        expect(second?.stdout).not.toBe('')
 
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      const final = BunShell.getInstance().getBackgroundOutput(bashId)
-      expect(final).not.toBeNull()
-      expect(final?.code).toBe(0)
-    } finally {
-      rmSync(configDir, { recursive: true, force: true })
-    }
-  })
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        const final = BunShell.getInstance().getBackgroundOutput(bashId)
+        expect(final).not.toBeNull()
+        expect(final?.code).toBe(0)
+      } finally {
+        rmSync(configDir, { recursive: true, force: true })
+      }
+    },
+    // Needs ~2s ctrl+b hint delay plus ~4s of staged waits; the default 5s
+    // per-test timeout is not enough.
+    20_000,
+  )
 
   test('foreground execution still works when not backgrounded', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))
