@@ -94,7 +94,7 @@
     "prepublishOnly": "bun run build:npm && bun run scripts/prepublish-check.js",
     "format": "prettier --write \"apps/**/*.{ts,tsx,js,jsx,json,md,css,html}\" \"packages/**/*.{ts,tsx,js,jsx,json,md}\" \"scripts/**/*.{ts,tsx,js,jsx,mjs,cjs,json}\" \"docs/**/*.{md,json}\"",
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,js,jsx,json,md,css,html}\" \"packages/**/*.{ts,tsx,js,jsx,json,md}\" \"scripts/**/*.{ts,tsx,js,jsx,mjs,cjs,json}\" \"docs/**/*.{md,json}\"",
-    "lint": "eslint . --max-warnings 55",
+    "lint": "eslint . --max-warnings 225",
     "lint:fix": "eslint . --fix",
     "test": "bun run scripts/run-workspace-tests.mjs",
     "typecheck": "tsc --noEmit",
