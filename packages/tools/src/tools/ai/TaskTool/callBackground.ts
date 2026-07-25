@@ -25,6 +25,7 @@ import {
   heartbeatDurableRun,
 } from '#core/runs'
 import { getCwd } from '#core/utils/state'
+import type { AgentSupervisor } from '#core/utils/agentSupervisor'
 
 import type { PreparedTaskToolRun } from './callTypes'
 import type { Input, Output } from './schema'
@@ -47,6 +48,7 @@ export async function* callTaskToolBackground(
     parentToolUseId?: string
     subagentType?: string
     model?: string
+    supervisor?: AgentSupervisor
   },
 ): AsyncGenerator<{
   type: 'result'
@@ -211,6 +213,9 @@ export async function* callTaskToolBackground(
         taskRecord.status === 'killed' ? 'cancelled' : 'failed',
         message,
       )
+    } finally {
+      // Release supervisor slot regardless of outcome
+      metadata?.supervisor?.release()
     }
   })()
 
