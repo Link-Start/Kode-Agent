@@ -82,7 +82,7 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
       if (params.verbosity) {
         defaultVerbosity = params.verbosity
       } else {
-        const modelNameLower = this.modelProfile.modelName.toLowerCase()
+        const modelNameLower = (this.modelProfile.modelName ?? '').toLowerCase()
         if (modelNameLower.includes('high')) {
           defaultVerbosity = 'high'
         } else if (modelNameLower.includes('low')) {
@@ -293,7 +293,7 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
 
     const key = this.getFunctionCallKey(parsed, item)
     const state =
-      (key && map?.get(key)) ??
+      (key ? map?.get(key) : undefined) ??
       ({ arguments: '' } satisfies StreamingFunctionCallState)
 
     this.updateFunctionCallStateFromItem(state, item)
@@ -324,7 +324,7 @@ export class ResponsesAPIAdapter extends OpenAIAdapter {
       )
 
       return {
-        id: assistantMessage.responseId,
+        id: assistantMessage.responseId ?? assistantMessage.message.id,
         content: assistantMessage.message.content,
         toolCalls: hasToolUseBlocks ? [] : [],
         usage: this.normalizeUsageForAdapter(assistantMessage.message.usage),

@@ -145,8 +145,8 @@ export abstract class OpenAIAdapter extends ModelAPIAdapter {
 
     // Build final response
     const finalContent = accumulatedContent
-      ? [{ type: 'text', text: accumulatedContent, citations: [] }]
-      : [{ type: 'text', text: '', citations: [] }]
+      ? [{ type: 'text', text: accumulatedContent, citations: [] as string[] }]
+      : [{ type: 'text', text: '', citations: [] as string[] }]
 
     // Yield final message stop
     yield {

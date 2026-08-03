@@ -49,7 +49,7 @@ function shouldRetry(error: APIError): boolean {
     return process.env.USER_TYPE === 'SWE_BENCH'
   }
 
-  const shouldRetryHeader = error.headers?.['x-should-retry']
+  const shouldRetryHeader = error.headers?.get('x-should-retry')
 
   if (shouldRetryHeader === 'true') return true
   if (shouldRetryHeader === 'false') return false
@@ -92,7 +92,7 @@ export async function withRetry<T>(
         throw new Error('Request cancelled by user')
       }
 
-      const retryAfter = error.headers?.['retry-after'] ?? null
+      const retryAfter = error.headers?.get('retry-after') ?? null
       const delayMs = getRetryDelay(attempt, retryAfter)
 
       debugLogger.warn('LLM_API_RETRY', {

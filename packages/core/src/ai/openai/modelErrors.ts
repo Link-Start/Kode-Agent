@@ -109,6 +109,7 @@ const ERROR_HANDLERS: ErrorHandler[] = [
       const toolDescriptions: Record<string, string> = {}
       for (const tool of opts.tools || []) {
         if (tool.type !== 'function') continue
+        if (!tool.function.description) continue
         if (tool.function.description.length <= 1024) continue
         let str = ''
         let remainder = ''
@@ -131,7 +132,7 @@ const ERROR_HANDLERS: ErrorHandler[] = [
         content += '</additional-tool-usage-instructions>'
 
         for (let i = opts.messages.length - 1; i >= 0; i--) {
-          if (opts.messages[i].role === 'system') {
+          if (opts.messages[i]!.role === 'system') {
             opts.messages.splice(i + 1, 0, {
               role: 'system',
               content,

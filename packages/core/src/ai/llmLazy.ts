@@ -59,11 +59,11 @@ export async function verifyApiKey(
 }
 
 export async function fetchAnthropicModels(
+  baseURL: string,
   apiKey: string,
-  baseURL?: string,
 ): Promise<any[]> {
   const { fetchAnthropicModels: inner } = await import('#core/ai/llm')
-  return inner(apiKey, baseURL)
+  return inner(baseURL, apiKey)
 }
 
 setPromptHookQueryProvider(args => queryQuick(args))

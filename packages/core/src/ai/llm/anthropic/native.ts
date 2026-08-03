@@ -207,7 +207,7 @@ export async function queryAnthropicNative(
     // 🚨 降级：没有有效的ModelProfile时，应该抛出错误
     const errorDetails = {
       modelProfileExists: !!modelProfile,
-      modelProfileModelName: modelProfile?.modelName,
+      modelProfileModelName: undefined,
       requestedModel: options?.model,
       requestId: getCurrentRequest()?.id,
     }

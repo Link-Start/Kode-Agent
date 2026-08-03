@@ -1,4 +1,3 @@
-import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
 import type OpenAI from 'openai'
 import { OpenAIStreamError } from '@kode/ai/openai/stream'
 import {
@@ -134,7 +133,7 @@ export function isOpenAIStreamDegradedResponse(
 }
 
 export async function handleMessageStream(
-  stream: ChatCompletionStream,
+  stream: AsyncIterable<OpenAI.ChatCompletionChunk>,
   signal?: AbortSignal,
   options?: AssistantStreamUpdateOptions,
 ): Promise<OpenAI.ChatCompletion> {
@@ -156,7 +155,10 @@ export async function handleMessageStream(
 
   let message = {} as OpenAI.ChatCompletionMessage
 
-  let id, model, created, object, usage
+  let id: string | undefined
+  let model: string | undefined
+  let created: number | undefined
+  let usage: OpenAI.ChatCompletion['usage'] | undefined
   try {
     throwIfAborted(signal)
     for await (const chunk of stream) {
@@ -173,27 +175,24 @@ export async function handleMessageStream(
       chunkCount++
 
       try {
-        if (!id) {
+        if (id === undefined) {
           id = chunk.id
           debugLogger.api('OPENAI_STREAM_ID_RECEIVED', {
             id,
             chunkNumber: String(chunkCount),
           })
         }
-        if (!model) {
+        if (model === undefined) {
           model = chunk.model
           debugLogger.api('OPENAI_STREAM_MODEL_RECEIVED', {
             model,
             chunkNumber: String(chunkCount),
           })
         }
-        if (!created) {
+        if (created === undefined) {
           created = chunk.created
         }
-        if (!object) {
-          object = chunk.object
-        }
-        if (!usage) {
+        if (usage === undefined && chunk.usage) {
           usage = chunk.usage
           if (chunk.usage?.prompt_tokens) {
             setRequestInputTokens(chunk.usage.prompt_tokens)
@@ -271,7 +270,7 @@ export async function handleMessageStream(
       errorCount: String(errorCount),
       totalDuration: String(Date.now() - streamStartTime),
       ttftMs: String(ttftMs || 0),
-      finalMessageId: id || 'undefined',
+      finalMessageId: id ?? 'undefined',
     })
   } catch (streamError) {
     if (
@@ -315,20 +314,29 @@ export async function handleMessageStream(
         : 'chunk_processing_error'
   }
 
+  if (id === undefined || created === undefined || model === undefined) {
+    throw new OpenAIStreamError(
+      'unexpected_error',
+      'OpenAI stream completed without required response metadata',
+    )
+  }
+
   const completion: OpenAIStreamDegradedCompletion = {
     id,
     created,
     model,
-    object,
+    // Streamed chunks report 'chat.completion.chunk'; the reassembled
+    // response is a ChatCompletion.
+    object: 'chat.completion',
     choices: [
       {
         index: 0,
         message,
         finish_reason: finishReason ?? 'stop',
-        logprobs: undefined,
+        logprobs: null,
       },
     ],
-    usage,
+    usage: usage ?? undefined,
   }
 
   if (degradationReason) {
