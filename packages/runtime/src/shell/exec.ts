@@ -244,6 +244,10 @@ export async function exec(
     if (abortSignal) {
       abortSignal.removeEventListener('abort', onAbort)
     }
+    // Kill any surviving child process to prevent orphans
+    if (state.currentProcess && !state.currentProcess.killed) {
+      state.currentProcess.kill()
+    }
     state.currentProcess = null
     state.abortController = null
   }
