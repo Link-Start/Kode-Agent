@@ -231,24 +231,26 @@ export function detectLineEndingsDirect(
   try {
     const buffer = Buffer.alloc(4096)
     const fd = openSync(filePath, 'r')
-    const bytesRead = readSync(fd, buffer, 0, 4096, 0)
-    closeSync(fd)
+    try {
+      const bytesRead = readSync(fd, buffer, 0, 4096, 0)
+      const content = buffer.toString(encoding, 0, bytesRead)
+      let crlfCount = 0
+      let lfCount = 0
 
-    const content = buffer.toString(encoding, 0, bytesRead)
-    let crlfCount = 0
-    let lfCount = 0
-
-    for (let i = 0; i < content.length; i++) {
-      if (content[i] === '\n') {
-        if (i > 0 && content[i - 1] === '\r') {
-          crlfCount++
-        } else {
-          lfCount++
+      for (let i = 0; i < content.length; i++) {
+        if (content[i] === '\n') {
+          if (i > 0 && content[i - 1] === '\r') {
+            crlfCount++
+          } else {
+            lfCount++
+          }
         }
       }
-    }
 
-    return crlfCount > lfCount ? 'CRLF' : 'LF'
+      return crlfCount > lfCount ? 'CRLF' : 'LF'
+    } finally {
+      closeSync(fd)
+    }
   } catch (error) {
     logError(`Error detecting line endings for file ${filePath}: ${error}`)
     return 'LF'
