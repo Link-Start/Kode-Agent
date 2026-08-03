@@ -19,20 +19,20 @@ export function useCancelRequest(
       const wantsCancel =
         key.escape || (key.ctrl && input.toLowerCase() === 'c')
       if (!wantsCancel) {
-        return
+        return undefined
       }
       if (abortSignal?.aborted) {
-        return
+        return undefined
       }
       if (!abortSignal) {
-        return
+        return undefined
       }
       if (!isLoading) {
-        return
+        return undefined
       }
       if (isMessageSelectorVisible) {
         // Esc closes the message selector
-        return
+        return undefined
       }
 
       setToolJSX(null)

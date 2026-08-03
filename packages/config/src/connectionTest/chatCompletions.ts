@@ -96,7 +96,7 @@ export async function testChatCompletionsAPI(
       }
     }
 
-    const errorData = await response.json().catch(() => null)
+    const errorData = await response.json().catch((): null => null)
     const errorMessage =
       errorData?.error?.message || errorData?.message || response.statusText
 

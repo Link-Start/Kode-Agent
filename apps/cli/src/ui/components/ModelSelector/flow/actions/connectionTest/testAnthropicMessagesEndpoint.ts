@@ -201,7 +201,9 @@ Do NOT include any other text. Do NOT call any other tool.`
       )
 
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => null)) as unknown
+        const errorData = (await response
+          .json()
+          .catch((): null => null)) as unknown
         const errorRecord = asRecord(errorData)
         const nestedErrorMessage = (() => {
           const nestedError = asRecord(errorRecord?.error)

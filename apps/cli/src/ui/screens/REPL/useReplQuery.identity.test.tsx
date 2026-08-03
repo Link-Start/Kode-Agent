@@ -5,7 +5,8 @@ import { PassThrough } from 'node:stream'
 import type { CanUseToolFn } from '#core/permissions/canUseTool'
 import type { BinaryFeedbackResult, Message } from '#core/query'
 import type { WrappedClient } from '#core/mcp/client'
-import type { ToolUseContext } from '#core/tooling/Tool'
+import type { Tool, ToolUseContext } from '#core/tooling/Tool'
+import type { Command } from '#cli-commands'
 import { useReplQuery } from './useReplQuery'
 import { createAssistantStreamStore } from './assistantStreamStore'
 
@@ -67,8 +68,8 @@ function createHarness(element: React.ReactElement): Harness {
 }
 
 const messages: Message[] = []
-const commands = []
-const tools = []
+const commands: Command[] = []
+const tools: Tool[] = []
 const mcpClients: WrappedClient[] = []
 const readFileTimestamps: Record<string, number> = {}
 const setMessages: React.Dispatch<React.SetStateAction<Message[]>> = () => {}

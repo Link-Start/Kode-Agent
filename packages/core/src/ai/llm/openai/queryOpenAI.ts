@@ -1,5 +1,4 @@
 import OpenAI from 'openai'
-import type { ChatCompletionStream } from 'openai/lib/ChatCompletionStream'
 import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
 import { zodToJsonSchema } from 'zod-to-json-schema'
@@ -60,6 +59,16 @@ function containsCommittedToolResult(
   messages: OpenAI.ChatCompletionMessageParam[],
 ): boolean {
   return messages.some(message => message.role === 'tool')
+}
+
+function isOpenAIChunkStream(
+  response: OpenAI.ChatCompletion | AsyncIterable<OpenAI.ChatCompletionChunk>,
+): response is AsyncIterable<OpenAI.ChatCompletionChunk> {
+  return (
+    response !== null &&
+    typeof response === 'object' &&
+    typeof Reflect.get(response, Symbol.asyncIterator) === 'function'
+  )
 }
 
 function createAssistantMessageFromOpenAIResponse(args: {
@@ -129,7 +138,7 @@ export async function queryOpenAI(
   if (modelProfile) {
     model = modelProfile.modelName
   } else {
-    model = options?.model || modelProfile?.modelName || ''
+    model = options?.model || ''
   }
   // Prepend system prompt block for easy API identification
   if (options?.prependCLISysprompt) {
@@ -317,7 +326,7 @@ export async function queryOpenAI(
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
-          stream: config.stream,
+          stream: config.stream ?? true,
           toolSchemas: toolSchemas,
           stopSequences: options?.stopSequences,
           provider:
@@ -340,14 +349,24 @@ export async function queryOpenAI(
           signal,
           options?.requestHeadersProfile,
         )
-        let finalResponse
+        let finalResponse: OpenAI.ChatCompletion
         if (opts.stream) {
+          if (!isOpenAIChunkStream(s)) {
+            throw new Error(
+              'OpenAI provider returned a non-streaming response for a streaming request',
+            )
+          }
           finalResponse = await handleMessageStream(
-            s as ChatCompletionStream,
+            s,
             signal,
             assistantStreamUpdateOptions,
           )
         } else {
+          if (isOpenAIChunkStream(s)) {
+            throw new Error(
+              'OpenAI provider returned a streaming response for a non-streaming request',
+            )
+          }
           finalResponse = s
         }
         const assistantMsg = createAssistantMessageFromOpenAIResponse({

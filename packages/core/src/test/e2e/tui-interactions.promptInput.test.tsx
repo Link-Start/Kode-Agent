@@ -209,6 +209,7 @@ function PromptInputCtrlCCancelHarnessInner({
         setIsLoading(false)
         return true
       }
+      return undefined
     },
     { priority: 50 },
   )
@@ -292,6 +293,7 @@ function DraftPastePersistenceHarnessInner(): React.ReactNode {
         setInput('hello world')
         return true
       }
+      return undefined
     },
     { priority: 50 },
   )

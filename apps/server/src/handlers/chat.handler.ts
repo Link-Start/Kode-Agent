@@ -414,14 +414,17 @@ export async function handleChatPrompt(args: {
       return
     }
 
-    const resultFromAssistant = lastAssistant
-      ? extractFirstAssistantText(lastAssistant.message as ApiMessage)
+    // `lastAssistant` is assigned inside the streaming closure, so CFA still
+    // sees the initial `null` here; re-widen it before use.
+    const finalAssistant = lastAssistant as AssistantMessage | null
+    const resultFromAssistant = finalAssistant
+      ? extractFirstAssistantText(finalAssistant.message as ApiMessage)
       : null
     sendTerminalResult({
       result:
         typeof resultFromAssistant === 'string' ? resultFromAssistant : '',
       isError: false,
-      usage: lastAssistant?.message?.usage,
+      usage: finalAssistant?.message?.usage,
     })
   } catch (err) {
     const wasCancelled = abortController.signal.aborted
@@ -434,7 +437,7 @@ export async function handleChatPrompt(args: {
       sendTerminalResult({
         result: err instanceof Error ? err.message : String(err),
         isError: true,
-        usage: lastAssistant?.message?.usage,
+        usage: (lastAssistant as AssistantMessage | null)?.message?.usage,
       })
     }
   } finally {

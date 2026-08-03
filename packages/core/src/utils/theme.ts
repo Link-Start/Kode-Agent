@@ -511,9 +511,9 @@ function parseHexColor(value: string | undefined): Rgb | undefined {
   const hex = match[1] ?? ''
   if (hex.length === 3 || hex.length === 4) {
     return {
-      r: Number.parseInt(hex[0] + hex[0], 16),
-      g: Number.parseInt(hex[1] + hex[1], 16),
-      b: Number.parseInt(hex[2] + hex[2], 16),
+      r: Number.parseInt(hex[0]! + hex[0]!, 16),
+      g: Number.parseInt(hex[1]! + hex[1]!, 16),
+      b: Number.parseInt(hex[2]! + hex[2]!, 16),
     }
   }
 

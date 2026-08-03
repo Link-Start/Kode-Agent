@@ -98,8 +98,8 @@ export function FileEditToolDiff({
 
   useKeypress(
     (_input, key) => {
-      if (!enableScrolling) return
-      if (diffLines.length <= window.visibleCount) return
+      if (!enableScrolling) return undefined
+      if (diffLines.length <= window.visibleCount) return undefined
 
       if (key.pageUp) {
         setFocusIndex(prev => Math.max(0, prev - window.visibleCount))
@@ -122,6 +122,7 @@ export function FileEditToolDiff({
         setFocusIndex(Math.max(0, diffLines.length - 1))
         return true
       }
+      return undefined
     },
     { isActive: enableScrolling },
   )

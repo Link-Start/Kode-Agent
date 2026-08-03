@@ -104,7 +104,7 @@ export function EditAgent(props: {
       return true
     }
 
-    if (mode !== 'menu') return
+    if (mode !== 'menu') return undefined
 
     if (key.upArrow) {
       setSelectedIndex(i => Math.max(0, i - 1))
@@ -116,11 +116,12 @@ export function EditAgent(props: {
     }
     if (key.return) {
       const item = menuItems[selectedIndex]
-      if (!item) return
+      if (!item) return undefined
       if (item.action === 'open') void doOpen()
       else setMode(item.action)
       return true
     }
+    return undefined
   })
 
   if (mode === 'edit-tools') {

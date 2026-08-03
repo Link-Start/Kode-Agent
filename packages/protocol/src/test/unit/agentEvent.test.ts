@@ -9,12 +9,12 @@ import {
 const session = {
   sessionId: 'session-1',
   slug: 'quiet-forest',
-  customTitle: null,
+  customTitle: null as string | null,
   tag: 'server',
-  summary: null,
+  summary: null as string | null,
   cwd: '/workspace',
   createdAt: '2026-07-09T12:00:00.000Z',
-  modifiedAt: null,
+  modifiedAt: null as string | null,
 }
 
 describe('AgentEventSchema session list contract', () => {

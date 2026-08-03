@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { GoalService } from '@kode/core/goals'
+import { createDefaultToolPermissionContext } from '#core/types/toolPermissionContext'
 
 import { GoalScheduleRunner } from './goalScheduleRunner'
 import type { DaemonSession } from '../ws/types'
@@ -12,15 +13,25 @@ function session(): DaemonSession {
   return {
     sessionId: 'session-1',
     cwd: '/workspace',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    forkedFromSessionId: null,
+    forkRootSessionId: null,
     clients: new Set(),
     messages: [],
     readFileTimestamps: {},
     responseState: {},
-    toolPermissionContext: { mode: 'default' },
+    toolPermissionContext: {
+      ...createDefaultToolPermissionContext(),
+      mode: 'default',
+    },
     activeAbortController: null,
     turnInFlight: false,
     inflightPermissionRequests: new Map(),
-  } as DaemonSession
+    nextSequence: 0,
+    eventJournal: [],
+    turnsByClientMessageUuid: new Map(),
+  }
 }
 
 describe('GoalScheduleRunner', () => {

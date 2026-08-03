@@ -101,21 +101,22 @@ async function withAgentGenerationTimeout<T>(
       reject(new AgentGenerationTimeoutError(timeoutMs))
     }, timeoutMs)
   })
-  const cancellation = options?.signal
+  const signal = options?.signal
+  const cancellation = signal
     ? new Promise<never>((_resolve, reject) => {
         const rejectCancellation = () =>
           reject(new Error('Agent generation cancelled'))
 
-        if (options.signal?.aborted) {
+        if (signal.aborted) {
           rejectCancellation()
           return
         }
 
-        options.signal.addEventListener('abort', rejectCancellation, {
+        signal.addEventListener('abort', rejectCancellation, {
           once: true,
         })
         removeCancellationListener = () =>
-          options.signal?.removeEventListener('abort', rejectCancellation)
+          signal.removeEventListener('abort', rejectCancellation)
       })
     : undefined
 

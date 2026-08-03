@@ -8,7 +8,7 @@ function run(
   cmd: string[],
   options?: { cwd?: string; env?: Record<string, string | undefined> },
 ) {
-  return spawnSync(cmd[0], cmd.slice(1), {
+  return spawnSync(cmd[0]!, cmd.slice(1), {
     cwd: options?.cwd ?? process.cwd(),
     env: { ...process.env, ...options?.env },
     encoding: 'utf8',

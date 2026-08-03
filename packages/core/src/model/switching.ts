@@ -164,7 +164,7 @@ export function formatSwitchResult(args: {
       success: false,
       modelName: null,
       blocked: false,
-      message: `Only one model configured (${allModels[0].modelName}). Use /model to add more models for switching.`,
+      message: `Only one model configured (${allModels[0]!.modelName}). Use /model to add more models for switching.`,
     }
   }
 

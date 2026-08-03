@@ -6,7 +6,7 @@ import { renderRepl } from '#host-cli/entrypoints/cli/interactive/renderers'
 
 describe('cli interactive renderers', () => {
   test('renderRepl wires props into Ink render (injected deps)', async () => {
-    function FakeRepl() {
+    function FakeRepl(): React.ReactNode {
       return null
     }
 
@@ -35,7 +35,11 @@ describe('cli interactive renderers', () => {
     expect(capturedElement).not.toBeNull()
     if (!capturedElement) throw new Error('expected element to be rendered')
     const replElement = React.Children.only(
-      (capturedElement.props as { children: React.ReactNode }).children,
+      (
+        (capturedElement as React.ReactElement).props as {
+          children: React.ReactNode
+        }
+      ).children,
     ) as React.ReactElement
     expect(replElement.type).toBe(FakeRepl)
     const props = replElement.props as {

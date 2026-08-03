@@ -9,9 +9,10 @@ import {
   getGlobalConfig,
   validateAndRepairAllGPT5Profiles,
 } from '#config'
-import { showInvalidConfigDialog } from '#ui-ink/screens/setup/InvalidConfigScreen'
+// NOTE: showInvalidConfigDialog and terminalCapabilityManager are loaded
+// lazily to avoid pulling in React/Ink on non-interactive (--print/--headless)
+// code paths. This saves ~200-300ms on cold start for headless invocations.
 import { ensurePackagedRuntimeEnv, ensureYogaWasmPath } from './bootstrapEnv'
-import { terminalCapabilityManager } from '#ui-ink/utils/terminalCapabilityManager'
 import {
   enableLineWrapping,
   enterAlternateScreen,
@@ -36,6 +37,9 @@ import { ReadStream } from 'tty'
 import type { RenderOptions } from 'ink'
 
 let didEnterAlternateScreen = false
+
+// Cached reference for the exit handler (loaded lazily in runCli)
+let _terminalCapabilityManager: { disableAllModes(): void } | null = null
 
 function wantsPrintMode(): boolean {
   const readFlagValue = (flag: string): string | null => {
@@ -123,6 +127,8 @@ export async function runCli(): Promise<void> {
     })
   } catch (error: unknown) {
     if (error instanceof ConfigParseError) {
+      const { showInvalidConfigDialog } =
+        await import('#ui-ink/screens/setup/InvalidConfigScreen')
       await showInvalidConfigDialog({ error })
       return
     }
@@ -179,6 +185,9 @@ export async function runCli(): Promise<void> {
     }
   }
   if (process.stdin.isTTY && process.stdout.isTTY) {
+    const { terminalCapabilityManager } =
+      await import('#ui-ink/utils/terminalCapabilityManager')
+    _terminalCapabilityManager = terminalCapabilityManager
     await terminalCapabilityManager.detectCapabilities()
     terminalCapabilityManager.enableSupportedModes()
   }
@@ -213,7 +222,7 @@ process.on('exit', () => {
     exitAlternateScreen()
   }
   BunShell.getInstance().close()
-  terminalCapabilityManager.disableAllModes()
+  _terminalCapabilityManager?.disableAllModes()
 })
 
 let isGracefulExitInProgress = false

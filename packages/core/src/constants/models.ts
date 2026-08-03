@@ -8,7 +8,14 @@ import { xai } from './models/xai'
 
 import { providers } from './models/providers'
 
-const models = {
+type ProviderModel = {
+  model: string
+  input_cost_per_token?: number
+  output_cost_per_token?: number
+  [key: string]: unknown
+}
+
+const models: Record<string, ProviderModel[]> = {
   openai,
   mistral,
   deepseek,

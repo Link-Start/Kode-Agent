@@ -66,7 +66,7 @@ export async function exec(
     const stdio = getShellStdioForPlatform(process.platform)
     if (options?.stdin !== undefined) stdio[0] = 'pipe'
 
-    state.currentProcess = spawn(cmd[0], cmd.slice(1), {
+    state.currentProcess = spawn(cmd[0]!, cmd.slice(1), {
       cwd: cwdOverride ?? executionCwd,
       stdio,
     })
@@ -243,6 +243,10 @@ export async function exec(
   } finally {
     if (abortSignal) {
       abortSignal.removeEventListener('abort', onAbort)
+    }
+    // Kill any surviving child process to prevent orphans
+    if (state.currentProcess && !state.currentProcess.killed) {
+      state.currentProcess.kill()
     }
     state.currentProcess = null
     state.abortController = null

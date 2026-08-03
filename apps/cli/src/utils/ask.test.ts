@@ -33,12 +33,6 @@ describe('ask(): system prompt flags', () => {
             message: { content: [{ type: 'text', text: 'ok' }] },
           } as any
         },
-        createUserMessage: (prompt: string) =>
-          ({
-            type: 'user',
-            uuid: 'user-uuid',
-            message: { content: [{ type: 'text', text: prompt }] },
-          }) as any,
         getMessagesPath: () => 'messages.json',
         overwriteLog: () => {},
         getTotalCost: () => 0,
@@ -81,12 +75,6 @@ describe('ask(): system prompt flags', () => {
             message: { content: [{ type: 'text', text: 'ok' }] },
           } as any
         },
-        createUserMessage: (prompt: string) =>
-          ({
-            type: 'user',
-            uuid: 'user-uuid',
-            message: { content: [{ type: 'text', text: prompt }] },
-          }) as any,
         getMessagesPath: () => 'messages.json',
         overwriteLog: () => {},
         getTotalCost: () => 0,
@@ -130,12 +118,6 @@ describe('ask(): system prompt flags', () => {
             },
           } as any
         },
-        createUserMessage: (prompt: string) =>
-          ({
-            type: 'user',
-            uuid: 'user-uuid',
-            message: { content: [{ type: 'text', text: prompt }] },
-          }) as any,
         getMessagesPath: () => 'messages.json',
         overwriteLog: () => {},
         getTotalCost: () => 0,

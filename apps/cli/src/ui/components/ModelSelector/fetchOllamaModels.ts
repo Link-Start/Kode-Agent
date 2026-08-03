@@ -129,7 +129,7 @@ export async function fetchOllamaModels(args: {
       if (typeof parametersValue === 'string') {
         const m = parametersValue.match(/num_ctx\s*[:=]\s*(\d+)/i)
         if (!m) return null
-        const n = parseInt(m[1], 10)
+        const n = parseInt(m[1]!, 10)
         return Number.isFinite(n) && n > 0 ? n : null
       }
       return null

@@ -174,6 +174,7 @@ export function ModelStatusDisplay({ onClose }: Props): React.ReactNode {
         setScrollTop(maxScrollTop)
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

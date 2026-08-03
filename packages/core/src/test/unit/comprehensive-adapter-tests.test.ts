@@ -79,7 +79,7 @@ describe('Model Adapter Tests', () => {
     const unifiedParams = {
       messages: [{ role: 'user', content: 'Test message' }],
       systemPrompt: ['You are a helpful assistant'],
-      tools: [],
+      tools: [] as any[],
       maxTokens: 100,
       stream: true,
       temperature: 0.7,

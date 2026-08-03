@@ -45,7 +45,7 @@ function useCanUseTool(
         if (toolUseContext.abortController.signal.aborted) {
           logCancelledEvent()
           resolveWithCancelledAndAbortAllToolCalls()
-          return
+          return undefined
         }
 
         return hasPermissionsToUseTool(

@@ -28,7 +28,6 @@ const deferredReactCompilerRules = {
 
 const disabledRules = {
   'no-unused-vars': 'off',
-  'no-empty': 'off',
   'no-empty-pattern': 'off',
   'no-undef': 'off',
   'no-mixed-spaces-and-tabs': 'off',
@@ -38,17 +37,29 @@ const disabledRules = {
   'no-extra-semi': 'off',
   'no-redeclare': 'off',
   'no-inner-declarations': 'off',
-  'no-useless-catch': 'off',
-  'no-unreachable': 'off',
   'no-case-declarations': 'off',
   'no-useless-escape': 'off',
   'no-prototype-builtins': 'off',
   'no-unassigned-vars': 'off',
   'no-useless-assignment': 'off',
+  // Re-enabling preserve-caught-error requires threading `cause` through
+  // ~29 existing throw sites; deferred to the error-handling cleanup phase.
   'preserve-caught-error': 'off',
   'require-yield': 'off',
   '@typescript-eslint/no-unused-vars': 'off',
   '@typescript-eslint/no-explicit-any': 'off',
+};
+
+// Rules being tightened as part of code quality governance (P0-D3).
+// These were previously disabled; enabling them helps catch real bugs.
+const tightenedRules = {
+  // Forbid empty catch blocks without an explanatory comment.
+  // Use: catch { /* best-effort: <reason> */ } for intentional suppression.
+  'no-empty': ['warn', { allowEmptyCatch: false }],
+  // Flag useless catch blocks that just re-throw without adding context.
+  'no-useless-catch': 'warn',
+  // Detect unreachable code (dead code after return/throw/break).
+  'no-unreachable': 'warn',
 };
 
 export default [
@@ -92,6 +103,7 @@ export default [
       ...reactHooksPlugin.configs.flat.recommended.rules,
       ...deferredReactCompilerRules,
       ...disabledRules,
+      ...tightenedRules,
     },
   },
 ];

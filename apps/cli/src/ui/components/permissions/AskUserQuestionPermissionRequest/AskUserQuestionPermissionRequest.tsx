@@ -137,7 +137,7 @@ export function AskUserQuestionPermissionRequest({
       : undefined
   const isOtherFocused =
     !isSubmitTab &&
-    currentQuestion &&
+    currentQuestion !== undefined &&
     !isMultiSelectSubmitFocused &&
     focusedOptionIndex === currentQuestion.options.length
 

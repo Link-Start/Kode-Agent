@@ -50,7 +50,7 @@ describe('🔌 Integration: Full CLI Flow (Model-Agnostic)', () => {
       const unifiedParams = {
         messages: [{ role: 'user', content: 'What is 2+2?' }],
         systemPrompt: ['You are a helpful assistant.'],
-        tools: [],
+        tools: [] as any[],
         maxTokens: 100,
         stream: true,
         reasoningEffort: shouldUseResponses ? ('high' as const) : undefined,

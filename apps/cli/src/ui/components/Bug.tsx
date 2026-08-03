@@ -40,7 +40,7 @@ export function Bug({ onDone }: Props): React.ReactNode {
   const canContinue = description.trim().length > 0
   const footerText = getBugFooterText({
     exitPending: exitState.pending,
-    exitKeyName: exitState.keyName,
+    exitKeyName: exitState.keyName ?? '',
     step,
     canContinue,
     isOpening,
@@ -71,13 +71,14 @@ export function Bug({ onDone }: Props): React.ReactNode {
 
     if (key.escape) {
       onDone('<bash-stderr>Bug report cancelled</bash-stderr>')
-      return
+      return undefined
     }
 
     if (step === 'consent' && (key.return || input === ' ')) {
       void openIssue()
       return true
     }
+    return undefined
   })
 
   return (

@@ -148,7 +148,11 @@ export async function fetchModelsForProvider({
     }
 
     // For all other providers, use the OpenAI client
-    let baseURL = providerBaseUrl || providers[selectedProvider]?.baseURL
+    let baseURL =
+      providerBaseUrl ||
+      (providers as Record<string, { name: string; baseURL: string }>)[
+        selectedProvider
+      ]?.baseURL
 
     // For custom-openai provider, use the custom base URL
     if (selectedProvider === 'custom-openai') {

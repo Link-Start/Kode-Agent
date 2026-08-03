@@ -38,7 +38,7 @@ describe('OpenAI tool-call conversion safety', () => {
             name: 'Bash',
             arguments: '{"command":"echo hi"}',
           },
-        } as OpenAI.ChatCompletionMessageToolCall,
+        } as unknown as OpenAI.ChatCompletionMessageToolCall,
       ]),
     )
     expect(message.content).toEqual([

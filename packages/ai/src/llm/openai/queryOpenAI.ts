@@ -352,7 +352,7 @@ export async function queryOpenAI(
           signal,
           options?.requestHeadersProfile,
         )
-        let finalResponse
+        let finalResponse: OpenAI.ChatCompletion
         if (opts.stream) {
           finalResponse = await handleMessageStream(
             s as ChatCompletionStream,
@@ -360,7 +360,7 @@ export async function queryOpenAI(
             assistantStreamUpdateOptions,
           )
         } else {
-          finalResponse = s
+          finalResponse = s as OpenAI.ChatCompletion
         }
         const assistantMsg = createAssistantMessageFromOpenAIResponse({
           response: finalResponse,

@@ -113,9 +113,9 @@ async function shouldAllowNetworkRequest(
 async function serializePermissionPrompt<T>(
   task: () => Promise<T>,
 ): Promise<T> {
-  let release: (() => void) | null = null
+  const gate: { release: (() => void) | null } = { release: null }
   const next = new Promise<void>(resolve => {
-    release = resolve
+    gate.release = resolve
   })
   const prev = active.permissionPromptChain
   active.permissionPromptChain = prev.then(() => next)
@@ -124,7 +124,7 @@ async function serializePermissionPrompt<T>(
     await prev
     return await task()
   } finally {
-    release?.()
+    gate.release?.()
   }
 }
 

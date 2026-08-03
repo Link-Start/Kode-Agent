@@ -84,8 +84,8 @@ export const FileReadTool = {
   async isEnabled() {
     return true
   },
-  needsPermissions({ file_path }) {
-    return !hasReadPermission(file_path || getCwd())
+  needsPermissions(input) {
+    return !hasReadPermission(input?.file_path || getCwd())
   },
   renderToolUseMessage(input, { verbose }) {
     const { file_path, ...rest } = input
@@ -139,6 +139,7 @@ export const FileReadTool = {
         )
       }
     }
+    return null
   },
   async validateInput({ file_path, offset, limit }) {
     const fullFilePath = normalizeFilePath(file_path)

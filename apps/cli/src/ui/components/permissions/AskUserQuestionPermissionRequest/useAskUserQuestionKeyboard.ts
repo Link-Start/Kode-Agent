@@ -230,19 +230,19 @@ export function useAskUserQuestionKeyboard(args: {
         setCurrentQuestionIndex(prev => Math.max(0, prev - 1))
         setFocusedOptionIndex(0)
         setIsMultiSelectSubmitFocused(false)
-        return
+        return undefined
       }
 
       if (nextQuestion && currentQuestionIndex < args.maxTabIndex) {
         setCurrentQuestionIndex(prev => Math.min(args.maxTabIndex, prev + 1))
         setFocusedOptionIndex(0)
         setIsMultiSelectSubmitFocused(false)
-        return
+        return undefined
       }
     }
 
-    if (isSubmitTab) return
-    if (!currentQuestion) return
+    if (isSubmitTab) return undefined
+    if (!currentQuestion) return undefined
 
     const optionCount = currentQuestion.options.length + 1 // + Other
     const questionText = currentQuestion.question
@@ -276,7 +276,7 @@ export function useAskUserQuestionKeyboard(args: {
           }
           answersRef.current = updated
           args.setAnswers(updated)
-          return
+          return undefined
         }
 
         if (isTextInputChar(input, key)) {
@@ -306,7 +306,7 @@ export function useAskUserQuestionKeyboard(args: {
           }
           answersRef.current = updated
           args.setAnswers(updated)
-          return
+          return undefined
         }
       }
 
@@ -341,7 +341,7 @@ export function useAskUserQuestionKeyboard(args: {
           setFocusedOptionIndex(next.focusedOptionIndex)
           setIsMultiSelectSubmitFocused(next.isSubmitFocused)
         }
-        return
+        return undefined
       }
 
       if (multiSelectSubmitFocused && (key.return || input === ' ')) {
@@ -354,7 +354,7 @@ export function useAskUserQuestionKeyboard(args: {
         const value = isOtherFocused
           ? '__other__'
           : currentQuestion.options[focusedOptionIndex]?.label
-        if (!value) return
+        if (!value) return undefined
 
         const next = selected.includes(value)
           ? selected.filter(v => v !== value)
@@ -371,7 +371,7 @@ export function useAskUserQuestionKeyboard(args: {
         answersRef.current = updated
         args.setAnswers(updated)
       }
-      return
+      return undefined
     }
 
     if (isOtherFocused) {
@@ -383,7 +383,7 @@ export function useAskUserQuestionKeyboard(args: {
           { textInputValue: existing.slice(0, -1) },
           false,
         )
-        return
+        return undefined
       }
 
       if (isTextInputChar(input, key)) {
@@ -394,7 +394,7 @@ export function useAskUserQuestionKeyboard(args: {
           { textInputValue: existing + input },
           false,
         )
-        return
+        return undefined
       }
     }
 
@@ -415,10 +415,10 @@ export function useAskUserQuestionKeyboard(args: {
           optionCount,
         }),
       )
-      return
+      return undefined
     }
 
-    if (!key.return) return
+    if (!key.return) return undefined
 
     const isSelectingOther =
       focusedOptionIndex === currentQuestion.options.length
@@ -427,7 +427,7 @@ export function useAskUserQuestionKeyboard(args: {
       const otherText =
         questionStatesRef.current[questionText]?.textInputValue ?? ''
       const trimmed = getTrimmedOtherAnswer(otherText)
-      if (!trimmed) return
+      if (!trimmed) return undefined
 
       const selectedValue = '__other__'
       setQuestionState(questionText, { selectedValue }, false)
@@ -437,11 +437,11 @@ export function useAskUserQuestionKeyboard(args: {
           ...answersRef.current,
           [questionText]: trimmed,
         })
-        return
+        return undefined
       }
 
       setAnswer(questionText, trimmed, true)
-      return
+      return undefined
     }
 
     return activateOption(focusedOptionIndex) ? true : undefined

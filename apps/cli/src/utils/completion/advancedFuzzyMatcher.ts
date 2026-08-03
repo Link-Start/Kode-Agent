@@ -85,8 +85,8 @@ export class AdvancedFuzzyMatcher {
     const words = text.split('-')
 
     // Check if pattern matches the beginning of hyphenated words
-    if (words[0].startsWith(pattern)) {
-      const coverage = pattern.length / words[0].length
+    if (words[0]!.startsWith(pattern)) {
+      const coverage = pattern.length / words[0]!.length
       return { score: 300 + coverage * 100, algorithm: 'hyphen-prefix' }
     }
 
@@ -99,7 +99,7 @@ export class AdvancedFuzzyMatcher {
 
     // Check if pattern matches any word start
     for (let i = 0; i < words.length; i++) {
-      if (words[i].startsWith(pattern)) {
+      if (words[i]!.startsWith(pattern)) {
         return { score: 200 - i * 10, algorithm: 'hyphen-word' }
       }
     }
@@ -201,7 +201,8 @@ export class AdvancedFuzzyMatcher {
     const patternMatch = pattern.match(/^(.+?)(\d+)$/)
     if (!patternMatch) return { score: 0, algorithm: 'numeric' }
 
-    const [, prefix, suffix] = patternMatch
+    const prefix = patternMatch[1]!
+    const suffix = patternMatch[2]!
 
     // Check if text ends with same number
     if (!text.endsWith(suffix)) return { score: 0, algorithm: 'numeric' }

@@ -74,10 +74,12 @@ function checkBypassSafetyFloor(args: {
   input: Record<string, unknown>
   safeMode: boolean
 }): PermissionResult | null {
-  const bypassSafetyFloor =
-    parseBoolLike(process.env.KODE_BYPASS_SAFETY_FLOOR) && !args.safeMode
-
-  if (bypassSafetyFloor) return null
+  // SECURITY: KODE_BYPASS_SAFETY_FLOOR has been removed.
+  // The safety floor (preventing writes to sensitive system paths) must
+  // always be enforced regardless of permission mode. This prevents
+  // accidental or malicious writes to /etc, ~/.ssh, etc.
+  // Previously: parseBoolLike(process.env.KODE_BYPASS_SAFETY_FLOOR) could
+  // disable this check, which is a security anti-pattern.
 
   const denyIfUnsafeWrite = (toolPath: string): PermissionResult | null => {
     const safety = getWriteSafetyCheckForPath(toolPath)

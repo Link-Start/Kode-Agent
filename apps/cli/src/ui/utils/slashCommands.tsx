@@ -20,7 +20,7 @@ export async function getMessagesForSlashCommand(
   },
 ): Promise<Message[]> {
   try {
-    const command = getCommand(commandName, context.options.commands)
+    const command = getCommand(commandName, context.options?.commands ?? [])
 
     switch (command.type) {
       case 'local-jsx': {

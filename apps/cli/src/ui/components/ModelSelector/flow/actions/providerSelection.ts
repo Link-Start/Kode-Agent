@@ -58,12 +58,18 @@ export async function handleProviderSelection(provider: string, deps: Deps) {
     }
   } else if (provider === 'custom-openai' || provider === 'ollama') {
     // For custom-openai and ollama, need to configure base URL
-    const defaultBaseUrl = providers[providerType]?.baseURL || ''
+    const defaultBaseUrl =
+      (providers as Record<string, { name: string; baseURL: string }>)[
+        providerType
+      ]?.baseURL || ''
     setProviderBaseUrl(defaultBaseUrl)
     navigateTo('baseUrl')
   } else {
     // For all standard partner providers, skip baseUrl and go directly to API key
-    const defaultBaseUrl = providers[providerType]?.baseURL || ''
+    const defaultBaseUrl =
+      (providers as Record<string, { name: string; baseURL: string }>)[
+        providerType
+      ]?.baseURL || ''
     setProviderBaseUrl(defaultBaseUrl)
     navigateTo('apiKey')
   }

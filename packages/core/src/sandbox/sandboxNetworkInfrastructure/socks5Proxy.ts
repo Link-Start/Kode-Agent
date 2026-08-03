@@ -26,7 +26,7 @@ function parseSocks5Request(
     offset += 4
   } else if (atyp === 0x03) {
     if (buffer.length < offset + 1) return null
-    const len = buffer[offset]
+    const len = buffer[offset]!
     offset += 1
     if (buffer.length < offset + len + 2) return null
     host = buffer.slice(offset, offset + len).toString('utf8')
@@ -66,7 +66,7 @@ export async function startSocks5Proxy(args: {
           return
         }
 
-        const nMethods = buffered[1]
+        const nMethods = buffered[1]!
         if (buffered.length < 2 + nMethods) return
         const methods = buffered.slice(2, 2 + nMethods)
         const supportsNoAuth = methods.includes(0x00)

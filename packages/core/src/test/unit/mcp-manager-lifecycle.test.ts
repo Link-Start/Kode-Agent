@@ -6,7 +6,7 @@ function createMockSdkClient() {
   return {
     ping: mock(async () => {}),
     close: mock(async () => {}),
-    getServerCapabilities: () => null,
+    getServerCapabilities: (): null => null,
     request: mock(async () => ({})),
     setNotificationHandler: mock(() => {}),
   } as any

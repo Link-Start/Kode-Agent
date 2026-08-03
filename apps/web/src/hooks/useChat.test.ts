@@ -178,7 +178,7 @@ describe('useChat helpers', () => {
   test('binds the active turn from the matching user event and accepts its result', () => {
     const activeRequest = {
       clientMessageUuid: 'client-a',
-      turnId: null,
+      turnId: null as string | null,
     }
     const matchingUser = {
       type: 'user' as const,
@@ -249,8 +249,8 @@ describe('useChat helpers', () => {
     const unscopedDaemonResult = {
       ...legacyResult,
       sessionId: 'session-a',
-      clientMessageUuid: null,
-      turnId: null,
+      clientMessageUuid: null as string | null,
+      turnId: null as string | null,
       sequence: 42,
       replayed: false,
     }

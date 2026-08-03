@@ -76,7 +76,8 @@ export const LspTool = {
   isConcurrencySafe() {
     return true
   },
-  needsPermissions({ filePath }: Input) {
+  needsPermissions(input?: Input) {
+    const filePath = input?.filePath
     const abs = getAbsolutePath(filePath) ?? filePath
     return !hasReadPermission(abs || getCwd())
   },

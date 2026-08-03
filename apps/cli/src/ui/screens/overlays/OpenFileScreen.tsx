@@ -292,7 +292,7 @@ export function OpenFileScreen({
     Math.min(12, options.length || 12, availableForList),
   )
 
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
 
   useKeypress(
     (input, key) => {
@@ -305,6 +305,8 @@ export function OpenFileScreen({
         startIndexing(true)
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

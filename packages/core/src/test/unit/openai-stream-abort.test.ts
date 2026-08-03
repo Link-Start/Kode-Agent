@@ -13,7 +13,7 @@ function rawChunk(choice: Record<string, unknown>) {
     model: 'gpt-4',
     created: 1,
     object: 'chat.completion.chunk',
-    choices: [{ index: 0, finish_reason: null, ...choice }],
+    choices: [{ index: 0, finish_reason: null as string | null, ...choice }],
   }
 }
 

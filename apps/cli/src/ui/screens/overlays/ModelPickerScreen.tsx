@@ -37,7 +37,7 @@ export function ModelPickerScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
 
   const modelManager = useMemo(() => getModelManager(), [])
   const currentMainModelName = modelManager.getModelName('main')
@@ -230,7 +230,7 @@ export function ModelPickerScreen({
         return true
       }
 
-      return
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

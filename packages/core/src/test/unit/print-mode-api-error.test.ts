@@ -30,7 +30,7 @@ describe('print mode API error results', () => {
             )
           },
           kodeMessageToSdkMessage,
-          makeSdkResultMessage,
+          makeSdkResultMessage: makeSdkResultMessage as any,
           messages: [createUserMessage('hi')],
           systemPrompt: [],
           context: {},

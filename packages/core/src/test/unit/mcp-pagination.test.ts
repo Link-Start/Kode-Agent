@@ -95,7 +95,7 @@ describe('MCP paginated list requests', () => {
       'mcp__srv__first',
       'mcp__srv__second',
     ])
-    expect(tools.map(tool => tool.userFacingName())).toEqual([
+    expect(tools.map(tool => tool.userFacingName!())).toEqual([
       'srv - First Tool (MCP)',
       'srv - second (MCP)',
     ])
@@ -142,7 +142,7 @@ describe('MCP paginated list requests', () => {
     const client: any = {
       request: async (req: any) => {
         if (req.method === 'resources/templates/list') {
-          return { resourceTemplates: [] }
+          return { resourceTemplates: [] as any[] }
         }
         const cursor = req.params?.cursor
         if (!cursor) {
@@ -167,7 +167,7 @@ describe('MCP paginated list requests', () => {
       },
     ])
 
-    const gen = ListMcpResourcesTool.call({}, ctx)
+    const gen = ListMcpResourcesTool.call({} as any, ctx as any)
     const first = await gen.next()
     const firstValue = asRecord(first.value)
 

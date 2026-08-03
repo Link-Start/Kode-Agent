@@ -14,7 +14,7 @@ import { testModels, getChatCompletionsModels } from '../testAdapters'
 describe('Chat Completions API Tests', () => {
   describe('Chat Completions API-specific functionality', () => {
     // Use a representative Chat Completions model for testing
-    const testModel = getChatCompletionsModels(testModels)[0] || testModels[0]
+    const testModel = getChatCompletionsModels(testModels)[0] || testModels[0]!
 
     test('handles Chat Completions request parameters correctly', () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
@@ -25,7 +25,7 @@ describe('Chat Completions API Tests', () => {
           { role: 'user', content: 'Write a simple JavaScript function' },
         ],
         systemPrompt: ['You are a helpful coding assistant.'],
-        tools: [],
+        tools: [] as any[],
         maxTokens: 100,
         stream: capabilities.streaming.supported,
         temperature: 0.7,
@@ -90,7 +90,7 @@ describe('Chat Completions API Tests', () => {
       )
       expect(unifiedResponse.toolCalls).toBeDefined()
       expect(Array.isArray(unifiedResponse.toolCalls)).toBe(true)
-      expect(unifiedResponse.toolCalls.length).toBe(0)
+      expect(unifiedResponse.toolCalls!.length).toBe(0)
     })
 
     test('handles Chat Completions tool results correctly', () => {

@@ -68,7 +68,7 @@ function RequestStatusIndicator(): React.ReactNode {
   }, [])
 
   useEffect(() => {
-    if (!shouldAnimate) return
+    if (!shouldAnimate) return undefined
     const timer = setInterval(() => {
       setFrame(f => (f + 1) % SPINNER_FRAMES.length)
     }, 80)
@@ -76,7 +76,7 @@ function RequestStatusIndicator(): React.ReactNode {
   }, [shouldAnimate])
 
   useEffect(() => {
-    if (!shouldAnimate || requestStartTime.current === null) return
+    if (!shouldAnimate || requestStartTime.current === null) return undefined
     const timer = setInterval(() => {
       const startTime = requestStartTime.current
       if (startTime !== null) {

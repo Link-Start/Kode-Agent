@@ -458,7 +458,22 @@ export async function runNonTextPrintMode(
 
     await runKodeAgentStreamJsonSession({
       structured,
-      query,
+      // The session helper types `canUseTool` as `unknown`; adapt to the
+      // engine's concrete signature to satisfy strictFunctionTypes.
+      query: (
+        messages: Message[],
+        sysPrompt: string[],
+        queryContext: { [k: string]: string },
+        canUseTool: unknown,
+        toolUseContext: Parameters<typeof query>[4],
+      ) =>
+        query(
+          messages,
+          sysPrompt,
+          queryContext,
+          canUseTool as Parameters<typeof query>[3],
+          toolUseContext,
+        ),
       makeUserMessage: (content, uuidOverride) => {
         const msg = createUserMessage(normalizeUserContent(content))
         if (uuidOverride && isUuidValue(uuidOverride)) msg.uuid = uuidOverride
@@ -533,7 +548,12 @@ export async function runNonTextPrintMode(
         toolUseContext: turnArgs.toolUseContext,
       }),
     kodeMessageToSdkMessage,
-    makeSdkResultMessage,
+    // runSingleTurnPrint types `subtype` as plain string; narrow back to the
+    // protocol union at the boundary.
+    makeSdkResultMessage: resultArgs =>
+      makeSdkResultMessage(
+        resultArgs as Parameters<typeof makeSdkResultMessage>[0],
+      ),
     messages: baseMessages,
     systemPrompt,
     context: ctx,

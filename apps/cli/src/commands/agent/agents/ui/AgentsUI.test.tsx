@@ -35,13 +35,15 @@ mock.module('./AgentsListView', () => ({
   AgentsListView: () => <Text>Agent list ready</Text>,
 }))
 
-mock.module('./AgentMenu', () => ({ AgentMenu: () => null }))
-mock.module('./CreateAgentWizard', () => ({ CreateAgentWizard: () => null }))
-mock.module('./DeleteConfirm', () => ({ DeleteConfirm: () => null }))
-mock.module('./EditAgent', () => ({ EditAgent: () => null }))
-mock.module('./ViewAgent', () => ({ ViewAgent: () => null }))
+mock.module('./AgentMenu', () => ({ AgentMenu: (): null => null }))
+mock.module('./CreateAgentWizard', () => ({
+  CreateAgentWizard: (): null => null,
+}))
+mock.module('./DeleteConfirm', () => ({ DeleteConfirm: (): null => null }))
+mock.module('./EditAgent', () => ({ EditAgent: (): null => null }))
+mock.module('./ViewAgent', () => ({ ViewAgent: (): null => null }))
 mock.module('./components', () => ({
-  Instructions: () => null,
+  Instructions: (): null => null,
   Panel: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 

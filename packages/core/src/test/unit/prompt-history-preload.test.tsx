@@ -19,7 +19,7 @@ describe('prompt history preload', () => {
     let historyReads = 0
     const loadHistory = () => {
       historyReads += 1
-      return [{ display: 'cached command', pastedTexts: [] }]
+      return [{ display: 'cached command', pastedTexts: [] as any[] }]
     }
 
     function HistoryHarness() {

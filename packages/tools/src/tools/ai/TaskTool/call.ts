@@ -14,6 +14,7 @@ import { createDefaultToolPermissionContext } from '#core/types/toolPermissionCo
 import { LEGACY_ENV } from '#core/compat/legacyEnv'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { loadKodeAgentSidechainMessagesForResume } from '#protocol/utils/kodeAgentSessionLoad'
+import { AgentSupervisor } from '#core/utils/agentSupervisor'
 
 import { getTaskTools } from './prompt'
 import { buildForkContextForAgent } from './forkContext'
@@ -131,6 +132,12 @@ export async function* callTaskTool(
   )
 
   const agentId = input.resume || generateAgentId()
+
+  // Acquire supervisor slot — enforces concurrency limit and timeout/turn caps
+  const supervisor = AgentSupervisor.acquire(agentId, {
+    maxExecutionTimeMs: (agentConfig as any).maxExecutionTimeMs,
+  })
+
   let baseTranscript: any[] = []
   if (input.resume) {
     const cached = getAgentTranscript(input.resume)
@@ -203,7 +210,10 @@ export async function* callTaskTool(
         ...agentCommandAllowedTools,
       ]),
     ],
-    maxTurns: input.max_turns,
+    maxTurns: Math.min(
+      input.max_turns ?? supervisor.maxTurnsHardCap,
+      supervisor.maxTurnsHardCap,
+    ),
     maxThinkingTokens,
     model: modelToUse,
     mcpClients: options.mcpClients,
@@ -226,11 +236,13 @@ export async function* callTaskTool(
   }
 
   if (input.run_in_background) {
+    // Background agents manage their own supervisor release in callBackground
     yield* callTaskToolBackground(input, prepared, {
       parentAgentId: toolUseContext.agentId,
       parentToolUseId: toolUseContext.toolUseId,
       subagentType: input.subagent_type,
       model: modelToUse,
+      supervisor,
     })
     return
   }
@@ -239,18 +251,23 @@ export async function* callTaskTool(
   const setToolJSX =
     typeof setToolJSXMaybe === 'function' ? (setToolJSXMaybe as any) : undefined
 
-  for await (const chunk of callTaskToolForeground(input, prepared, {
-    setToolJSX,
-    backgroundMetadata: {
-      parentAgentId: toolUseContext.agentId,
-      parentToolUseId: toolUseContext.toolUseId,
-      subagentType: input.subagent_type,
-      model: modelToUse,
-    },
-  })) {
-    if (chunk.type === 'result') {
-      saveAgentTranscript(prepared.agentId, prepared.transcriptMessages)
+  try {
+    for await (const chunk of callTaskToolForeground(input, prepared, {
+      setToolJSX,
+      backgroundMetadata: {
+        parentAgentId: toolUseContext.agentId,
+        parentToolUseId: toolUseContext.toolUseId,
+        subagentType: input.subagent_type,
+        model: modelToUse,
+      },
+      supervisor,
+    })) {
+      if (chunk.type === 'result') {
+        saveAgentTranscript(prepared.agentId, prepared.transcriptMessages)
+      }
+      yield chunk
     }
-    yield chunk
+  } finally {
+    supervisor.release()
   }
 }

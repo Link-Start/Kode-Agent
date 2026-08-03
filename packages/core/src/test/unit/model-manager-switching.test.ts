@@ -192,7 +192,7 @@ describe('ModelManager model switching', () => {
     expect(modelId).toBe(modelA.modelName)
     expect(manager.getAllConfiguredModels()).toHaveLength(1)
 
-    const updated = manager.getAllConfiguredModels()[0]
+    const updated = manager.getAllConfiguredModels()[0]!
     expect(updated.name).toBe('Model A Updated')
     expect(updated.baseURL).toBe('https://example.com/v1')
     expect(updated.apiKey).toBe('existing-key')

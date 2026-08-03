@@ -47,7 +47,7 @@ export const flattenOptions = (
   options.flatMap(option => {
     if ('options' in option) {
       const flatSubtree = flattenOptions(option.options)
-      const optionValues = flatSubtree.flatMap(o =>
+      const optionValues = flatSubtree.flatMap((o): string | string[] =>
         'value' in o ? o.value : [],
       )
       const header =

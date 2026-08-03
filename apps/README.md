@@ -7,10 +7,8 @@ Application layer - each app is a standalone entrypoint.
 ```
 apps/
 ├── cli/        # Terminal application (Ink TUI)
-├── server/     # API server (HTTP/WebSocket)
-├── web/        # Web frontend (React + Vite)
-├── vscode/     # [TODO] VSCode extension
-└── desktop/    # [TODO] Electron desktop app
+├── server/     # API server / Daemon (HTTP/WebSocket)
+└── web/        # Web frontend (React + Vite)
 ```
 
 ## Current Apps
@@ -39,25 +37,11 @@ Browser-based frontend connecting to server via WebSocket.
 pnpm --filter @kode/web dev
 ```
 
-## Roadmap
+## Third-Party Integration
 
-### @kode/vscode (Planned)
-
-> Status: Skeleton only. Implementation TBD.
-
-VSCode extension integrating Kode into the editor. May be:
-
-- Developed in this monorepo, or
-- Split into a separate repository
-
-### @kode/desktop (Planned)
-
-> Status: Skeleton only. Implementation TBD.
-
-Electron-based desktop application. May be:
-
-- Developed in this monorepo, or
-- Split into a separate repository
+VS Code extensions or desktop applications can integrate with Kode
+via the Daemon SDK (`@shareai-lab/kode/daemon-client`). These are
+intended to live in separate repositories rather than this monorepo.
 
 ---
 

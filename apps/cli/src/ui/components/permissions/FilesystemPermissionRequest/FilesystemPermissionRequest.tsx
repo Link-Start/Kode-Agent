@@ -249,9 +249,10 @@ function FilesystemPermissionRequestImpl({
   )
 
   useKeypress((inputChar, key) => {
-    if (!modeCycleShortcut.check(inputChar, key)) return
-    if (toolUseConfirm.tool.isReadOnly(toolUseConfirm.input as never)) return
-    if (!hasSessionSuggestion) return
+    if (!modeCycleShortcut.check(inputChar, key)) return undefined
+    if (toolUseConfirm.tool.isReadOnly(toolUseConfirm.input as never))
+      return undefined
+    if (!hasSessionSuggestion) return undefined
     handleChoice('yes-session')
     return true
   })

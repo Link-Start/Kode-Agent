@@ -221,6 +221,7 @@ export async function* callTaskToolForeground(
       subagentType?: string
       model?: string
     }
+    supervisor?: import('#core/utils/agentSupervisor').AgentSupervisor
   },
 ): AsyncGenerator<
   | { type: 'progress'; content: ConversationMessage }
@@ -452,6 +453,9 @@ export async function* callTaskToolForeground(
 
   try {
     while (true) {
+      // Enforce wall-clock timeout on each iteration
+      options?.supervisor?.checkLimits(toolUseCount)
+
       const raced = await Promise.race([
         nextPromise.then(res => ({ kind: 'next' as const, res })),
         backgroundRequestedPromise.then(() => ({

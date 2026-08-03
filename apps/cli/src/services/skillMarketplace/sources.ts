@@ -25,8 +25,8 @@ function parseRefAndPath(input: string): {
   ref?: string
   path?: string
 } {
-  const [beforeHash, hashPart] = input.split('#', 2)
-  const [base, refPart] = beforeHash.split('@', 2)
+  const [beforeHash = '', hashPart] = input.split('#', 2)
+  const [base = '', refPart] = beforeHash.split('@', 2)
   return {
     base,
     ref: refPart?.trim() || undefined,

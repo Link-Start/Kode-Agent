@@ -138,7 +138,7 @@ export function __computeAutoTriggerActionForTests(args: {
 
     if (
       newSuggestions.length === 1 &&
-      shouldAutoHideSingleMatch(newSuggestions[0], args.context)
+      shouldAutoHideSingleMatch(newSuggestions[0]!, args.context)
     ) {
       return { nextLastInput, nextLastInputTime, action: 'reset' }
     }
@@ -204,7 +204,7 @@ export function useUnifiedCompletionAutoTrigger(args: {
       now: Date.now(),
       suppressUntil: args.state.suppressUntil,
     })
-    if (delay === null) return
+    if (delay === null) return undefined
 
     const timeout = setTimeout(() => {
       setSuppressWakeTick(tick => tick + 1)

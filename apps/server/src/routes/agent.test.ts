@@ -21,7 +21,7 @@ const agent: DaemonManagedAgent = {
 
 function createService(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    list: () => [],
+    list: (): never[] => [],
     get: () => ({ ok: false, reason: 'not_found' }),
     create: async () => ({
       ok: true,

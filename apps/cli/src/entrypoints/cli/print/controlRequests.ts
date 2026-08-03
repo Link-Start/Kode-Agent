@@ -24,7 +24,7 @@ export function createPrintControlRequestHandler(args: {
   return async msg => {
     const subtype = msg.request?.subtype
 
-    if (subtype === 'initialize') return
+    if (subtype === 'initialize') return undefined
 
     if (subtype === 'set_permission_mode') {
       const mode = msg.request.mode
@@ -37,7 +37,7 @@ export function createPrintControlRequestHandler(args: {
       ) {
         args.setPermissionMode(mode)
       }
-      return
+      return undefined
     }
 
     if (subtype === 'set_model') {
@@ -47,7 +47,7 @@ export function createPrintControlRequestHandler(args: {
       } else if (typeof requested === 'string' && requested.trim()) {
         args.setModel(requested.trim())
       }
-      return
+      return undefined
     }
 
     if (subtype === 'set_max_thinking_tokens') {
@@ -61,7 +61,7 @@ export function createPrintControlRequestHandler(args: {
       ) {
         args.setMaxThinkingTokens(value)
       }
-      return
+      return undefined
     }
 
     if (subtype === 'mcp_status') {
@@ -88,7 +88,7 @@ export function createPrintControlRequestHandler(args: {
           }
         }
       }
-      return
+      return undefined
     }
 
     if (subtype === 'mcp_set_servers') {

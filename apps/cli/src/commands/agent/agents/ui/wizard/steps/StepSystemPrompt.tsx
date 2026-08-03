@@ -20,6 +20,7 @@ export function StepSystemPrompt({ ctx }: { ctx: WizardContextValue }) {
       ctx.goBack()
       return true
     }
+    return undefined
   })
 
   const onSubmit = (next: string) => {

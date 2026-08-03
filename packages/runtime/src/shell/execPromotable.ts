@@ -105,7 +105,7 @@ export function execPromotable(
     return count
   }
 
-  const spawnedProcess = spawn(cmdToRun[0], cmdToRun.slice(1), {
+  const spawnedProcess = spawn(cmdToRun[0]!, cmdToRun.slice(1), {
     cwd: executionCwd,
     stdio: getShellStdioForPlatform(process.platform),
   })
@@ -267,15 +267,17 @@ export function execPromotable(
       if (status === 'running' || status === 'backgrounded')
         status = 'completed'
 
-      if (backgroundProcess) {
-        backgroundProcess.code =
+      // backgroundProcess is assigned inside background(), which TS's control
+      // flow analysis cannot see from this IIFE, so re-widen the type here.
+      const bgAtExit = backgroundProcess as BackgroundProcess | null
+      if (bgAtExit) {
+        bgAtExit.code =
           exitOutcome.kind === 'exit' ? (exitOutcome.code ?? 0) : 2
-        backgroundProcess.interrupted =
-          backgroundProcess.interrupted ||
+        bgAtExit.interrupted =
+          bgAtExit.interrupted ||
           wasAborted ||
           internalAbortController.signal.aborted
-        backgroundProcess.completedAt =
-          backgroundProcess.completedAt ?? Date.now()
+        bgAtExit.completedAt = bgAtExit.completedAt ?? Date.now()
       }
 
       if (!wasBackgrounded) {
@@ -310,14 +312,16 @@ export function execPromotable(
           })
         : stderrWithTimeout
 
-      if (backgroundProcess && stderrAnnotated !== backgroundProcess.stderr) {
-        const previousStderr = backgroundProcess.stderr
-        backgroundProcess.stderr = stderrAnnotated
+      // Same narrowing workaround as above for backgroundProcess.
+      const bgForStderr = backgroundProcess as BackgroundProcess | null
+      if (bgForStderr && stderrAnnotated !== bgForStderr.stderr) {
+        const previousStderr = bgForStderr.stderr
+        bgForStderr.stderr = stderrAnnotated
         if (stderrAnnotated.startsWith(previousStderr)) {
           const delta = stderrAnnotated.slice(previousStderr.length)
           if (delta) {
-            appendTaskOutput(backgroundProcess.id, delta)
-            backgroundProcess.stderrLineCount += countNewlines(delta)
+            appendTaskOutput(bgForStderr.id, delta)
+            bgForStderr.stderrLineCount += countNewlines(delta)
           }
         }
       }

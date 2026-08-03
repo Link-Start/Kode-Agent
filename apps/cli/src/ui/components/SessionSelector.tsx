@@ -135,6 +135,7 @@ function PopulatedSessionSelector({
       setSelectedIndex(Math.max(0, sessions.length - 1))
       return true
     }
+    return undefined
   })
 
   const topIndicator = window.showUpIndicator ? `${figures.arrowUp} More` : ' '

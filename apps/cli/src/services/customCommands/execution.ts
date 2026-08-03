@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 
@@ -19,11 +19,11 @@ export async function executeBashCommands(content: string): Promise<string> {
 
   for (const match of matches) {
     const fullMatch = match[0]
-    const command = match[1].trim()
+    const command = match[1]!.trim()
 
     try {
       const parts = command.split(/\s+/)
-      const cmd = parts[0]
+      const cmd = parts[0]!
       const args = parts.slice(1)
 
       const { stdout, stderr } = await execFileAsync(cmd, args, {
@@ -57,12 +57,17 @@ export async function resolveFileReferences(content: string): Promise<string> {
 
   for (const match of matches) {
     const fullMatch = match[0]
-    const filePath = match[1]
+    const filePath = match[1]!
 
     if (filePath.startsWith('agent-')) continue
 
     try {
-      const fullPath = join(getCwd(), filePath)
+      const fullPath = resolve(getCwd(), filePath)
+      // Prevent path traversal outside the working directory
+      if (!fullPath.startsWith(getCwd() + sep) && fullPath !== getCwd()) {
+        result = result.replace(fullMatch, `(access denied: ${filePath} is outside workspace)`)
+        continue
+      }
 
       if (existsSync(fullPath)) {
         const fileContent = readFileSync(fullPath, { encoding: 'utf-8' })

@@ -447,8 +447,8 @@ export function PromptInput({
   // - Alt+Up pops the most recent queued/pending message for editing
   useKeypress(
     (_inputChar, key) => {
-      if (isEditingExternally) return
-      if (isDisabled) return
+      if (isEditingExternally) return undefined
+      if (isDisabled) return undefined
 
       if (key.meta && key.upArrow && !key.shift && !key.ctrl) {
         const latest =
@@ -457,7 +457,7 @@ export function PromptInput({
                 item.seq > best.seq ? item : best,
               )
             : null
-        if (!latest) return
+        if (!latest) return undefined
 
         let draftForQueue: QueuedPrompt | null = null
         if (
@@ -520,6 +520,7 @@ export function PromptInput({
         setCursorOffset(0)
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.REPL_CONTROLLER },
   )
@@ -644,7 +645,7 @@ export function PromptInput({
     null,
   )
   useEffect(() => {
-    if (initialPrompt && initialPrompt.trim()) return
+    if (initialPrompt && initialPrompt.trim()) return undefined
 
     const normalizedCursor = Math.min(Math.max(0, cursorOffset), input.length)
     const shouldClearDraft = input.trim().length === 0 && mode === 'prompt'
@@ -661,8 +662,8 @@ export function PromptInput({
       prev.mode === nextSnapshot.mode &&
       prev.cursorOffset === nextSnapshot.cursorOffset
 
-    if (shouldClearDraft && !prev) return
-    if (!shouldClearDraft && unchanged) return
+    if (shouldClearDraft && !prev) return undefined
+    if (!shouldClearDraft && unchanged) return undefined
 
     if (draftPersistTimeoutRef.current) {
       clearTimeout(draftPersistTimeoutRef.current)
@@ -726,7 +727,7 @@ export function PromptInput({
     },
     buildExtraFromHistoryEntry: entry => ({
       pastedTexts: entry.pastedTexts,
-      pastedImages: [],
+      pastedImages: [] as PastedImageAttachment[],
     }),
   })
   onHistoryUserInputRef.current = onUserInput
@@ -1269,6 +1270,7 @@ export function PromptInput({
         handleClearInput()
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.INPUT },
   )

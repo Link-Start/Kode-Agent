@@ -27,9 +27,7 @@ import { createAnthropicUsage } from '@kode/protocol/anthropic'
 
 type SamplingMessage = {
   role: 'user' | 'assistant'
-  content:
-    | SamplingContentBlock
-    | SamplingContentBlock[]
+  content: SamplingContentBlock | SamplingContentBlock[]
 }
 
 type SamplingContentBlock =
@@ -37,7 +35,12 @@ type SamplingContentBlock =
   | { type: 'image'; data: string; mimeType: string }
   | { type: 'audio'; data: string; mimeType: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
-  | { type: 'tool_result'; toolUseId: string; content: unknown; isError?: boolean }
+  | {
+      type: 'tool_result'
+      toolUseId: string
+      content: unknown
+      isError?: boolean
+    }
 
 type CreateMessageParams = {
   messages: SamplingMessage[]
@@ -65,7 +68,9 @@ type CreateMessageResult = {
   model: string
   stopReason?: string
   role: 'assistant'
-  content: { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+  content:
+    | { type: 'text'; text: string }
+    | { type: 'image'; data: string; mimeType: string }
 }
 
 // ---------------------------------------------------------------------------
@@ -207,9 +212,7 @@ function normalizeContent(
   return Array.isArray(content) ? content : [content]
 }
 
-function convertToUserMessage(
-  blocks: SamplingContentBlock[],
-): UserMessage {
+function convertToUserMessage(blocks: SamplingContentBlock[]): UserMessage {
   const anthropicContent: MessageParam['content'] = blocks.map(block => {
     switch (block.type) {
       case 'text':
@@ -220,10 +223,7 @@ function convertToUserMessage(
           source: {
             type: 'base64' as const,
             media_type: block.mimeType as
-              | 'image/jpeg'
-              | 'image/png'
-              | 'image/gif'
-              | 'image/webp',
+              'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
             data: block.data,
           },
         }
@@ -365,9 +365,7 @@ function resolveModelFromPreferences(
 // Test helpers
 // ---------------------------------------------------------------------------
 
-export function __setMcpSamplingEnabledForTests(
-  value: boolean | null,
-): void {
+export function __setMcpSamplingEnabledForTests(value: boolean | null): void {
   samplingEnabledOverrideForTests = value
 }
 

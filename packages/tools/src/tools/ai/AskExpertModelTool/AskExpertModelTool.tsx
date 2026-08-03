@@ -91,6 +91,15 @@ async function validateInput(
   return { result: true }
 }
 
+function renderResultForAssistant(output: Out): string {
+  return `[Expert consultation completed]
+Expert Model: ${output.expertModelName}
+Session ID: ${output.chatSessionId}
+To continue this conversation, reuse this Session ID in the next AskExpertModel call.
+
+${output.expertAnswer}`
+}
+
 export const AskExpertModelTool = {
   name: 'AskExpertModel',
   async description() {
@@ -190,14 +199,7 @@ export const AskExpertModelTool = {
       </Box>
     )
   },
-  renderResultForAssistant(output: Out): string {
-    return `[Expert consultation completed]
-Expert Model: ${output.expertModelName}
-Session ID: ${output.chatSessionId}
-To continue this conversation, reuse this Session ID in the next AskExpertModel call.
-
-${output.expertAnswer}`
-  },
+  renderResultForAssistant,
   async *call(
     input: Input,
     { abortController, readFileTimestamps }: ToolUseContext,
@@ -210,7 +212,7 @@ ${output.expertAnswer}`
     yield* callAskExpertModelTool(
       normalizedInput,
       { abortController, readFileTimestamps },
-      output => this.renderResultForAssistant(output),
+      renderResultForAssistant,
     )
   },
 } satisfies Tool<typeof inputSchema, Out>

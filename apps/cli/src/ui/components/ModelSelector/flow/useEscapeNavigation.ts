@@ -17,6 +17,7 @@ export function useEscapeNavigation(
         onEscape()
         return true
       }
+      return undefined
     },
     { isActive: true },
   )

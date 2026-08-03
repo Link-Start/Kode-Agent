@@ -26,6 +26,7 @@ export function HighlightedCode({ code, language }: Props): React.ReactElement {
         )
         return highlight(code, { language: 'markdown' })
       }
+      return code
     }
   }, [code, language])
 

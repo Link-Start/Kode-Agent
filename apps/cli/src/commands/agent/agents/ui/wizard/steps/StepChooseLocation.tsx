@@ -14,6 +14,7 @@ export function StepChooseLocation({ ctx }: { ctx: WizardContextValue }) {
       ctx.cancel()
       return true
     }
+    return undefined
   })
 
   return (

@@ -36,9 +36,13 @@ function isPipelineMessage(value: unknown): value is Message {
   )
 }
 
-function toToolResultContent(value: unknown): ToolResultBlockParam['content'] {
+function toToolResultContent(
+  value: unknown,
+): NonNullable<ToolResultBlockParam['content']> {
   if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value as ToolResultBlockParam['content']
+  if (Array.isArray(value)) {
+    return value as NonNullable<ToolResultBlockParam['content']>
+  }
   return String(value)
 }
 

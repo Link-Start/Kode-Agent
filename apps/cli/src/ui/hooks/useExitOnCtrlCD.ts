@@ -31,6 +31,7 @@ export function useExitOnCtrlCD(onExit: () => void): ExitState {
       handleCtrlD()
       return true
     }
+    return undefined
   })
 
   return exitState

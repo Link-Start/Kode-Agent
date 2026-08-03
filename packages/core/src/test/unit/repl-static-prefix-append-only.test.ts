@@ -40,7 +40,7 @@ describe('REPL Static prefix append-only (regression)', () => {
     const toolUseContent = [
       { type: 'tool_use', id: 't1', name: 'Bash', input: {} },
       { type: 'tool_use', id: 't2', name: 'Read', input: {} },
-      { type: 'text', text: 'after tools', citations: [] },
+      { type: 'text', text: 'after tools', citations: [] as string[] },
     ] satisfies any[]
     const toolUseMessage = {
       ...baseToolUseMessage,
@@ -108,7 +108,7 @@ describe('REPL Static prefix append-only (regression)', () => {
     const toolUseContent = [
       { type: 'tool_use', id: 't1', name: 'Bash', input: {} },
       { type: 'tool_use', id: 't2', name: 'Read', input: {} },
-      { type: 'text', text: 'after tools', citations: [] },
+      { type: 'text', text: 'after tools', citations: [] as string[] },
     ] satisfies any[]
     const base = {
       ...baseMessage,

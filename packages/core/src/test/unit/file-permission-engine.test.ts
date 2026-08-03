@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { hasPermissionsToUseTool } from '#core/permissions'
+import { hasReadPermission } from '#core/utils/permissions/filesystem'
+import { getCwd } from '#core/utils/state'
+import { FileEditTool } from '#tools/tools/filesystem/FileEditTool/FileEditTool'
 import { FileReadTool } from '#tools/tools/filesystem/FileReadTool/FileReadTool'
 import { FileWriteTool } from '#tools/tools/filesystem/FileWriteTool/FileWriteTool'
+import { NotebookEditTool } from '#tools/tools/filesystem/NotebookEditTool/NotebookEditTool'
 import {
   applyToolPermissionContextUpdates,
   createDefaultToolPermissionContext,
@@ -51,6 +55,24 @@ function makeContext(args?: {
 describe('Compatibility: filesystem permission engine', () => {
   beforeEach(() => {
     __resetPlanModeForTests()
+  })
+
+  test('fails closed when write tool permission input is unavailable', () => {
+    expect(() => FileEditTool.needsPermissions(undefined)).not.toThrow()
+    expect(FileEditTool.needsPermissions(undefined)).toBe(true)
+
+    expect(() => FileWriteTool.needsPermissions(undefined)).not.toThrow()
+    expect(FileWriteTool.needsPermissions(undefined)).toBe(true)
+
+    expect(() => NotebookEditTool.needsPermissions(undefined)).not.toThrow()
+    expect(NotebookEditTool.needsPermissions(undefined)).toBe(true)
+  })
+
+  test('uses the current directory permission context when read input is unavailable', () => {
+    expect(() => FileReadTool.needsPermissions(undefined)).not.toThrow()
+    expect(FileReadTool.needsPermissions(undefined)).toBe(
+      !hasReadPermission(getCwd()),
+    )
   })
 
   test('allows reading inside working directory by default', async () => {

@@ -226,9 +226,9 @@ describe('AskUserQuestionTool schema parity', () => {
     )
     expect(nested.success).toBe(true)
     if (nested.success) {
-      const q = nested.data.questions[0]
+      const q = nested.data.questions[0]!
       expect('extraQuestionField' in q).toBe(false)
-      expect('extraOptionField' in q.options[0]).toBe(false)
+      expect('extraOptionField' in q.options[0]!).toBe(false)
     }
   })
 

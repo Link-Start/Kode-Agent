@@ -126,7 +126,7 @@ describe('🧪 Response API Tool Processing - Real Mock Server Test', () => {
     // Check for the bug pattern
     let bugDetected = false
     if (toolUseInContent.length > 0 && toolCallsInResponse.length > 0) {
-      const firstToolUse = toolUseInContent[0]
+      const firstToolUse = toolUseInContent[0]!
       const firstToolCall = toolCallsInResponse[0]
 
       // Check if they represent the same tool

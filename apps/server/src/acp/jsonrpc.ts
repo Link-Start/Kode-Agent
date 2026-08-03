@@ -238,7 +238,11 @@ export class JsonRpcPeer {
         abort?: AbortSignal
         abortHandler?: () => void
         timeoutId?: NodeJS.Timeout
-      } = { resolve, reject, abort: args.signal }
+      } = {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+        abort: args.signal,
+      }
 
       if (timeoutMs && Number.isFinite(timeoutMs) && timeoutMs > 0) {
         entry.timeoutId = setTimeout(() => {

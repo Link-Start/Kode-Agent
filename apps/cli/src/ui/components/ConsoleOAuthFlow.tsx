@@ -61,7 +61,7 @@ export function ConsoleOAuthFlow({
 
   // Retry logic
   useEffect(() => {
-    if (oauthStatus.state !== 'about_to_retry') return
+    if (oauthStatus.state !== 'about_to_retry') return undefined
 
     const timer = setTimeout(() => {
       setOAuthStatus(oauthStatus.nextState)
@@ -70,7 +70,7 @@ export function ConsoleOAuthFlow({
   }, [oauthStatus, retryDelayMs])
 
   useEffect(() => {
-    if (oauthStatus.state !== 'waiting_for_login') return
+    if (oauthStatus.state !== 'waiting_for_login') return undefined
 
     setShowPastePrompt(false)
     const timer = setTimeout(() => {

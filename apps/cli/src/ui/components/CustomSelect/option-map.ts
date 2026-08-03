@@ -17,7 +17,7 @@ export default class OptionMap extends Map<string, OptionMapItem> {
     let index = 0
 
     for (const option of options) {
-      const item = {
+      const item: OptionMapItem = {
         ...option,
         previous,
         next: undefined,

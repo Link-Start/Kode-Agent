@@ -88,7 +88,7 @@ export function RequestStatusIndicator({
   }, [])
 
   useEffect(() => {
-    if (!isVisible) return
+    if (!isVisible) return undefined
 
     const timer = setInterval(() => {
       setFrame(f => (f + 1) % frames.length)
@@ -97,7 +97,7 @@ export function RequestStatusIndicator({
   }, [frames.length, isVisible])
 
   useEffect(() => {
-    if (!isVisible) return
+    if (!isVisible) return undefined
 
     const timer = setInterval(() => {
       setElapsedTime(Math.floor((Date.now() - requestStartTime.current) / 1000))

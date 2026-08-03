@@ -431,7 +431,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
           setMode({ kind: 'hooks', event: mode.entry.event })
           return true
         }
-        return
+        return undefined
       }
 
       if (mode.kind === 'addHook') {
@@ -458,7 +458,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
             setSelectedIndex(0)
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'destination') {
           if (key.upArrow || inputChar === 'k') {
@@ -476,7 +476,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
             setDraftMatcher('*')
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'matcher') {
           if (key.backspace || key.delete) {
@@ -491,7 +491,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
             setDraftMatcher(prev => prev + inputChar)
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'type') {
           if (key.upArrow || inputChar === 'k') {
@@ -507,7 +507,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
             setMode({ kind: 'addHook', step: 'input' })
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'input') {
           if (key.backspace || key.delete) {
@@ -523,7 +523,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
             setDraftInput(prev => prev + inputChar)
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'timeout') {
           if (key.backspace || key.delete) {
@@ -572,7 +572,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
             if (inputChar !== ' ') setDraftTimeout(prev => prev + inputChar)
             return true
           }
-          return
+          return undefined
         }
       }
 
@@ -660,6 +660,8 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
           return true
         }
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

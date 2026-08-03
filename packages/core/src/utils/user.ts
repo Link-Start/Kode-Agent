@@ -30,7 +30,7 @@ type SimpleUser = {
 export const getUser = memoize(async (): Promise<SimpleUser> => {
   const userID = getOrCreateUserID()
   const config = getGlobalConfig()
-  const email = undefined
+  const email: string | undefined = undefined
   return {
     customIDs: {
       // for session level tests

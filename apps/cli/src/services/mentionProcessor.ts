@@ -7,7 +7,7 @@
 import { emitReminderEvent } from '#core/services/systemReminder'
 import { getAvailableAgentTypes } from '@kode/agent'
 import { existsSync } from 'fs'
-import { resolve } from 'path'
+import { resolve, sep, basename } from 'path'
 import { getCwd } from '#core/utils/state'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
@@ -146,8 +146,12 @@ class MentionProcessorService {
    * Resolve file path relative to current working directory
    */
   private resolveFilePath(mention: string): string {
-    // Simple consistent logic: mention is always relative to current directory
-    return resolve(getCwd(), mention)
+    const resolved = resolve(getCwd(), mention)
+    // Prevent path traversal outside the working directory
+    if (!resolved.startsWith(getCwd() + sep) && resolved !== getCwd()) {
+      return resolve(getCwd(), basename(mention))
+    }
+    return resolved
   }
 
   private normalizeFileMentionPath(mention: string): string {
@@ -181,7 +185,7 @@ class MentionProcessorService {
         debugLogger.info('MENTION_PROCESSOR_CACHE_REFRESHED', {
           agentCount: agents.length,
           previousCacheSize,
-          cacheAge: now - this.lastAgentCheck,
+          cacheAge: 0,
         })
       }
     } catch (error) {
@@ -213,7 +217,7 @@ class MentionProcessorService {
       ...input.matchAll(MentionProcessorService.MENTION_PATTERNS.runAgent),
     ]
     for (const match of runAgentMatches) {
-      const mention = match[1]
+      const mention = match[1]!
       const agentType = mention.replace(/^run-agent-/, '')
       mentions.push({ mention, agentType, isAskModel: false })
     }
@@ -223,7 +227,7 @@ class MentionProcessorService {
       ...input.matchAll(MentionProcessorService.MENTION_PATTERNS.agent),
     ]
     for (const match of agentMatches) {
-      const mention = match[1]
+      const mention = match[1]!
       const agentType = mention.replace(/^agent-/, '')
       mentions.push({ mention, agentType, isAskModel: false })
     }
@@ -233,7 +237,7 @@ class MentionProcessorService {
       ...input.matchAll(MentionProcessorService.MENTION_PATTERNS.askModel),
     ]
     for (const match of askModelMatches) {
-      const mention = match[1]
+      const mention = match[1]!
       mentions.push({ mention, agentType: mention, isAskModel: true })
     }
 

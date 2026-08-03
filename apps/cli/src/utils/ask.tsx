@@ -151,7 +151,7 @@ export async function ask(
         commands,
         tools,
         verbose,
-        safeMode,
+        safeMode: safeMode ?? false,
         maxTurns: effectiveMaxTurns,
         maxBudgetUsd:
           typeof maxBudgetUsd === 'number' ? maxBudgetUsd : undefined,

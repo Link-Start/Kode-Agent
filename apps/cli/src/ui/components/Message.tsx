@@ -180,6 +180,7 @@ function UserMessage({
         />
       )
   }
+  return null
 }
 
 function AssistantMessage({

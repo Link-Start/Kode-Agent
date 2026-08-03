@@ -45,6 +45,7 @@ export const useSelect = ({ isDisabled = false, state }: UseSelectProps) => {
 
         return true
       }
+      return undefined
     },
     { isActive: !isDisabled },
   )

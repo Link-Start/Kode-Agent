@@ -12,7 +12,7 @@ function MQ5(ctx: XiContext): XiAllowResult | XiDecision {
 function OQ5(ctx: XiContext): XiDecision {
   const cmd = ctx.originalCommand
   const trimmed = cmd.trim()
-  if (/^\\s*\\t/.test(cmd))
+  if (/^\s*\t/.test(cmd))
     return {
       behavior: 'ask',
       message: 'Command appears to be an incomplete fragment (starts with tab)',
@@ -23,7 +23,7 @@ function OQ5(ctx: XiContext): XiDecision {
       message:
         'Command appears to be an incomplete fragment (starts with flags)',
     }
-  if (/^\\s*(&&|\\|\\||;|>>?|<)/.test(cmd)) {
+  if (/^\s*(&&|\|\||;|>>?|<)/.test(cmd)) {
     return {
       behavior: 'ask',
       message:
@@ -163,18 +163,18 @@ function SQ5(ctx: XiContext): XiDecision {
 function _Q5(ctx: XiContext): XiDecision {
   const q = ctx.unquotedContent
   const msg = 'Command contains shell metacharacters (;, |, or &) in arguments'
-  if (/(?:^|\\s)[\"'][^\"']*[;&][^\"']*[\"'](?:\\s|$)/.test(q))
+  if (/(?:^|\s)["'][^"']*[;&][^"']*["'](?:\s|$)/.test(q))
     return { behavior: 'ask', message: msg }
   if (
     [
-      /-name\\s+[\"'][^\"']*[;|&][^\"']*[\"']/,
-      /-path\\s+[\"'][^\"']*[;|&][^\"']*[\"']/,
-      /-iname\\s+[\"'][^\"']*[;|&][^\"']*[\"']/,
+      /-name\s+["'][^"']*[;|&][^"']*["']/,
+      /-path\s+["'][^"']*[;|&][^"']*["']/,
+      /-iname\s+["'][^"']*[;|&][^"']*["']/,
     ].some(re => re.test(q))
   ) {
     return { behavior: 'ask', message: msg }
   }
-  if (/-regex\\s+[\"'][^\"']*[;&][^\"']*[\"']/.test(q))
+  if (/-regex\s+["'][^"']*[;&][^"']*["']/.test(q))
     return { behavior: 'ask', message: msg }
   return { behavior: 'passthrough', message: 'No metacharacters' }
 }
@@ -276,7 +276,7 @@ function bQ5(ctx: XiContext): XiDecision {
       escape = false
       continue
     }
-    if (ch === '\\\\') {
+    if (ch === '\\') {
       escape = true
       continue
     }

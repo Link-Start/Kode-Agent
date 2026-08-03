@@ -188,7 +188,12 @@ export function createCliProgram(
     )
     .option(
       '--safe',
-      'Enable strict permission checking mode (default is permissive)',
+      'Enable strict permission checking mode (requires approval for writes and commands)',
+      () => true,
+    )
+    .option(
+      '--trust',
+      'Enable permissive mode (auto-approve safe operations, skip permission prompts). Equivalent to the legacy YOLO mode.',
       () => true,
     )
     .option(

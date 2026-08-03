@@ -826,7 +826,7 @@ describe('REPLView Static output epoch', () => {
           {
             type: 'text' as const,
             text: 'after explicit reset',
-            citations: [],
+            citations: [] as never[],
           },
         ],
       },

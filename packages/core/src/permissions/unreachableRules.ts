@@ -181,9 +181,9 @@ function findUnreachableBashRules(
   const askMatchers = parsedAsk.map(_ => _.matcher)
 
   for (let i = 0; i < parsedDeny.length; i += 1) {
-    const current = parsedDeny[i]
+    const current = parsedDeny[i]!
     for (let j = 0; j < i; j += 1) {
-      const prev = parsedDeny[j]
+      const prev = parsedDeny[j]!
       if (!matcherSubsumes(prev.matcher, current.matcher)) continue
       warnings.push({
         source: current.entry.source,
@@ -197,7 +197,7 @@ function findUnreachableBashRules(
   }
 
   for (let i = 0; i < parsedAsk.length; i += 1) {
-    const current = parsedAsk[i]
+    const current = parsedAsk[i]!
 
     const deniedBy = parsedDeny.find(prev =>
       matcherSubsumes(prev.matcher, current.matcher),
@@ -214,7 +214,7 @@ function findUnreachableBashRules(
     }
 
     for (let j = 0; j < i; j += 1) {
-      const prev = parsedAsk[j]
+      const prev = parsedAsk[j]!
       if (!matcherSubsumes(prev.matcher, current.matcher)) continue
       warnings.push({
         source: current.entry.source,
@@ -228,7 +228,7 @@ function findUnreachableBashRules(
   }
 
   for (let i = 0; i < parsedAllow.length; i += 1) {
-    const current = parsedAllow[i]
+    const current = parsedAllow[i]!
 
     const deniedBy = parsedDeny.find(prev =>
       matcherSubsumes(prev.matcher, current.matcher),
@@ -259,7 +259,7 @@ function findUnreachableBashRules(
     }
 
     for (let j = 0; j < i; j += 1) {
-      const prev = parsedAllow[j]
+      const prev = parsedAllow[j]!
       if (!matcherSubsumes(prev.matcher, current.matcher)) continue
       warnings.push({
         source: current.entry.source,

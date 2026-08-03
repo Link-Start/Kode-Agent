@@ -14,7 +14,7 @@ export function useTerminalViewportSize(
 
   React.useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || typeof window === 'undefined') return
+    if (!viewport || typeof window === 'undefined') return undefined
 
     let animationFrame: number | null = null
 

@@ -75,7 +75,7 @@ function safeUtf8Truncate(
 } {
   if (buf.length <= maxBytes) return { buf, truncated: false }
   let end = maxBytes
-  while (end > 0 && (buf[end - 1] & 0b1100_0000) === 0b1000_0000) end -= 1
+  while (end > 0 && (buf[end - 1]! & 0b1100_0000) === 0b1000_0000) end -= 1
   return { buf: buf.subarray(0, end), truncated: true }
 }
 

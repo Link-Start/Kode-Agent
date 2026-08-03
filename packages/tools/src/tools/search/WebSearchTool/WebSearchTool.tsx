@@ -430,6 +430,17 @@ function summarizeResults(results: Output['results']): {
   return { searchCount, totalResultCount }
 }
 
+type WebSearchToolCallEvent =
+  | {
+      type: 'progress'
+      content: ReturnType<typeof createAssistantMessage>
+    }
+  | {
+      type: 'result'
+      data: Output
+      resultForAssistant: string
+    }
+
 export const WebSearchTool = {
   name: TOOL_NAME_FOR_PROMPT,
   async description(input?: Input) {
@@ -519,7 +530,7 @@ export const WebSearchTool = {
   async *call(
     { query, allowed_domains, blocked_domains }: Input,
     context: ToolUseContext,
-  ) {
+  ): AsyncGenerator<WebSearchToolCallEvent, void, unknown> {
     const modelProfile = getModelManager().getModel('main')
     const provider = modelProfile?.provider || 'anthropic'
     const modelName = modelProfile?.modelName ?? ''
@@ -533,7 +544,7 @@ export const WebSearchTool = {
       tool:
         | ReturnType<typeof streamAnthropicServerToolWebSearch>
         | ReturnType<typeof streamDuckDuckGoWebSearch>,
-    ) {
+    ): AsyncGenerator<WebSearchToolCallEvent, void, unknown> {
       for await (const item of tool) {
         if (item.type === 'progress') {
           const message =

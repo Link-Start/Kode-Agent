@@ -31,7 +31,7 @@ function sedScriptIsSafePrintOnly(script: string): boolean {
 }
 
 function sedIsSafePrintCommand(command: string, scripts: string[]): boolean {
-  const match = command.match(/^\\s*sed\\s+/)
+  const match = command.match(/^\s*sed\s+/)
   if (!match) return false
   const rest = command.slice(match[0].length)
   const parsed = parseShellTokens(rest)
@@ -86,7 +86,7 @@ function sedIsSafeSimpleSubstitution(
   const allowFileWrites = options?.allowFileWrites ?? false
   if (!allowFileWrites && hasExtraExpressions) return false
 
-  const match = command.match(/^\\s*sed\\s+/)
+  const match = command.match(/^\s*sed\s+/)
   if (!match) return false
   const rest = command.slice(match[0].length)
   const parsed = parseShellTokens(rest)
@@ -108,11 +108,11 @@ function sedIsSafeSimpleSubstitution(
   const matchScript = script.match(/^s\/(.*?)$/)
   if (!matchScript) return false
 
-  const body = matchScript[1]
+  const body = matchScript[1]!
   let slashCount = 0
   let lastSlashIndex = -1
   for (let i = 0; i < body.length; i++) {
-    if (body[i] === '\\\\') {
+    if (body[i] === '\\') {
       i++
       continue
     }
@@ -129,7 +129,7 @@ function sedIsSafeSimpleSubstitution(
 }
 
 function sedHasExtraExpressions(command: string): boolean {
-  const match = command.match(/^\\s*sed\\s+/)
+  const match = command.match(/^\s*sed\s+/)
   if (!match) return false
   const rest = command.slice(match[0].length)
   const parsed = parseShellTokens(rest)
@@ -174,7 +174,7 @@ function sedHasExtraExpressions(command: string): boolean {
 
 function extractSedScripts(command: string): string[] {
   const scripts: string[] = []
-  const match = command.match(/^\\s*sed\\s+/)
+  const match = command.match(/^\s*sed\s+/)
   if (!match) return scripts
 
   const rest = command.slice(match[0].length)

@@ -129,7 +129,12 @@ export async function closeMcpClient(client: Client): Promise<void> {
   unregisterMcpSamplingHandler(client)
   try {
     await client.close()
-  } catch {}
+  } catch (e) {
+    logMCPError(
+      'closeMcpClient',
+      `Failed to close MCP client: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
 }
 
 async function ensureWebSocketGlobal(): Promise<void> {
@@ -143,7 +148,7 @@ async function ensureWebSocketGlobal(): Promise<void> {
       global.WebSocket = maybeWs
     }
   } catch {
-    // ignore
+    // undici not available — WebSocket features will be unavailable
   }
 }
 
@@ -172,7 +177,7 @@ async function runShellCommandCaptureOutput(args: {
 
   let proc: ReturnType<typeof spawn>
   try {
-    proc = spawn(cmd[0], cmd.slice(1), {
+    proc = spawn(cmd[0]!, cmd.slice(1), {
       cwd: args.cwd,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -216,6 +221,12 @@ async function runShellCommandCaptureOutput(args: {
   })
 
   if (timeoutId) clearTimeout(timeoutId)
+  // Ensure child process is fully reaped and streams are closed
+  if (!proc.killed) {
+    try { proc.kill() } catch { /* already exited */ }
+  }
+  proc.stdout?.destroy()
+  proc.stderr?.destroy()
   return { exitCode, stdout, stderr }
 }
 

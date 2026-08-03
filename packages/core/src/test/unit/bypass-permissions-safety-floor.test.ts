@@ -28,7 +28,7 @@ describe('bypassPermissions safety floor', () => {
     expect(result.message).toContain('sensitive')
   })
 
-  test('allows bypassing the safety floor via env (non-safe mode)', async () => {
+  test('ignores KODE_BYPASS_SAFETY_FLOOR env (floor is always enforced)', async () => {
     const prev = process.env.KODE_BYPASS_SAFETY_FLOOR
     process.env.KODE_BYPASS_SAFETY_FLOOR = '1'
     try {
@@ -45,7 +45,9 @@ describe('bypassPermissions safety floor', () => {
         ctx,
         createAssistantMessage(''),
       )
-      expect(result.result).toBe(true)
+      // The env escape hatch was removed for security: sensitive system
+      // paths must stay protected regardless of environment configuration.
+      expect(result.result).toBe(false)
     } finally {
       if (prev === undefined) delete process.env.KODE_BYPASS_SAFETY_FLOOR
       else process.env.KODE_BYPASS_SAFETY_FLOOR = prev

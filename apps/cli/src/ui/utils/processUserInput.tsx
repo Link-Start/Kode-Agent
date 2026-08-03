@@ -160,7 +160,10 @@ export async function processUserInput(
         bashContext,
       )
       if (!validationResult.result) {
-        return [userMessage, createAssistantMessage(validationResult.message)]
+        return [
+          userMessage,
+          createAssistantMessage(validationResult.message ?? 'Invalid input'),
+        ]
       }
       const lastChunk = await lastX(
         BashTool.call(
@@ -239,7 +242,7 @@ export async function processUserInput(
     }
 
     // Check if it's a real command before processing
-    if (!hasCommand(commandName, context.options.commands)) {
+    if (!hasCommand(commandName, context.options?.commands ?? [])) {
       // If not a real command, treat it as a regular user input
 
       return [createUserMessage(input)]
@@ -249,7 +252,7 @@ export async function processUserInput(
     // merged into the same permission engine as persisted rules, and inherited by
     // any forked sub-agent context spawned by the command.
     try {
-      const cmd = getCommand(commandName, context.options.commands)
+      const cmd = getCommand(commandName, context.options?.commands ?? [])
       const allowedTools = Array.isArray(cmd.allowedTools)
         ? cmd.allowedTools
         : []

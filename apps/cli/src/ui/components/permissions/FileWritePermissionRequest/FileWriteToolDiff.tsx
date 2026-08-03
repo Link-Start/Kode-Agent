@@ -133,8 +133,8 @@ export function FileWriteToolDiff({
 
   useKeypress(
     (_input, key) => {
-      if (!enableScrolling) return
-      if (previewLines.length <= window.visibleCount) return
+      if (!enableScrolling) return undefined
+      if (previewLines.length <= window.visibleCount) return undefined
 
       if (key.pageUp) {
         setFocusIndex(prev => Math.max(0, prev - window.visibleCount))
@@ -157,6 +157,7 @@ export function FileWriteToolDiff({
         setFocusIndex(Math.max(0, previewLines.length - 1))
         return true
       }
+      return undefined
     },
     { isActive: enableScrolling },
   )

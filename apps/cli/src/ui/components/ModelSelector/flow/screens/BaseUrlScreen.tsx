@@ -120,8 +120,13 @@ export function BaseUrlScreen({
   }
 
   // For all other providers, use the new general provider URL configuration
-  const providerName = providers[selectedProvider]?.name || selectedProvider
-  const defaultUrl = providers[selectedProvider]?.baseURL || ''
+  const providerCatalog = providers as Record<
+    string,
+    { name: string; baseURL: string }
+  >
+  const providerName =
+    providerCatalog[selectedProvider]?.name || selectedProvider
+  const defaultUrl = providerCatalog[selectedProvider]?.baseURL || ''
 
   return (
     <ScreenFrame

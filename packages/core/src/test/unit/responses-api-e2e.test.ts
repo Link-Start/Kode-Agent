@@ -10,7 +10,7 @@ import { ReadableStream } from 'node:stream/web'
 describe('Responses API Tests', () => {
   describe('Responses API-specific functionality', () => {
     // Use a representative Responses API model for testing
-    const testModel = getResponsesAPIModels(testModels)[0] || testModels[0]
+    const testModel = getResponsesAPIModels(testModels)[0] || testModels[0]!
 
     test('handles Responses API request parameters correctly', () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
@@ -18,7 +18,7 @@ describe('Responses API Tests', () => {
       const unifiedParams = {
         messages: [{ role: 'user', content: 'test' }],
         systemPrompt: ['test system'],
-        tools: [],
+        tools: [] as any[],
         maxTokens: 100,
         stream: true,
         temperature: 0.7,
@@ -79,7 +79,7 @@ describe('Responses API Tests', () => {
       )
       expect(unifiedResponse.toolCalls).toBeDefined()
       expect(Array.isArray(unifiedResponse.toolCalls)).toBe(true)
-      expect(unifiedResponse.toolCalls.length).toBe(0)
+      expect(unifiedResponse.toolCalls!.length).toBe(0)
     })
 
     test('parses nested output_text and refusal content parts', async () => {
@@ -234,7 +234,7 @@ describe('Responses API Tests', () => {
 
   describe('Responses API unique behaviors', () => {
     // Use a representative Responses API model for testing
-    const testModel = getResponsesAPIModels(testModels)[0] || testModels[0]
+    const testModel = getResponsesAPIModels(testModels)[0] || testModels[0]!
 
     test('joins multiple system prompts with double newlines', () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
@@ -440,7 +440,7 @@ describe('Responses API Tests', () => {
   })
 
   describe('Reasoning Support Tests', () => {
-    const testModel = getResponsesAPIModels(testModels)[0] || testModels[0]
+    const testModel = getResponsesAPIModels(testModels)[0] || testModels[0]!
 
     test('includes reasoning and verbosity parameters when provided', () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
@@ -448,7 +448,7 @@ describe('Responses API Tests', () => {
       const unifiedParams = {
         messages: [{ role: 'user', content: 'Solve this complex problem' }],
         systemPrompt: ['You are a helpful assistant'],
-        tools: [],
+        tools: [] as any[],
         maxTokens: 100,
         stream: true,
         reasoningEffort: 'high' as const,
@@ -563,9 +563,14 @@ describe('Responses API Tests', () => {
       expect(fullContent).toContain('$0.05')
 
       // Should be properly formatted as continuous reasoning
-      expect(fullContent).toMatch(
-        /Let me think step by step\n\nFirst, I need to analyze the problem\n\nThe solution is: \$0\.05/,
+      const expectedReasoningPattern = new RegExp(
+        'Let me think step by step' +
+          '\n\n' +
+          'First, I need to analyze the problem' +
+          '\n\n' +
+          'The solution is: \\$0\\.05',
       )
+      expect(fullContent).toMatch(expectedReasoningPattern)
     })
 
     test('processes non-streaming response with real GPT-5 reasoning structure', async () => {

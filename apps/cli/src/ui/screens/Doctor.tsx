@@ -341,6 +341,8 @@ export function Doctor({
         setScrollTop(maxScrollTop)
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

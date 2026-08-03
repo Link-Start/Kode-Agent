@@ -123,12 +123,17 @@ export function useUnifiedCompletionNavigationKeys(args: {
       const handleNavigation = (newIndex: number) => {
         clearDirectoryFollowupTimeout()
 
+        const suggestion = args.state.suggestions[newIndex]
+        if (!suggestion) {
+          args.updateState({ selectedIndex: 0 })
+          return
+        }
+
         if (!args.state.context) {
           args.updateState({ selectedIndex: newIndex })
           return
         }
 
-        const suggestion = args.state.suggestions[newIndex]
         if (isLoadingSuggestion(suggestion)) {
           args.updateState({ selectedIndex: newIndex })
           return
@@ -191,7 +196,9 @@ export function useUnifiedCompletionNavigationKeys(args: {
       if (key.rightArrow) {
         const selectedSuggestion =
           args.state.suggestions[args.state.selectedIndex]
-        if (isLoadingSuggestion(selectedSuggestion)) return true
+        if (!selectedSuggestion || isLoadingSuggestion(selectedSuggestion)) {
+          return true
+        }
 
         const isDirectory = selectedSuggestion.value.endsWith('/')
         const context = args.state.context

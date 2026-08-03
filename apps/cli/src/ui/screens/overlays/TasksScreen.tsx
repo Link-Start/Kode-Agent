@@ -99,6 +99,8 @@ function rankStatus(status: BackgroundTaskStatus): number {
       return 2
     case 'completed':
       return 3
+    default:
+      return 4
   }
 }
 
@@ -383,7 +385,7 @@ export function TasksScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
   const didDoneRef = useRef(false)
 
   const safeOnDone = useCallback(
@@ -579,7 +581,7 @@ export function TasksScreen({
           return true
         }
 
-        return
+        return undefined
       }
 
       if (key.escape || (key.ctrl && input === 'c')) {
@@ -671,6 +673,8 @@ export function TasksScreen({
         void openLog()
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

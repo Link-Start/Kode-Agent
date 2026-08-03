@@ -23,7 +23,7 @@ function findSmartBreak(text: string, maxLength: number): string {
   }
 
   for (let i = commas.length - 1; i >= 0; i--) {
-    const commaPos = commas[i]
+    const commaPos = commas[i]!
     if (commaPos < maxLength) {
       const clause = text.slice(0, commaPos).trim()
       if (clause.length >= 5) return clause

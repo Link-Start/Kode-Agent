@@ -134,6 +134,7 @@ export function StepConfirm(props: {
       void doSave(false)
       return true
     }
+    return undefined
   })
 
   const doSave = async (openEditor: boolean) => {

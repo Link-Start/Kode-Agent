@@ -129,7 +129,7 @@ export function buildForkContextForAgent(options: {
   let taskToolUseBlock: ToolUseLikeBlock | null = null
 
   for (let i = 0; i < mainMessages.length; i++) {
-    const msg = mainMessages[i]
+    const msg = mainMessages[i]!
     if (msg.type !== 'assistant') continue
     const blocks: unknown[] = Array.isArray(msg.message?.content)
       ? (msg.message.content as unknown[])

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { FilePool } from '../../../src/core/file-pool';
-import { LocalSandbox } from '../../../src/infra/sandbox';
+import { LocalSandbox, Sandbox } from '../../../src/infra/sandbox';
 import { TestRunner, expect } from '../../helpers/utils';
 import { TEST_ROOT } from '../../helpers/fixtures';
 
@@ -37,6 +37,32 @@ runner
 
     const summary = pool.getAccessedFiles();
     expect.toHaveLength(summary, 1);
+  })
+
+  .test('mtime 精度不足时仍会检测到外部内容变化', async () => {
+    let content = 'initial';
+    const sandbox: Sandbox = {
+      kind: 'vfs',
+      fs: {
+        resolve: (filePath) => filePath,
+        isInside: () => true,
+        read: async () => content,
+        write: async (_filePath, nextContent) => {
+          content = nextContent;
+        },
+        temp: () => 'temp',
+        stat: async () => ({ mtimeMs: 1 }),
+        glob: async () => [],
+      },
+      exec: async () => ({ code: 0, stdout: '', stderr: '' }),
+    };
+    const pool = new FilePool(sandbox, { watch: false });
+
+    await pool.recordRead('note.txt');
+    content = 'updated';
+
+    const freshness = await pool.validateWrite('note.txt');
+    expect.toEqual(freshness.isFresh, false);
   })
 
   .test('记录后若无访问返回默认新鲜度', async () => {

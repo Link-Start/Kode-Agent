@@ -17,12 +17,16 @@ function abortableDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
       return
     }
 
+    let abortHandler: (() => void) | undefined
     const timeoutId = setTimeout(() => {
+      if (signal && abortHandler) {
+        signal.removeEventListener('abort', abortHandler)
+      }
       resolve()
     }, delayMs)
 
     if (signal) {
-      const abortHandler = () => {
+      abortHandler = () => {
         clearTimeout(timeoutId)
         reject(new Error('Request was aborted'))
       }
@@ -49,7 +53,7 @@ function shouldRetry(error: APIError): boolean {
     return process.env.USER_TYPE === 'SWE_BENCH'
   }
 
-  const shouldRetryHeader = error.headers?.['x-should-retry']
+  const shouldRetryHeader = error.headers?.get('x-should-retry')
 
   if (shouldRetryHeader === 'true') return true
   if (shouldRetryHeader === 'false') return false
@@ -92,7 +96,7 @@ export async function withRetry<T>(
         throw new Error('Request cancelled by user')
       }
 
-      const retryAfter = error.headers?.['retry-after'] ?? null
+      const retryAfter = error.headers?.get('retry-after') ?? null
       const delayMs = getRetryDelay(attempt, retryAfter)
 
       debugLogger.warn('LLM_API_RETRY', {

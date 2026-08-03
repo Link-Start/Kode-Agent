@@ -112,8 +112,8 @@ export function parseNonStreamingResponse(response: any): UnifiedResponse {
   // Build unified response
   // Convert content to array format for Anthropic compatibility
   const contentArray = content
-    ? [{ type: 'text', text: content, citations: [] }]
-    : [{ type: 'text', text: '', citations: [] }]
+    ? [{ type: 'text', text: content, citations: [] as string[] }]
+    : [{ type: 'text', text: '', citations: [] as string[] }]
 
   const promptTokens = response.usage?.input_tokens || 0
   const completionTokens = response.usage?.output_tokens || 0

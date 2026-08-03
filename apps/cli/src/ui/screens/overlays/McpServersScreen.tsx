@@ -271,7 +271,7 @@ function statusColor(theme: ReturnType<typeof getTheme>, status: McpUiStatus) {
 }
 
 function toolTitleForList(serverName: string, tool: Tool): string {
-  const full = tool.userFacingName()
+  const full = tool.userFacingName?.() ?? tool.name
   const prefix = `${serverName} - `
   const suffix = ' (MCP)'
   if (full.startsWith(prefix) && full.endsWith(suffix)) {
@@ -869,7 +869,7 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
       }
     }
 
-    if (!key.escape) return
+    if (!key.escape) return undefined
 
     switch (route.kind) {
       case 'list':
@@ -927,11 +927,12 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
         setRoute({ kind: 'server', serverName: route.serverName })
         return true
     }
+    return undefined
   })
 
   useEffect(() => {
-    if (route.kind !== 'server') return
-    if (activeServerName === null) return
+    if (route.kind !== 'server') return undefined
+    if (activeServerName === null) return undefined
 
     let didCancel = false
 
@@ -956,7 +957,7 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
             getMCPResourceTemplates(),
           ])
         const toolsForServer = allTools.filter(t =>
-          t.userFacingName().startsWith(`${activeServerName} - `),
+          (t.userFacingName?.() ?? t.name).startsWith(`${activeServerName} - `),
         )
         const promptsForServer = allPrompts.filter(p =>
           p.userFacingName().startsWith(`${activeServerName}:`),
@@ -997,8 +998,8 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   ])
 
   useEffect(() => {
-    if (route.kind !== 'tools') return
-    if (activeServerName === null) return
+    if (route.kind !== 'tools') return undefined
+    if (activeServerName === null) return undefined
 
     let didCancel = false
 
@@ -1009,7 +1010,7 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
       try {
         const allTools = await getMCPTools()
         const toolsForServer = allTools.filter(t =>
-          t.userFacingName().startsWith(`${activeServerName} - `),
+          (t.userFacingName?.() ?? t.name).startsWith(`${activeServerName} - `),
         )
         if (didCancel) return
         setTools(toolsForServer)
@@ -1032,8 +1033,8 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   ])
 
   useEffect(() => {
-    if (route.kind !== 'prompts') return
-    if (activeServerName === null) return
+    if (route.kind !== 'prompts') return undefined
+    if (activeServerName === null) return undefined
 
     let didCancel = false
 
@@ -1067,8 +1068,8 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   ])
 
   useEffect(() => {
-    if (route.kind !== 'resources') return
-    if (activeServerName === null) return
+    if (route.kind !== 'resources') return undefined
+    if (activeServerName === null) return undefined
 
     let didCancel = false
 
@@ -1102,8 +1103,8 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   ])
 
   useEffect(() => {
-    if (route.kind !== 'resourceTemplates') return
-    if (activeServerName === null) return
+    if (route.kind !== 'resourceTemplates') return undefined
+    if (activeServerName === null) return undefined
 
     let didCancel = false
 
@@ -1139,7 +1140,7 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   ])
 
   useEffect(() => {
-    if (route.kind !== 'tool') return
+    if (route.kind !== 'tool') return undefined
     let didCancel = false
     setToolDetailDescription(null)
     ;(async () => {

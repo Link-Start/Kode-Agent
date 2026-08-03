@@ -19,13 +19,13 @@ describe('AskUserQuestionPermissionRequest helpers', () => {
       {
         question: 'Q1?',
         header: 'This is a very long header',
-        options: [],
+        options: [] as any[],
         multiSelect: false,
       },
       {
         question: 'Q2?',
         header: 'Another very long header',
-        options: [],
+        options: [] as any[],
         multiSelect: false,
       },
     ]

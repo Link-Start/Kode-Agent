@@ -31,11 +31,18 @@ export function bindAiDebugFromCore(): void {
       return current?.id ? { id: current.id } : null
     },
     logAPIError,
-    logLLMInteraction,
-    logSystemPromptConstruction,
+    // Core sinks take richer context shapes; the @kode/ai bindings accept
+    // `unknown`, so adapt via wrappers to satisfy strictFunctionTypes.
+    logLLMInteraction: context =>
+      logLLMInteraction(context as Parameters<typeof logLLMInteraction>[0]),
+    logSystemPromptConstruction: context =>
+      logSystemPromptConstruction(
+        context as Parameters<typeof logSystemPromptConstruction>[0],
+      ),
   })
   bindAiRequestStatus({
-    setRequestStatus,
+    setRequestStatus: status =>
+      setRequestStatus(status as Parameters<typeof setRequestStatus>[0]),
     setRequestInputTokens,
     updateRequestTokens,
   })

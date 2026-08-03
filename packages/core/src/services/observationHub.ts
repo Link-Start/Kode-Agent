@@ -58,7 +58,7 @@ class ObservationHub {
       })
     })
 
-    const cleanup = () => void this.stopAll()
+    const cleanup = (): void => void this.stopAll()
     process.once('exit', cleanup)
     process.once('SIGINT', cleanup)
     process.once('SIGTERM', cleanup)

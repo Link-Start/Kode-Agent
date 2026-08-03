@@ -944,8 +944,8 @@ describe('HttpClient', () => {
       tag: 'work',
       summary: 'summary',
       cwd: '/repo',
-      createdAt: null,
-      modifiedAt: null,
+      createdAt: null as string | null,
+      modifiedAt: null as string | null,
     }
     const client = new HttpClient({
       baseUrl: 'http://localhost:32123',
@@ -1146,12 +1146,12 @@ describe('HttpClient', () => {
     })
 
     await expect(
-      client.listTasks({ sessionId: task.sessionId }),
+      client.listTasks({ sessionId: task.sessionId! }),
     ).resolves.toEqual([task])
     await expect(client.getTask(task.id)).resolves.toEqual(task)
     await expect(
       client.getTaskOutput(task.id, {
-        sessionId: task.sessionId,
+        sessionId: task.sessionId!,
         tailLines: 25,
       }),
     ).resolves.toMatchObject({ content: 'tail', tailLines: 25 })
@@ -1159,11 +1159,11 @@ describe('HttpClient', () => {
       cancelled: true,
     })
     await expect(
-      client.getPermissions({ sessionId: task.sessionId }),
+      client.getPermissions({ sessionId: task.sessionId! }),
     ).resolves.toEqual(permission)
     await expect(
       client.updatePermissions({
-        sessionId: task.sessionId,
+        sessionId: task.sessionId!,
         update: {
           type: 'addRules',
           destination: 'session',

@@ -73,8 +73,9 @@ export const NotebookEditTool = {
   isConcurrencySafe() {
     return false // NotebookEditTool modifies state/files, not safe for concurrent execution
   },
-  needsPermissions({ notebook_path }) {
-    return !hasWritePermission(notebook_path)
+  needsPermissions(input) {
+    if (!input) return true
+    return !hasWritePermission(input.notebook_path)
   },
   renderResultForAssistant({ cell_id, edit_mode, new_source, error }) {
     if (error) {
@@ -88,6 +89,7 @@ export const NotebookEditTool = {
       case 'delete':
         return `Deleted cell ${cell_id}`
     }
+    return ''
   },
   renderToolUseMessage(input, { verbose }) {
     const cellRef = input.cell_id ?? '(none)'

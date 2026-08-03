@@ -385,7 +385,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
     h.stdin.write(`\x1b[<0;4;${enabledLineIndex + 1}M`)
     await h.wait(25)
 
-    expect(selected).toBe(true)
+    expect(selected as boolean | null).toBe(true)
     expect(closed).toBe(true)
   })
 
@@ -425,10 +425,10 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       mock.module('#core/history', () => {
         return {
           addToHistory: () => {},
-          getHistoryWithPastes: () => [],
+          getHistoryWithPastes: (): any[] => [],
           getGlobalHistoryWithPastes: () => [
-            { display: 'hello', pastedTexts: [] },
-            { display: '!ls', pastedTexts: [] },
+            { display: 'hello', pastedTexts: [] as string[] },
+            { display: '!ls', pastedTexts: [] as string[] },
           ],
         }
       })
@@ -630,11 +630,22 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       ((event: { kind: string; server: string }) => void) | null = null
     let resourceUpdatedListener:
       ((event: { server: string; uri: string }) => void) | null = null
+    // Listeners are assigned inside mocked modules; call through closures so
+    // TS's control-flow analysis doesn't narrow them to null at the call sites.
+    const fireListChanged = (event: { kind: string; server: string }): void => {
+      listChangedListener?.(event)
+    }
+    const fireResourceUpdated = (event: {
+      server: string
+      uri: string
+    }): void => {
+      resourceUpdatedListener?.(event)
+    }
 
     function EscapeLeakSpy(): React.ReactNode {
       useKeypress(
         (_input, key) => {
-          if (!key.escape) return
+          if (!key.escape) return undefined
           leakedEscapes += 1
           return true
         },
@@ -652,7 +663,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       progressMessage: 'running',
       argNames: ['scope'],
       userFacingName: () => 'srv:Review Diff (MCP)',
-      getPromptForCommand: async () => [],
+      getPromptForCommand: async (): Promise<any[]> => [],
     }
 
     const summarizePrompt = {
@@ -662,9 +673,9 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       isEnabled: true,
       isHidden: false,
       progressMessage: 'running',
-      argNames: [],
+      argNames: [] as string[],
       userFacingName: () => 'srv:Summarize Changes (MCP)',
-      getPromptForCommand: async () => [],
+      getPromptForCommand: async (): Promise<any[]> => [],
     }
 
     const readmeResource = {
@@ -769,7 +780,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
             resourceTemplateRevision === 0
               ? [fileTemplate]
               : [fileTemplate, guideTemplate],
-          getMCPTools: async () => [],
+          getMCPTools: async (): Promise<any[]> => [],
           MCP_LOGGING_LEVELS: [
             'debug',
             'info',
@@ -834,8 +845,10 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       })
       mock.module('#core/utils/config', () => {
         return {
-          getCurrentProjectConfig: () => ({ disabledMcpServers: [] }),
-          getGlobalConfig: () => ({ disabledMcpServers: [] }),
+          getCurrentProjectConfig: () => ({
+            disabledMcpServers: [] as string[],
+          }),
+          getGlobalConfig: () => ({ disabledMcpServers: [] as string[] }),
           getProjectMcpServerDefinitions: () => ({
             mcprcPath: 'test-mcprc.json',
             mcpJsonPath: 'test-mcp.json',
@@ -966,7 +979,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       expect(h.getOutput()).toContain('Project Files')
 
       resourceTemplateRevision = 1
-      listChangedListener?.({ kind: 'resources', server: 'srv' })
+      fireListChanged({ kind: 'resources', server: 'srv' })
       await h.wait(120)
       if (!h.getOutput().includes('Guide Files')) {
         await waitForOutput(h, 'Guide Files')
@@ -1007,7 +1020,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       expect(resourcesOutput).toContain('Project README')
 
       resourceRevision = 1
-      listChangedListener?.({ kind: 'resources', server: 'srv' })
+      fireListChanged({ kind: 'resources', server: 'srv' })
       await h.wait(300)
       if (!h.getOutput().includes('Project Guide')) {
         await waitForOutput(h, 'Project Guide')
@@ -1035,7 +1048,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       expect(h.getOutput()).toContain('subscription: subscribed')
       expect(h.getOutput()).toContain('Press u to unsubscribe')
 
-      resourceUpdatedListener?.({
+      fireResourceUpdated({
         server: 'srv',
         uri: 'file:///project/README.md',
       })
@@ -1169,7 +1182,7 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       expect(promptHarness.getOutput()).toContain('Review Diff')
 
       promptRevision = 1
-      listChangedListener?.({ kind: 'prompts', server: 'srv' })
+      fireListChanged({ kind: 'prompts', server: 'srv' })
       await waitForOutput(promptHarness, 'Summarize Changes')
       expect(promptHarness.getOutput()).toContain('Summarize Changes')
 

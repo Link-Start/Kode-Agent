@@ -51,12 +51,12 @@ describe('long-term memory store', () => {
         storageRoot,
         query: 'Which tool runs package scripts?',
       })[0]?.id,
-    ).toBe(bun?.id)
+    ).toBe(bun!.id)
 
     // Replaying from disk has the same result; no process-local cache is used.
     expect(
       listMemories({ cwd, storageRoot }).map(memory => memory.id),
-    ).toContain(bun?.id)
+    ).toContain(bun!.id)
   })
 
   test('deduplicates normalized facts and forgets them through an append-only event', () => {
@@ -104,7 +104,7 @@ describe('long-term memory store', () => {
       encoding: 'utf8',
       flag: 'a',
     })
-    expect(listMemories({ cwd, storageRoot })[0]?.id).toBe(safe?.id)
+    expect(listMemories({ cwd, storageRoot })[0]?.id).toBe(safe!.id)
   })
 
   test('extracts explicit durable statements and formats bounded safe context', () => {

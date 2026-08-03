@@ -157,10 +157,13 @@ export function useReplQuery(args: {
               checkPendingForkAndSuppressAppend?.(newMessages) ?? false
             if (shouldSuppressAppend) return
 
+            const lastMessage = newMessages.at(-1)
+            if (!lastMessage) return
+
+            const firstMessage = newMessages[0]
             const isKodingRequest =
-              newMessages.length > 0 &&
-              newMessages[0].type === 'user' &&
-              newMessages[0].options?.isKodingRequest === true
+              firstMessage?.type === 'user' &&
+              firstMessage.options?.isKodingRequest === true
 
             setMessages(oldMessages =>
               appendMessagesForReplState(oldMessages, newMessages),
@@ -168,7 +171,6 @@ export function useReplQuery(args: {
 
             markProjectOnboardingComplete()
 
-            const lastMessage = newMessages[newMessages.length - 1]!
             if (lastMessage.type === 'assistant') return
 
             const outputStyle = getCurrentOutputStyleDefinition()

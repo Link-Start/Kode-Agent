@@ -12,7 +12,7 @@ export function getCompletionContext(args: {
   let start = cursorOffset
 
   while (start > 0) {
-    const char = input[start - 1]
+    const char = input[start - 1]!
     if (/\s/.test(char)) break
 
     if (char === '@' && start < cursorOffset) {
@@ -36,7 +36,7 @@ export function getCompletionContext(args: {
         }
       }
 
-      if (start === 1 || (start > 1 && /\s/.test(input[start - 2]))) {
+      if (start === 1 || (start > 1 && /\s/.test(input[start - 2]!))) {
         start--
         break
       }

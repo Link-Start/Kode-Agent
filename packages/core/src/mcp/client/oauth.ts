@@ -68,7 +68,12 @@ function stablePortForServer(serverName: string): number {
 function getOrInitRedirectPort(serverName: string): number {
   const state = readState(serverName)
   const stored = state.redirectPort
-  if (Number.isInteger(stored) && stored >= 1024 && stored <= 65535)
+  if (
+    typeof stored === 'number' &&
+    Number.isInteger(stored) &&
+    stored >= 1024 &&
+    stored <= 65535
+  )
     return stored
 
   const nextPort = stablePortForServer(serverName)

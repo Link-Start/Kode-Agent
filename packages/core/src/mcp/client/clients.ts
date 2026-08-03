@@ -91,7 +91,7 @@ export const getClients = memoize(async (): Promise<WrappedClient[]> => {
 
 export function __setMcpClientsForTests(clients: WrappedClient[] | null): void {
   clientsOverrideForTests = clients
-  getClients.cache.clear()
+  getClients.cache.clear?.()
 }
 
 export async function getClientsForCliMcpConfig(options: {

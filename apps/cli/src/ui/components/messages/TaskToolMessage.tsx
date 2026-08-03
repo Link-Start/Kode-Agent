@@ -24,7 +24,7 @@ export function TaskToolMessage({ agentType, children, bold = true }: Props) {
     // Skip if already cached
     if (agentConfigCache.has(agentType)) {
       setAgentConfig(agentConfigCache.get(agentType))
-      return
+      return undefined
     }
 
     // Load and cache agent configuration

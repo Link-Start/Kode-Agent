@@ -52,11 +52,11 @@ describe('daemon cancellation history', () => {
     const baseArgs = {
       session,
       echo: true,
-      commands: [],
-      tools: [],
-      toolNames: [],
-      slashCommands: [],
-      mcpClients: [],
+      commands: [] as never[],
+      tools: [] as never[],
+      toolNames: [] as never[],
+      slashCommands: [] as never[],
+      mcpClients: [] as never[],
       persistSession: true,
     }
 

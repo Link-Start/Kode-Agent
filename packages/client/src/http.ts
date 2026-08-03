@@ -197,6 +197,7 @@ function getEventMetadata(
   const sequence = event.sequence
   if (
     !getNonEmptyString(event.sessionId) ||
+    typeof sequence !== 'number' ||
     !Number.isInteger(sequence) ||
     sequence < 0 ||
     typeof event.replayed !== 'boolean'

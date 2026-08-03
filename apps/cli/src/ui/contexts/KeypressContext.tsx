@@ -616,7 +616,7 @@ function* emitKeys(
             code += match[1] + 'u'
             modifier = Number.parseInt(match[2], 10) - 1
           } else {
-            code += match[1] + match[4]
+            code += match[1]! + match[4]!
             modifier = Number.parseInt(match[2] ?? '1', 10) - 1
           }
         } else if ((match = /^(\d+)?(?:;(\d+))?([A-Za-z])$/.exec(cmd))) {

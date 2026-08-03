@@ -42,6 +42,7 @@ export function applyAgentPermissionMode(
       case 'bypassPermissions':
         return 4
     }
+    return 0
   }
 
   let nextMode: PermissionMode = options.agentPermissionMode

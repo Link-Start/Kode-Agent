@@ -106,8 +106,8 @@ export const GrepTool = {
   async isEnabled() {
     return true
   },
-  needsPermissions({ path }) {
-    return !hasReadPermission(path || getCwd())
+  needsPermissions(input) {
+    return !hasReadPermission(input?.path || getCwd())
   },
   async prompt() {
     return DESCRIPTION

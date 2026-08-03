@@ -56,8 +56,8 @@ describe('dontAsk PermissionMode type integration', () => {
       abortController: new AbortController(),
       messageId: 'test',
       options: {
-        commands: [],
-        tools: [],
+        commands: [] as any[],
+        tools: [] as any[],
         verbose: false,
         safeMode: false,
         forkNumber: 0,

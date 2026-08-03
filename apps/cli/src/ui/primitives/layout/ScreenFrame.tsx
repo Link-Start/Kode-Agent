@@ -4,7 +4,7 @@ import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
 import { Divider } from '../components/Divider'
 import { computeFrameHeight } from './viewportRows'
 
-export type ScreenExitState = { pending: boolean; keyName: string }
+export type ScreenExitState = { pending: boolean; keyName: string | null }
 
 const VIEWPORT_SAFE_MARGIN_ROWS = 1
 
