@@ -55,7 +55,7 @@ export function registerMcpImportClaudeDesktopCommand(args: {
           const whoamiCommand = await new Promise<string>((resolve, reject) => {
             exec(
               'powershell.exe -Command "whoami"',
-              (err: Error, stdout: string) => {
+              (err: Error | null, stdout: string) => {
                 if (err) reject(err)
                 else resolve(stdout.trim().split('\\').pop() || '')
               },
