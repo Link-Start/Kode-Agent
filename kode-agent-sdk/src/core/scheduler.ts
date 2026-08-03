@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger';
+
 type StepCallback = (ctx: { stepCount: number }) => void | Promise<void>;
 type TaskCallback = () => void | Promise<void>;
 
@@ -46,19 +48,27 @@ export class Scheduler {
   }
 
   enqueue(callback: TaskCallback): void {
-    this.queued = this.queued.then(() => Promise.resolve(callback())).catch(() => undefined);
+    this.queued = this.queued
+      .then(() => Promise.resolve(callback()))
+      .catch(err => {
+        logger.error('[Scheduler] Task failed:', err);
+      });
   }
 
   notifyStep(stepCount: number) {
     for (const listener of this.listeners) {
-      void Promise.resolve(listener({ stepCount }));
+      Promise.resolve(listener({ stepCount })).catch(err => {
+        logger.error('[Scheduler] Step listener failed:', err);
+      });
     }
 
     for (const task of this.stepTasks.values()) {
       const shouldTrigger = stepCount - task.lastTriggered >= task.every;
       if (!shouldTrigger) continue;
       task.lastTriggered = stepCount;
-      void Promise.resolve(task.callback({ stepCount }));
+      Promise.resolve(task.callback({ stepCount })).catch(err => {
+        logger.error('[Scheduler] Step task callback failed:', err);
+      });
       this.onTrigger?.({ taskId: task.id, spec: `steps:${task.every}`, kind: 'steps' });
     }
   }

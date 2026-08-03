@@ -189,14 +189,18 @@ export async function withRetryAndTimeout<T>(
     }
 
     try {
-      // Create a timeout promise
+      // Create a timeout promise with proper cleanup to prevent
+      // unhandled rejection when fn() resolves before the timer fires.
       const remainingTime = timeoutMs - (Date.now() - startTime);
-      return await Promise.race([
-        fn(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout')), remainingTime)
-        ),
-      ]);
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Timeout')), remainingTime);
+      });
+      try {
+        return await Promise.race([fn(), timeoutPromise]);
+      } finally {
+        clearTimeout(timeoutId!);
+      }
     } catch (error) {
       const providerError = error instanceof ProviderError
         ? error
