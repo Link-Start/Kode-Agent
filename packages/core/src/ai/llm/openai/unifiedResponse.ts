@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import type { UUID } from 'crypto'
 import type { AssistantMessage } from '#core/query'
 import { createAnthropicUsage } from '@kode/protocol/anthropic'
+import { debug as debugLogger } from '#core/utils/debugLogger'
 
 export function buildAssistantMessageFromUnifiedResponse(
   unifiedResponse: any,
@@ -18,7 +19,10 @@ export function buildAssistantMessageFromUnifiedResponse(
       try {
         toolArgs = tool?.arguments ? JSON.parse(tool.arguments) : {}
       } catch (e) {
-        // Invalid JSON in tool arguments
+        debugLogger.warn('UNIFIED_RESPONSE_INVALID_TOOL_ARGS', {
+          toolName,
+          error: e instanceof Error ? e.message : String(e),
+        })
       }
 
       contentBlocks.push({

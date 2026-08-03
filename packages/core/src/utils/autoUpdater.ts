@@ -50,17 +50,23 @@ export async function getLatestVersion(): Promise<string | null> {
   // Prefer npm CLI (fast when available)
   try {
     const abortController = new AbortController()
-    setTimeout(() => abortController.abort(), 5000)
-    const result = await execFileNoThrow(
-      'npm',
-      ['view', MACRO.PACKAGE_URL, 'version'],
-      abortController.signal,
-    )
-    if (result.code === 0) {
-      const v = result.stdout.trim()
-      if (v) return v
+    const timer = setTimeout(() => abortController.abort(), 5000)
+    try {
+      const result = await execFileNoThrow(
+        'npm',
+        ['view', MACRO.PACKAGE_URL, 'version'],
+        abortController.signal,
+      )
+      if (result.code === 0) {
+        const v = result.stdout.trim()
+        if (v) return v
+      }
+    } finally {
+      clearTimeout(timer)
     }
-  } catch {}
+  } catch (e) {
+    logError(`npm CLI version check failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
 
   // Fallback: query npm registry directly
   try {
@@ -82,7 +88,8 @@ export async function getLatestVersion(): Promise<string | null> {
     const json: any = await res.json().catch((): null => null)
     const latest = json && json['dist-tags'] && json['dist-tags'].latest
     return typeof latest === 'string' ? latest : null
-  } catch {
+  } catch (e) {
+    logError(`npm registry version check failed: ${e instanceof Error ? e.message : String(e)}`)
     return null
   }
 }
@@ -108,7 +115,8 @@ export async function getUpdateBannerInfo(): Promise<UpdateBannerInfo> {
       const commands = await getUpdateCommandSuggestions()
       return { version: latest, commands }
     }
-  } catch {
+  } catch (e) {
+    logError(`Update check failed: ${e instanceof Error ? e.message : String(e)}`)
   } finally {
     logStartupProfileDuration('update_check', Date.now() - startedAt)
   }

@@ -17,12 +17,16 @@ function abortableDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
       return
     }
 
+    let abortHandler: (() => void) | undefined
     const timeoutId = setTimeout(() => {
+      if (signal && abortHandler) {
+        signal.removeEventListener('abort', abortHandler)
+      }
       resolve()
     }, delayMs)
 
     if (signal) {
-      const abortHandler = () => {
+      abortHandler = () => {
         clearTimeout(timeoutId)
         reject(new Error('Request was aborted'))
       }

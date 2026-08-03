@@ -137,20 +137,24 @@ export async function detectRepoLineEndingsDirect(
   cwd: string,
 ): Promise<LineEndingType> {
   const abortController = new AbortController()
-  setTimeout(() => {
+  const timer = setTimeout(() => {
     abortController.abort()
   }, 1_000)
-  const allFiles = await listAllContentFiles(cwd, abortController.signal, 15)
+  try {
+    const allFiles = await listAllContentFiles(cwd, abortController.signal, 15)
 
-  let crlfCount = 0
-  for (const file of allFiles) {
-    const lineEnding = detectLineEndings(file)
-    if (lineEnding === 'CRLF') {
-      crlfCount++
+    let crlfCount = 0
+    for (const file of allFiles) {
+      const lineEnding = detectLineEndings(file)
+      if (lineEnding === 'CRLF') {
+        crlfCount++
+      }
     }
-  }
 
-  return crlfCount > 3 ? 'CRLF' : 'LF'
+    return crlfCount > 3 ? 'CRLF' : 'LF'
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
