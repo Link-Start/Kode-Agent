@@ -77,7 +77,7 @@ export function normalizeMessagesForAPI(
       case 'user': {
         const prev = last(result)
         if (prev?.type === 'user') {
-          result[result.indexOf(prev)] = mergeUserMessages(prev, message)
+          result[result.length - 1] = mergeUserMessages(prev, message)
         } else {
           result.push(message)
         }
@@ -152,7 +152,7 @@ const STRIPPED_TAGS = [
 
 export function stripSystemMessages(content: string): string {
   const regex = new RegExp(
-    `<(${STRIPPED_TAGS.join('|')})>.*?</\\\\1>\\n?`,
+    `<(${STRIPPED_TAGS.join('|')})>.*?</\\1>\n?`,
     'gs',
   )
   return content.replace(regex, '').trim()
