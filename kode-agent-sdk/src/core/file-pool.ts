@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Sandbox } from '../infra/sandbox';
 import { logger } from '../utils/logger';
 
@@ -6,6 +7,7 @@ export interface FileRecord {
   lastRead?: number;
   lastEdit?: number;
   lastReadMtime?: number;
+  lastReadHash?: string;
   lastKnownMtime?: number;
 }
 
@@ -41,11 +43,25 @@ export class FilePool {
     }
   }
 
+  private async getContentHash(path: string): Promise<string | undefined> {
+    try {
+      const content = await this.sandbox.fs.read(path);
+      return createHash('sha256').update(content).digest('hex');
+    } catch {
+      return undefined;
+    }
+  }
+
   async recordRead(path: string): Promise<void> {
     const resolved = this.sandbox.fs.resolve(path);
     const record = this.records.get(resolved) || { path: resolved };
     record.lastRead = Date.now();
-    record.lastReadMtime = await this.getMtime(resolved);
+    const [lastReadMtime, lastReadHash] = await Promise.all([
+      this.getMtime(resolved),
+      this.getContentHash(resolved),
+    ]);
+    record.lastReadMtime = lastReadMtime;
+    record.lastReadHash = lastReadHash;
     record.lastKnownMtime = record.lastReadMtime;
     this.records.set(resolved, record);
     await this.ensureWatch(resolved);
@@ -69,9 +85,19 @@ export class FilePool {
       return { isFresh: true, currentMtime };
     }
 
-    const isFresh =
-      record.lastRead !== undefined &&
-      (currentMtime === undefined || record.lastReadMtime === undefined || currentMtime === record.lastReadMtime);
+    // mtime is the fast path. When mtime diverges, fall back to content
+    // hashing to distinguish real changes from low-resolution mtime noise.
+    // When a baseline hash is available we always verify content because
+    // mtime alone cannot be trusted on all filesystems.
+    const mtimeMatches =
+      currentMtime === undefined ||
+      record.lastReadMtime === undefined ||
+      currentMtime === record.lastReadMtime;
+    const contentMatches =
+      record.lastReadHash === undefined
+        ? mtimeMatches // no hash baseline → trust mtime
+        : (await this.getContentHash(resolved)) === record.lastReadHash;
+    const isFresh = record.lastRead !== undefined && contentMatches;
 
     return {
       isFresh,
