@@ -133,7 +133,7 @@ export async function* callTaskTool(
 
   const agentId = input.resume || generateAgentId()
 
-  // Acquire supervisor slot — enforces concurrency limit and starts timeout clock
+  // Acquire supervisor slot — enforces concurrency limit and timeout/turn caps
   const supervisor = AgentSupervisor.acquire(agentId, {
     maxExecutionTimeMs: (agentConfig as any).maxExecutionTimeMs,
   })
@@ -260,6 +260,7 @@ export async function* callTaskTool(
         subagentType: input.subagent_type,
         model: modelToUse,
       },
+      supervisor,
     })) {
       if (chunk.type === 'result') {
         saveAgentTranscript(prepared.agentId, prepared.transcriptMessages)
