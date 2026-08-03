@@ -1076,24 +1076,29 @@ export class PostgresStore implements ExtendedStore {
         throw new Error(`无法获取 Agent ${agentId} 的锁，可能被其他进程占用`);
       }
 
-      // 设置超时自动释放
-      const timeoutId = setTimeout(async () => {
+      // Guard against double-release from both timeout and explicit release
+      let released = false;
+      const releaseOnce = async () => {
+        if (released) return;
+        released = true;
         try {
           await client.query('SELECT pg_advisory_unlock($1)', [lockKey]);
-          client.release();
         } catch {
-          // 忽略释放错误
+          // Unlock may fail if already released by timeout
+        } finally {
+          client.release();
         }
+      };
+
+      // 设置超时自动释放
+      const timeoutId = setTimeout(() => {
+        void releaseOnce();
       }, timeoutMs);
 
       // 返回释放函数
       return async () => {
         clearTimeout(timeoutId);
-        try {
-          await client.query('SELECT pg_advisory_unlock($1)', [lockKey]);
-        } finally {
-          client.release();
-        }
+        await releaseOnce();
       };
     } catch (error) {
       client.release();

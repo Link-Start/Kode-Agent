@@ -117,10 +117,10 @@ export class MCPClientManager {
   }
 
   clear(): void {
-    for (const entry of this.clients.values()) {
+    for (const [name, entry] of this.clients.entries()) {
       void closeWrappedClient(entry.wrapped).catch(err =>
-                debug.warn('MCP_MANAGER_CLOSE_FAILED', { server: name, error: String(err) }),
-              )
+        debug.warn('MCP_MANAGER_CLOSE_FAILED', { server: name, error: String(err) }),
+      )
     }
     this.clients.clear()
   }

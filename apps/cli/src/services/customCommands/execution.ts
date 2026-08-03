@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { join, resolve, sep } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 
@@ -62,7 +62,12 @@ export async function resolveFileReferences(content: string): Promise<string> {
     if (filePath.startsWith('agent-')) continue
 
     try {
-      const fullPath = join(getCwd(), filePath)
+      const fullPath = resolve(getCwd(), filePath)
+      // Prevent path traversal outside the working directory
+      if (!fullPath.startsWith(getCwd() + sep) && fullPath !== getCwd()) {
+        result = result.replace(fullMatch, `(access denied: ${filePath} is outside workspace)`)
+        continue
+      }
 
       if (existsSync(fullPath)) {
         const fileContent = readFileSync(fullPath, { encoding: 'utf-8' })

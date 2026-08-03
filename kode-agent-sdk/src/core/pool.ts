@@ -36,6 +36,8 @@ interface RunningAgentsMeta {
 
 export class AgentPool {
   private agents = new Map<string, Agent>();
+  // In-flight create/resume promises to prevent duplicate concurrent creation
+  private inflight = new Map<string, Promise<Agent>>();
   private deps: AgentDependencies;
   private maxAgents: number;
 
@@ -49,13 +51,33 @@ export class AgentPool {
       throw new Error(`Agent already exists: ${agentId}`);
     }
 
+    // Deduplicate concurrent create calls for the same agentId
+    const existing = this.inflight.get(agentId);
+    if (existing) return existing;
+
     if (this.agents.size >= this.maxAgents) {
       throw new Error(`Pool is full (max ${this.maxAgents} agents)`);
     }
 
-    const agent = await Agent.create({ ...config, agentId }, this.deps);
-    this.agents.set(agentId, agent);
-    return agent;
+    const promise = (async () => {
+      try {
+        const agent = await Agent.create({ ...config, agentId }, this.deps);
+        // Re-check capacity and existence after await to handle races
+        if (this.agents.has(agentId)) {
+          throw new Error(`Agent already exists: ${agentId}`);
+        }
+        if (this.agents.size >= this.maxAgents) {
+          throw new Error(`Pool is full (max ${this.maxAgents} agents)`);
+        }
+        this.agents.set(agentId, agent);
+        return agent;
+      } finally {
+        this.inflight.delete(agentId);
+      }
+    })();
+
+    this.inflight.set(agentId, promise);
+    return promise;
   }
 
   get(agentId: string): Agent | undefined {
@@ -87,24 +109,39 @@ export class AgentPool {
       return this.agents.get(agentId)!;
     }
 
+    // Deduplicate concurrent resume calls for the same agentId
+    const existing = this.inflight.get(agentId);
+    if (existing) return existing;
+
     // 2. Check pool capacity
     if (this.agents.size >= this.maxAgents) {
       throw new Error(`Pool is full (max ${this.maxAgents} agents)`);
     }
 
-    // 3. Verify session exists
-    const exists = await this.deps.store.exists(agentId);
-    if (!exists) {
-      throw new Error(`Agent not found in store: ${agentId}`);
-    }
+    const promise = (async () => {
+      try {
+        // 3. Verify session exists
+        const exists = await this.deps.store.exists(agentId);
+        if (!exists) {
+          throw new Error(`Agent not found in store: ${agentId}`);
+        }
 
-    // 4. Use Agent.resume() to restore
-    const agent = await Agent.resume(agentId, { ...config, agentId }, this.deps, opts);
+        // 4. Use Agent.resume() to restore
+        const agent = await Agent.resume(agentId, { ...config, agentId }, this.deps, opts);
 
-    // 5. Add to pool
-    this.agents.set(agentId, agent);
+        // 5. Re-check and add to pool
+        if (this.agents.has(agentId)) {
+          return this.agents.get(agentId)!;
+        }
+        this.agents.set(agentId, agent);
+        return agent;
+      } finally {
+        this.inflight.delete(agentId);
+      }
+    })();
 
-    return agent;
+    this.inflight.set(agentId, promise);
+    return promise;
   }
 
   async resumeAll(

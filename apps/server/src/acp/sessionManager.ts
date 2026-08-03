@@ -1,5 +1,6 @@
 import type { WrappedClient } from '#core/mcp/client'
 import { closeMcpClient } from '#core/mcp/client/connection'
+import { logError } from '#core/utils/log'
 
 export const ACP_MAX_ACTIVE_SESSIONS = 100
 
@@ -137,11 +138,14 @@ export class AcpSessionManager<T extends ManagedAcpSession> {
     }
   }
 
-  clear(): void {
-    for (const entry of this.sessions.values()) {
+  async clear(): Promise<void> {
+    const closePromises = Array.from(this.sessions.values()).map(entry => {
       entry.session.activeAbortController?.abort()
-      void closeSessionOwnedMcpClients(entry.session)
-    }
+      return closeSessionOwnedMcpClients(entry.session).catch(err => {
+        logError(`ACP sessionManager clear: failed to close MCP clients: ${err instanceof Error ? err.message : String(err)}`)
+      })
+    })
+    await Promise.allSettled(closePromises)
     this.sessions.clear()
   }
 
