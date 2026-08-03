@@ -16,7 +16,7 @@ type TestHarness = {
 }
 
 const mounted: TestHarness[] = []
-const firstLogoLine = ASCII_LOGO.trim().split(/\r?\n/)[0]
+const firstLogoLine = ASCII_LOGO.trim().split(/\r?\n/)[0]!
 const firstLogoPrefix = firstLogoLine.slice(0, 24)
 const productNameFallback = `${PRODUCT_NAME.toUpperCase()} CLI`
 

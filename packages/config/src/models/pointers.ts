@@ -1,5 +1,5 @@
 import { getGlobalConfig, saveGlobalConfig } from '../loader'
-import type { ModelPointerType } from '../schema'
+import type { GlobalConfig, ModelPointers, ModelPointerType } from '../schema'
 
 import type { ModelProfile } from '../schema'
 import { validateAndRepairGPT5Profile } from './gpt5'
@@ -24,13 +24,19 @@ export function setModelPointer(
   modelName: string,
 ): void {
   const config = getGlobalConfig()
+  const modelPointers: ModelPointers = config.modelPointers ?? {
+    main: '',
+    task: '',
+    compact: '',
+    quick: '',
+  }
   const updatedConfig = {
     ...config,
     modelPointers: {
-      ...config.modelPointers,
+      ...modelPointers,
       [pointer]: modelName,
     },
-  }
+  } satisfies GlobalConfig
   saveGlobalConfig(updatedConfig)
 }
 

@@ -67,7 +67,10 @@ describe('stream-json persistent session', () => {
 
     const canUseTool = async () => ({ result: true })
 
-    const toolUseContextBase = { messageId: undefined, readFileTimestamps: {} }
+    const toolUseContextBase = {
+      messageId: undefined as string | undefined,
+      readFileTimestamps: {},
+    }
 
     const sessionPromise = runKodeAgentStreamJsonSession<
       Message,
@@ -178,7 +181,10 @@ describe('stream-json persistent session', () => {
 
     const canUseTool = async () => ({ result: true })
 
-    const toolUseContextBase = { messageId: undefined, readFileTimestamps: {} }
+    const toolUseContextBase = {
+      messageId: undefined as string | undefined,
+      readFileTimestamps: {},
+    }
 
     const sessionPromise = runKodeAgentStreamJsonSession<
       Message,
@@ -250,7 +256,10 @@ describe('stream-json persistent session', () => {
     }
 
     const canUseTool = async () => ({ result: true })
-    const toolUseContextBase = { messageId: undefined, readFileTimestamps: {} }
+    const toolUseContextBase = {
+      messageId: undefined as string | undefined,
+      readFileTimestamps: {},
+    }
 
     const sessionPromise = runKodeAgentStreamJsonSession<
       Message,

@@ -23,6 +23,7 @@ export function ViewAgent(props: {
       props.onBack()
       return true
     }
+    return undefined
   })
 
   const toolNames = new Set(props.tools.map(t => t.name))

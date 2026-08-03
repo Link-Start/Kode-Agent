@@ -1227,7 +1227,7 @@ export function ResumeSessionSelector(props: {
           setSubmitError(null)
           return true
         }
-        return
+        return undefined
       }
 
       if (view === 'crossProject') {
@@ -1240,7 +1240,7 @@ export function ResumeSessionSelector(props: {
           setSubmitError(null)
           return true
         }
-        return
+        return undefined
       }
 
       if (view === 'preview') {
@@ -1285,7 +1285,7 @@ export function ResumeSessionSelector(props: {
 
       if (view === 'search') return false
 
-      if (view !== 'list') return
+      if (view !== 'list') return undefined
 
       if (key.ctrl && lower === 'c') {
         close()
@@ -1422,7 +1422,7 @@ export function ResumeSessionSelector(props: {
         return true
       }
 
-      if (rows.length === 0) return
+      if (rows.length === 0) return undefined
 
       if (key.upArrow) {
         if (clampedSelection === 0) {
@@ -1469,6 +1469,7 @@ export function ResumeSessionSelector(props: {
         setSubmitError(null)
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

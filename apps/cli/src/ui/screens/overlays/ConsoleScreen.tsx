@@ -68,7 +68,7 @@ export function ConsoleScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
 
   const [lines, setLines] = useState<string[]>(() => loadCapturedLines())
   const [follow, setFollow] = useState(true)
@@ -208,6 +208,8 @@ export function ConsoleScreen({
         void openSaved()
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

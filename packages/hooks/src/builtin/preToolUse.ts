@@ -49,7 +49,7 @@ function skipWrapperCommands(tokens: string[], startIndex: number): number {
 
     if (token === 'sudo') {
       i += 1
-      while (tokens[i] && tokens[i].startsWith('-')) {
+      while (tokens[i] && tokens[i]!.startsWith('-')) {
         // best-effort: handle `sudo -u user ...`
         if (tokens[i] === '-u' || tokens[i] === '-g' || tokens[i] === '-h') {
           i += 2
@@ -63,7 +63,7 @@ function skipWrapperCommands(tokens: string[], startIndex: number): number {
     if (token === 'env') {
       i += 1
       while (tokens[i]) {
-        const t = tokens[i]
+        const t = tokens[i]!
         if (t === '-u' || t === '--unset') {
           i += 2
           continue
@@ -83,7 +83,7 @@ function skipWrapperCommands(tokens: string[], startIndex: number): number {
 
     if (token === 'command' || token === 'builtin') {
       i += 1
-      while (tokens[i] && tokens[i].startsWith('-')) i += 1
+      while (tokens[i] && tokens[i]!.startsWith('-')) i += 1
       continue
     }
 
@@ -93,7 +93,7 @@ function skipWrapperCommands(tokens: string[], startIndex: number): number {
 
 function skipGitGlobalOptions(tokens: string[], startIndex: number): number {
   let i = startIndex
-  while (tokens[i] && tokens[i].startsWith('-')) {
+  while (tokens[i] && tokens[i]!.startsWith('-')) {
     const t = tokens[i]
     if (t === '--') return i + 1
     if (
@@ -119,13 +119,13 @@ function getGitBranchSwitchTargetCwd(
   if (tokens.length === 0) return null
 
   let i = 0
-  while (tokens[i] && isEnvAssignment(tokens[i])) i += 1
+  while (tokens[i] && isEnvAssignment(tokens[i]!)) i += 1
   i = skipWrapperCommands(tokens, i)
 
   if (tokens[i] !== 'git') return null
 
   let targetCwd = cwd
-  for (let opt = i + 1; tokens[opt] && tokens[opt].startsWith('-');) {
+  for (let opt = i + 1; tokens[opt] && tokens[opt]!.startsWith('-');) {
     const t = tokens[opt]
     if (t === '--') break
 

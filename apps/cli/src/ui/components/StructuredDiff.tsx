@@ -137,6 +137,8 @@ function formatDiff(
               </Text>
             </React.Fragment>
           )
+        default:
+          return null
       }
     })
   })

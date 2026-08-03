@@ -33,7 +33,11 @@ export async function saveModelConfiguration({
   requestStrategy,
   getModelManagerFn,
 }: Params): Promise<string> {
-  let baseURL = providerBaseUrl || providers[provider]?.baseURL || ''
+  const providerCatalog = providers as Record<
+    string,
+    { name: string; baseURL: string }
+  >
+  let baseURL = providerBaseUrl || providerCatalog[provider]?.baseURL || ''
   let actualProvider = provider
 
   // For Anthropic provider, use defaults
@@ -57,7 +61,7 @@ export async function saveModelConfiguration({
   // If model is empty (for providers without model selection), use provider name
   const displayModel = model || 'default'
   const modelDisplayName =
-    `${providers[actualProvider]?.name || actualProvider} ${displayModel}`.trim()
+    `${providerCatalog[actualProvider]?.name || actualProvider} ${displayModel}`.trim()
 
   const modelConfig = {
     name: modelDisplayName,

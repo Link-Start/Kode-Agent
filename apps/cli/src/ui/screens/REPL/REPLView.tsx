@@ -227,7 +227,7 @@ export function REPLView({
   useEffect(() => {
     if (rows <= 0 || columns <= 0) {
       setIsLayoutMeasurementPending(prev => (prev ? false : prev))
-      return
+      return undefined
     }
 
     if (
@@ -235,7 +235,7 @@ export function REPLView({
       measureTimerRef.current === null
     ) {
       setIsLayoutMeasurementPending(prev => (prev ? false : prev))
-      return
+      return undefined
     }
 
     if (measureTimerRef.current) {
@@ -307,7 +307,6 @@ export function REPLView({
     !isMessageSelectorVisible &&
     !binaryFeedbackContext &&
     !showingCostDialog &&
-    !toolJSX?.shouldHidePromptInput &&
     shouldShowPromptInput
   const microStatus = toolUseConfirm
     ? 'Permission request - expand terminal'

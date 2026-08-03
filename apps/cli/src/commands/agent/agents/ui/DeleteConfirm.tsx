@@ -16,6 +16,7 @@ export function DeleteConfirm(props: {
       props.onCancel()
       return true
     }
+    return undefined
   })
 
   return (

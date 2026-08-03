@@ -29,7 +29,10 @@ if (process.env.NODE_ENV !== 'production') {
       })
     }
   } catch (error) {
-    console.log('⚠️  Could not load .env file:', error.message)
+    console.log(
+      '⚠️  Could not load .env file:',
+      error instanceof Error ? error.message : String(error),
+    )
   }
 }
 

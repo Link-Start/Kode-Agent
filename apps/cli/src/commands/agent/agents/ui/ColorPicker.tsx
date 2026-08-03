@@ -32,6 +32,7 @@ export function ColorPicker(props: {
       props.onConfirm(COLOR_OPTIONS[index] ?? 'automatic')
       return true
     }
+    return undefined
   })
 
   return (

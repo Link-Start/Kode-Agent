@@ -70,7 +70,7 @@ export function useExternalEdit(args: {
         setMessage({
           show: true,
           text:
-            ('error' in result && result.error?.message) ??
+            ('error' in result ? result.error?.message : undefined) ??
             'External editor unavailable. Set $EDITOR or install code/nano/vim/notepad.',
         })
         scheduleMessageDismiss(4000)

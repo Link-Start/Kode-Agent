@@ -59,7 +59,7 @@ export function parseWatchTarget(
   if (kind !== 'pr' && kind !== 'run')
     return { error: usage('Unknown watch target.') }
 
-  const match = reference.match(
+  const match = reference!.match(
     /^([A-Za-z0-9][A-Za-z0-9_.-]{0,99})\/([A-Za-z0-9][A-Za-z0-9_.-]{0,99})#([1-9]\d*)$/u,
   )
   if (!match)
@@ -70,8 +70,8 @@ export function parseWatchTarget(
     return { error: usage('Target number must be a positive integer.') }
   }
   return kind === 'pr'
-    ? { kind, owner, repo, number }
-    : { kind, owner, repo, runId: number }
+    ? { kind, owner: owner!, repo: repo!, number }
+    : { kind, owner: owner!, repo: repo!, runId: number }
 }
 
 function stringFromUnknown(value: unknown): string {

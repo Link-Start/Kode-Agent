@@ -157,7 +157,7 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
           setRefreshKey(prev => prev + 1)
           return true
         }
-        return
+        return undefined
       }
 
       const inputChar = input.length === 1 ? input : ''
@@ -177,7 +177,7 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
           closePointerPicker()
           return true
         }
-        return
+        return undefined
       }
 
       if (key.escape) {
@@ -230,6 +230,7 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
           return true
         }
       }
+      return undefined
     },
     { isActive: true, priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

@@ -148,8 +148,8 @@ export function useReplController(props: REPLProps) {
   const [commands, setCommands] = useState(() => props.commands)
 
   useEffect(() => {
-    if (process.env.NODE_ENV === 'test') return
-    if (updateAvailableVersion || updateCommands) return
+    if (process.env.NODE_ENV === 'test') return undefined
+    if (updateAvailableVersion || updateCommands) return undefined
 
     let cancelled = false
     ;(async () => {
@@ -283,7 +283,7 @@ export function useReplController(props: REPLProps) {
   }, [toolViewStack])
 
   const toolJSX: ToolView | null =
-    toolViewStack.length > 0 ? toolViewStack[toolViewStack.length - 1] : null
+    toolViewStack.length > 0 ? toolViewStack[toolViewStack.length - 1]! : null
 
   useToolKeypress(toolJSX?.onKeypress)
 
@@ -305,7 +305,7 @@ export function useReplController(props: REPLProps) {
   const setToolViewStackWithClear = useCallback(
     (nextStack: ToolView[]) => {
       const prevMode = toolJSXRef.current?.displayMode
-      const nextTop = nextStack.length ? nextStack[nextStack.length - 1] : null
+      const nextTop = nextStack.length ? nextStack[nextStack.length - 1]! : null
       const nextMode = nextTop?.displayMode
 
       const prevFull = prevMode === 'fullscreen'
@@ -641,7 +641,7 @@ export function useReplController(props: REPLProps) {
         return true
       }
 
-      if (hasModal) return
+      if (hasModal) return undefined
 
       if (key.ctrl && inputChar === 't') {
         openWorkTasksScreen()
@@ -943,6 +943,8 @@ export function useReplController(props: REPLProps) {
         })
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.REPL_CONTROLLER },
   )
@@ -1184,7 +1186,7 @@ export function useReplController(props: REPLProps) {
   // idle. The schedule is atomically claimed before it becomes an ordinary
   // REPL turn, so a restart cannot replay missed intervals or double-run it.
   useEffect(() => {
-    if (process.env.NODE_ENV === 'test') return
+    if (process.env.NODE_ENV === 'test') return undefined
 
     let disposed = false
     const tick = () => {

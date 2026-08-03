@@ -213,7 +213,7 @@ class MentionProcessorService {
       ...input.matchAll(MentionProcessorService.MENTION_PATTERNS.runAgent),
     ]
     for (const match of runAgentMatches) {
-      const mention = match[1]
+      const mention = match[1]!
       const agentType = mention.replace(/^run-agent-/, '')
       mentions.push({ mention, agentType, isAskModel: false })
     }
@@ -223,7 +223,7 @@ class MentionProcessorService {
       ...input.matchAll(MentionProcessorService.MENTION_PATTERNS.agent),
     ]
     for (const match of agentMatches) {
-      const mention = match[1]
+      const mention = match[1]!
       const agentType = mention.replace(/^agent-/, '')
       mentions.push({ mention, agentType, isAskModel: false })
     }
@@ -233,7 +233,7 @@ class MentionProcessorService {
       ...input.matchAll(MentionProcessorService.MENTION_PATTERNS.askModel),
     ]
     for (const match of askModelMatches) {
-      const mention = match[1]
+      const mention = match[1]!
       mentions.push({ mention, agentType: mention, isAskModel: true })
     }
 

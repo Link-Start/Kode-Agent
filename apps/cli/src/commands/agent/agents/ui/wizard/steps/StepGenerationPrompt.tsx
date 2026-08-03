@@ -37,7 +37,7 @@ export function StepGenerationPrompt(props: {
   const footerText = getGenerationPromptFooterText(isGenerating)
 
   useKeypress((_input, key) => {
-    if (!key.escape) return
+    if (!key.escape) return undefined
     if (isGeneratingRef.current && abortRef.current) {
       abortRef.current.abort()
       abortRef.current = null
@@ -66,6 +66,7 @@ export function StepGenerationPrompt(props: {
       ctx.goBack()
       return true
     }
+    return undefined
   })
 
   const onSubmit = async () => {

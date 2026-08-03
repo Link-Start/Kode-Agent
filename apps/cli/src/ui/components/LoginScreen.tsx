@@ -96,7 +96,7 @@ export function LoginScreen({
   }, [refreshCodexStatus])
 
   React.useEffect(() => {
-    if (codexFlowState !== 'waiting') return
+    if (codexFlowState !== 'waiting') return undefined
 
     let cancelled = false
     const checkForLogin = async () => {
@@ -152,7 +152,7 @@ export function LoginScreen({
   }, [checkingStatus, codexAuth, codexStatus])
 
   useKeypress((input, key) => {
-    if (route !== 'selection') return
+    if (route !== 'selection') return undefined
 
     const inputChar = input.length === 1 ? input.toLowerCase() : ''
     const isUp = key.upArrow || inputChar === 'k'
@@ -202,6 +202,7 @@ export function LoginScreen({
       }
       return true
     }
+    return undefined
   })
 
   if (route === 'openai') {

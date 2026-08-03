@@ -131,7 +131,9 @@ export function reorderMessages(
   }
 
   const reorderedMessages: NormalizedMessage[] = []
-  for (let node = firstNode; node; node = node.next) {
+  // firstNode is assigned inside appendMessage, which TS's control flow
+  // analysis cannot see, so re-widen the narrowed type here.
+  for (let node = firstNode as MessageNode | null; node; node = node.next) {
     reorderedMessages.push(node.message)
   }
   return reorderedMessages

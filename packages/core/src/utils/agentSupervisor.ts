@@ -54,9 +54,7 @@ export class AgentTurnLimitError extends Error {
   readonly turns: number
 
   constructor(agentId: string, turns: number, limit: number) {
-    super(
-      `Agent "${agentId}" exceeded turn limit: ${turns} >= ${limit} turns`,
-    )
+    super(`Agent "${agentId}" exceeded turn limit: ${turns} >= ${limit} turns`)
     this.name = 'AgentTurnLimitError'
     this.turns = turns
     this.agentId = agentId
@@ -96,8 +94,7 @@ export class AgentSupervisor {
     this.startedAt = Date.now()
     this.maxExecutionTimeMs =
       config.maxExecutionTimeMs ?? DEFAULT_MAX_EXECUTION_TIME_MS
-    this.maxTurnsHardCap =
-      config.maxTurnsHardCap ?? DEFAULT_MAX_TURNS_HARD_CAP
+    this.maxTurnsHardCap = config.maxTurnsHardCap ?? DEFAULT_MAX_TURNS_HARD_CAP
   }
 
   // -------------------------------------------------------------------------
@@ -108,12 +105,8 @@ export class AgentSupervisor {
    * Acquire a supervisor slot for a new agent.
    * Throws AgentConcurrencyLimitError if the limit is reached.
    */
-  static acquire(
-    agentId: string,
-    config?: AgentLimitsConfig,
-  ): AgentSupervisor {
-    const limit =
-      config?.concurrentAgentLimit ?? DEFAULT_CONCURRENT_AGENT_LIMIT
+  static acquire(agentId: string, config?: AgentLimitsConfig): AgentSupervisor {
+    const limit = config?.concurrentAgentLimit ?? DEFAULT_CONCURRENT_AGENT_LIMIT
 
     if (AgentSupervisor.activeAgents.size >= limit) {
       throw new AgentConcurrencyLimitError(

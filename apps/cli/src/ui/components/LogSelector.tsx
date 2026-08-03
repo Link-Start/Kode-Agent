@@ -95,6 +95,7 @@ export function LogSelector({
       setSelectedIndex(Math.max(0, logs.length - 1))
       return true
     }
+    return undefined
   })
 
   if (logs.length === 0) return null

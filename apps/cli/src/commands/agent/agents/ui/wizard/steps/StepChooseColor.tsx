@@ -20,6 +20,7 @@ export function StepChooseColor({ ctx }: { ctx: WizardContextValue }) {
       ctx.goBack()
       return true
     }
+    return undefined
   })
 
   const agentType = ctx.wizardData.agentType ?? 'agent'

@@ -3,16 +3,22 @@ import models, { providers } from '#core/constants/models'
 
 type Option = { value: string; label: string }
 
+const providerCatalog = providers as Record<
+  string,
+  { name: string; baseURL: string; status?: string }
+>
+const modelCatalog = models as Record<string, unknown[] | undefined>
+
 export function useModelSelectorMenus(args: {
   containerPaddingY: number
   containerGap: number
 }) {
   function getProviderLabel(provider: string, modelCount: number): string {
-    if (providers[provider]) {
+    if (providerCatalog[provider]) {
       const wipTag = '(' + 'WI' + 'P' + ')'
-      return providers[provider].status === 'wip'
-        ? `${providers[provider].name} ${wipTag}`
-        : providers[provider].name
+      return providerCatalog[provider].status === 'wip'
+        ? `${providerCatalog[provider].name} ${wipTag}`
+        : providerCatalog[provider].name
     }
     return `${provider}`
   }
@@ -53,7 +59,7 @@ export function useModelSelectorMenus(args: {
     () =>
       rankedProviders.filter(
         provider =>
-          providers[provider] &&
+          providerCatalog[provider] &&
           !provider.includes('coding') &&
           provider !== 'custom-openai' &&
           provider !== 'ollama',
@@ -70,7 +76,7 @@ export function useModelSelectorMenus(args: {
   const partnerProviderOptions: Option[] = useMemo(
     () =>
       partnerProviders.map(provider => {
-        const modelCount = models[provider]?.length || 0
+        const modelCount = modelCatalog[provider]?.length || 0
         return {
           label: getProviderLabel(provider, modelCount),
           value: provider,
@@ -82,7 +88,7 @@ export function useModelSelectorMenus(args: {
   const codingPlanOptions: Option[] = useMemo(
     () =>
       codingPlanProviders.map(provider => {
-        const modelCount = models[provider]?.length || 0
+        const modelCount = modelCatalog[provider]?.length || 0
         return {
           label: getProviderLabel(provider, modelCount),
           value: provider,

@@ -86,7 +86,7 @@ export function normalizeMessagesForAPI(
       case 'assistant': {
         let merged = false
         for (let i = result.length - 1; i >= 0; i--) {
-          const prev = result[i]
+          const prev = result[i]!
           if (prev.type !== 'assistant' && !isUserToolResultMessage(prev)) {
             break
           }

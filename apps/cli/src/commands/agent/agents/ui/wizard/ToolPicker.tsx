@@ -349,6 +349,7 @@ export function ToolPicker(props: {
       setCursorIndex(getFocusableToolPickerIndex(items, items.length - 1, -1))
       return true
     }
+    return undefined
   })
 
   const topIndicator = window.showUpIndicator

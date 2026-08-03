@@ -51,7 +51,7 @@ export function TranscriptScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
 
   const [follow, setFollow] = useState(initialFollow)
   const [scrollTop, setScrollTop] = useState(0)
@@ -72,7 +72,7 @@ export function TranscriptScreen({
   }, [])
 
   useEffect(() => {
-    if (!follow) return
+    if (!follow) return undefined
     refreshSnapshot()
     const interval = setInterval(() => refreshSnapshot(), REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
@@ -257,6 +257,8 @@ export function TranscriptScreen({
         void copyTranscript()
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

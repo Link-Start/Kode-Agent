@@ -28,7 +28,7 @@ const makeContext = (): ToolUseContext => ({
 
 const toolStubSchema = z.object({}).passthrough()
 
-function createPermissionToolStub(name: string): Tool<typeof toolStubSchema> {
+function createPermissionToolStub(name: string): Tool {
   return {
     name,
     inputSchema: toolStubSchema,
@@ -56,7 +56,7 @@ function createPermissionToolStub(name: string): Tool<typeof toolStubSchema> {
     call: async function* () {
       return
     },
-  }
+  } as unknown as Tool
 }
 
 function setToolRules(rules: {

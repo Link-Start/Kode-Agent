@@ -50,7 +50,7 @@ describe('🔍 Diagnostic: Stream State Tracking', () => {
     const unifiedParams = {
       messages: [{ role: 'user', content: 'Hello, write 3 words.' }],
       systemPrompt: ['You are a helpful assistant.'],
-      tools: [],
+      tools: [] as any[],
       maxTokens: 50,
       stream: true, // Force streaming mode (even though adapter forces it anyway)
       reasoningEffort: 'high' as const,
@@ -115,14 +115,12 @@ describe('🔍 Diagnostic: Stream State Tracking', () => {
       unifiedResponse = await adapter.parseResponse(response)
       console.log('  ✅ Response parsed successfully')
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error))
       console.log('  ❌ Error parsing response:')
-      console.log(`   Message: ${error.message}`)
-      console.log(`   Stack: ${error.stack}`)
+      console.log(`   Message: ${err.message}`)
+      console.log(`   Stack: ${err.stack}`)
 
-      if (
-        error.message.includes('locked') ||
-        error.message.includes('reader')
-      ) {
+      if (err.message.includes('locked') || err.message.includes('reader')) {
         console.log('\n💡 ROOT CAUSE IDENTIFIED:')
         console.log(
           '   The stream was locked between API call and parseResponse()',
@@ -157,7 +155,7 @@ describe('🔍 Diagnostic: Stream State Tracking', () => {
     }
 
     console.log(`  📄 Actual text: "${actualText}"`)
-    console.log(`  🔧 Tool calls: ${unifiedResponse.toolCalls.length}`)
+    console.log(`  🔧 Tool calls: ${unifiedResponse.toolCalls?.length ?? 0}`)
 
     // Assertions
     expect(unifiedResponse).toBeDefined()
@@ -198,7 +196,7 @@ describe('🔍 Diagnostic: Stream State Tracking', () => {
     const streamingParams = {
       messages: [{ role: 'user', content: 'Say "STREAM".' }],
       systemPrompt: ['You are a helpful assistant.'],
-      tools: [],
+      tools: [] as any[],
       maxTokens: 10,
       stream: true,
       reasoningEffort: 'high' as const,

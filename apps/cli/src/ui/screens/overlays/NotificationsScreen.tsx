@@ -62,7 +62,7 @@ export function NotificationsScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
   const didDoneRef = useRef(false)
 
   const safeOnDone = useCallback(
@@ -215,6 +215,8 @@ export function NotificationsScreen({
         void openSaved()
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

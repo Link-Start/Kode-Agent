@@ -179,7 +179,7 @@ export function CommandPaletteScreen({
   const theme = getTheme()
   const layout = useScreenLayout()
   const { rows, columns } = layout
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
 
   const paddingY = layout.paddingY
   const gap = layout.gap

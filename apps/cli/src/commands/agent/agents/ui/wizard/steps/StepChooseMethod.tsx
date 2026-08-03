@@ -15,6 +15,7 @@ export function StepChooseMethod({ ctx }: { ctx: WizardContextValue }) {
       ctx.goBack()
       return true
     }
+    return undefined
   })
 
   return (

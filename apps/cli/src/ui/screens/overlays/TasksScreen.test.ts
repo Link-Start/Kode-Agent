@@ -15,7 +15,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'running',
       startedAt: 1,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const childTask = {
@@ -27,7 +27,7 @@ describe('TasksScreen helpers', () => {
       status: 'failed',
       startedAt: 2,
       error: 'Permission denied',
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const nodes = [
@@ -69,7 +69,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'running',
       startedAt: 1,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const childTask = {
@@ -80,7 +80,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'completed',
       startedAt: 2,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const nodes = [
@@ -119,7 +119,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'running',
       startedAt: 1,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const nodes = [
@@ -152,7 +152,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'running',
       startedAt: 1,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const nodes = [
@@ -182,7 +182,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'completed',
       startedAt: 1,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const running = {
@@ -192,7 +192,7 @@ describe('TasksScreen helpers', () => {
       prompt: 'do it',
       status: 'running',
       startedAt: 2,
-      messages: [],
+      messages: [] as unknown[],
     }
 
     const nodes = [

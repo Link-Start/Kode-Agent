@@ -180,9 +180,9 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
   const tab = TAB_ORDER[Math.min(Math.max(0, tabIndex), TAB_ORDER.length - 1)]
 
   useEffect(() => {
-    if (tab !== 'Tools') return
+    if (tab !== 'Tools') return undefined
     const tools = context.options?.tools ?? []
-    if (tools.length === 0) return
+    if (tools.length === 0) return undefined
     let cancelled = false
     setIsCheckingTools(true)
     Promise.all(
@@ -317,6 +317,8 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
         setScrollTop(maxScrollTop)
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

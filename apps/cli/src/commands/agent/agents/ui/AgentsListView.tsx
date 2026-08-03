@@ -80,11 +80,11 @@ export function AgentsListView(props: {
       return true
     }
 
-    if (!key.upArrow && !key.downArrow) return
+    if (!key.upArrow && !key.downArrow) return undefined
 
     const hasCreate = Boolean(props.onCreateNew)
     const navigableCount = selectableAgents.length + (hasCreate ? 1 : 0)
-    if (navigableCount === 0) return
+    if (navigableCount === 0) return undefined
 
     const currentIndex = (() => {
       if (hasCreate && onCreateOption) return 0
@@ -118,6 +118,7 @@ export function AgentsListView(props: {
       setSelectedAgent(nextAgent)
       return true
     }
+    return undefined
   })
 
   const renderCreateNew = () => {

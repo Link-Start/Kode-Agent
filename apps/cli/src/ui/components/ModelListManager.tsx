@@ -64,7 +64,7 @@ export function ModelListManager({ onClose }: Props): React.ReactNode {
         id: 'add-new',
         name: '+ Add New Model',
         provider: '',
-        usedBy: [],
+        usedBy: [] as ModelPointerType[],
         type: 'action' as const,
       },
       ...modelItems,
@@ -213,6 +213,7 @@ export function ModelListManager({ onClose }: Props): React.ReactNode {
         }
         return true
       }
+      return undefined
     },
     [
       availableModels,

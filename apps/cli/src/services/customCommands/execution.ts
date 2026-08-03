@@ -19,11 +19,11 @@ export async function executeBashCommands(content: string): Promise<string> {
 
   for (const match of matches) {
     const fullMatch = match[0]
-    const command = match[1].trim()
+    const command = match[1]!.trim()
 
     try {
       const parts = command.split(/\s+/)
-      const cmd = parts[0]
+      const cmd = parts[0]!
       const args = parts.slice(1)
 
       const { stdout, stderr } = await execFileAsync(cmd, args, {
@@ -57,7 +57,7 @@ export async function resolveFileReferences(content: string): Promise<string> {
 
   for (const match of matches) {
     const fullMatch = match[0]
-    const filePath = match[1]
+    const filePath = match[1]!
 
     if (filePath.startsWith('agent-')) continue
 

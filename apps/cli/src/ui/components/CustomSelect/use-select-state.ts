@@ -146,7 +146,8 @@ function getAdjacentSelectableValueFromStaleIndex(
   state: Pick<State, 'optionMap' | 'staleFocusedIndex'>,
   direction: 'next' | 'previous',
 ): string | undefined {
-  if (state.staleFocusedIndex === undefined) return undefined
+  const { staleFocusedIndex } = state
+  if (staleFocusedIndex === undefined) return undefined
 
   const values: Array<{ value: string; index: number }> = []
   for (const option of state.optionMap.values()) {
@@ -155,10 +156,10 @@ function getAdjacentSelectableValueFromStaleIndex(
   }
 
   if (direction === 'next') {
-    return values.find(option => option.index >= state.staleFocusedIndex)?.value
+    return values.find(option => option.index >= staleFocusedIndex)?.value
   }
 
-  return values.reverse().find(option => option.index < state.staleFocusedIndex)
+  return values.reverse().find(option => option.index < staleFocusedIndex)
     ?.value
 }
 

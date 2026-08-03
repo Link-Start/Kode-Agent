@@ -485,7 +485,7 @@ export function useChat(args: {
   )
 
   React.useEffect(() => {
-    if (!sessionClient) return
+    if (!sessionClient) return undefined
     return sessionClient.subscribeEvents(handleEvent)
   }, [handleEvent, sessionClient])
 

@@ -94,7 +94,7 @@ describe('createRoutes health endpoint', () => {
 
   test('routes Agent controls behind the shared API token gate', async () => {
     const agentService = {
-      list: () => [],
+      list: (): never[] => [],
     } as unknown as AgentControlService
     const authorized = createTestRoutes({ agentService })
     const allowed = await authorized.fetch(
@@ -117,7 +117,7 @@ describe('createRoutes health endpoint', () => {
   test('rejects non-canonical Agent API paths before they can bypass the token gate', async () => {
     let listCalls = 0
     const agentService = {
-      list: () => {
+      list: (): never[] => {
         listCalls += 1
         return []
       },
@@ -245,7 +245,9 @@ describe('createRoutes health endpoint', () => {
     )
 
     expect(response).toBeUndefined()
-    const fresh = data?.session as
+    // `data` is assigned inside the upgrade callback, so CFA still sees the
+    // initial `null` here; re-widen it before use.
+    const fresh = (data as Record<string, unknown> | null)?.session as
       { sessionId?: string; messages?: unknown[] } | undefined
     expect(fresh?.sessionId).toBeDefined()
     expect(fresh?.sessionId).not.toBe(existing.sessionId)

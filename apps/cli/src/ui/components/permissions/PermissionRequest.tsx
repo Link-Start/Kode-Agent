@@ -114,6 +114,7 @@ export function PermissionRequest({
         toolUseConfirm.onReject()
         return true
       }
+      return undefined
     },
     // Let tool-specific permission UIs intercept Esc first (e.g. WebFetch logging).
     { priority: -10 },

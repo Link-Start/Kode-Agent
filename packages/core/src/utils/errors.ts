@@ -35,7 +35,10 @@ export class ToolExecutionError extends KodeError {
     message: string,
     options?: { code?: string; cause?: unknown },
   ) {
-    super(message, { code: options?.code ?? 'TOOL_EXECUTION_FAILED', cause: options?.cause })
+    super(message, {
+      code: options?.code ?? 'TOOL_EXECUTION_FAILED',
+      cause: options?.cause,
+    })
     this.name = 'ToolExecutionError'
     this.toolName = toolName
   }
@@ -107,7 +110,10 @@ export class ProviderError extends KodeError {
     message: string,
     options?: { retryable?: boolean; code?: string; cause?: unknown },
   ) {
-    super(message, { code: options?.code ?? 'PROVIDER_ERROR', cause: options?.cause })
+    super(message, {
+      code: options?.code ?? 'PROVIDER_ERROR',
+      cause: options?.cause,
+    })
     this.name = 'ProviderError'
     this.provider = provider
     this.retryable = options?.retryable ?? false
@@ -125,9 +131,17 @@ export class AgentError extends KodeError {
 
   constructor(
     message: string,
-    options?: { agentType?: string; agentId?: string; code?: string; cause?: unknown },
+    options?: {
+      agentType?: string
+      agentId?: string
+      code?: string
+      cause?: unknown
+    },
   ) {
-    super(message, { code: options?.code ?? 'AGENT_ERROR', cause: options?.cause })
+    super(message, {
+      code: options?.code ?? 'AGENT_ERROR',
+      cause: options?.cause,
+    })
     this.name = 'AgentError'
     this.agentType = options?.agentType
     this.agentId = options?.agentId
@@ -176,7 +190,10 @@ export class McpError extends KodeError {
     message: string,
     options?: { code?: string; cause?: unknown },
   ) {
-    super(message, { code: options?.code ?? 'MCP_ERROR', cause: options?.cause })
+    super(message, {
+      code: options?.code ?? 'MCP_ERROR',
+      cause: options?.cause,
+    })
     this.name = 'McpError'
     this.serverName = serverName
   }

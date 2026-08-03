@@ -76,7 +76,7 @@ type Setting =
 export function ConfigScreen({ onClose }: Props): React.ReactNode {
   const [globalConfig, setGlobalConfig] = useState(getGlobalConfig())
   const initialConfig = React.useRef(getGlobalConfig())
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
   const [editingString, setEditingString] = useState(false)
   const [currentInput, setCurrentInput] = useState('')
   const [inputError, setInputError] = useState<string | null>(null)
@@ -229,7 +229,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
           currentSetting.value,
         )
         const nextIndex = (currentIndex + 1) % currentSetting.options.length
-        currentSetting.onChange(currentSetting.options[nextIndex])
+        currentSetting.onChange(currentSetting.options[nextIndex]!)
         return true
       }
 
@@ -250,7 +250,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
       if (editingString) {
         if (key.return) {
           const currentSetting = settings[selectedIndex]
-          if (!currentSetting) return
+          if (!currentSetting) return undefined
 
           if (currentSetting.type === 'string') {
             try {
@@ -289,7 +289,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
         } else if (input) {
           setCurrentInput(prev => prev + input)
         }
-        return
+        return undefined
       }
 
       if (key.upArrow) {
@@ -319,6 +319,8 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
 
         safeOnClose()
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

@@ -260,7 +260,7 @@ export class ModelManager {
       throw new Error(`Model with name '${config.name}' already exists`)
     }
 
-    const existing = this.modelProfiles[existingIndex]
+    const existing = this.modelProfiles[existingIndex]!
     const updatedModel: ModelProfile = {
       ...existing,
       ...config,

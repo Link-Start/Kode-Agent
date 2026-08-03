@@ -66,9 +66,9 @@ describe('runtime presentation helpers', () => {
     const offline = {
       ok: false,
       transport: 'daemon' as const,
-      pid: null,
-      version: null,
-      activeSessions: null,
+      pid: null as number | null,
+      version: null as string | null,
+      activeSessions: null as number | null,
     }
     expect(runtimeStatusTitle(offline)).toBe('Daemon unavailable')
     expect(runtimeStatusCompactLabel(offline)).toBe('daemon offline')

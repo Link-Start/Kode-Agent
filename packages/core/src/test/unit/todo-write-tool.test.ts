@@ -172,8 +172,8 @@ describe('TodoWriteTool', () => {
     const secondStored = getTodos()
     expect(secondStored.map(todo => todo.content)).toEqual(['Todo B', 'Todo A'])
     expect(secondStored.map(todo => todo.id)).toEqual([
-      idsByContent.get('Todo B'),
-      idsByContent.get('Todo A'),
+      idsByContent.get('Todo B')!,
+      idsByContent.get('Todo A')!,
     ])
   })
 })

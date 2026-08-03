@@ -92,11 +92,11 @@ describe('session loader (projects/*.jsonl)', () => {
       sessionId,
     })
     expect(messages.length).toBe(2)
-    expect(messages[0].type).toBe('user')
+    expect(messages[0]!.type).toBe('user')
     if (messages[0]?.type === 'user') {
       expect(messages[0].message.content).toBe('hello')
     }
-    expect(messages[1].type).toBe('assistant')
+    expect(messages[1]!.type).toBe('assistant')
     if (messages[1]?.type === 'assistant') {
       expect(messages[1].message.role).toBe('assistant')
     }

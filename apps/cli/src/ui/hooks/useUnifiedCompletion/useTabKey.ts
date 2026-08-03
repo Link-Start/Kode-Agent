@@ -59,7 +59,7 @@ export function useUnifiedCompletionTabKey(args: {
 
         const nextIndex =
           (args.state.selectedIndex + 1) % args.state.suggestions.length
-        const nextSuggestion = args.state.suggestions[nextIndex]
+        const nextSuggestion = args.state.suggestions[nextIndex]!
         if (isLoadingSuggestion(nextSuggestion)) return true
 
         if (args.state.context) {
@@ -130,13 +130,13 @@ export function useUnifiedCompletionTabKey(args: {
           args.activateCompletion(currentSuggestions, context)
           return true
         }
-        args.completeWith(currentSuggestions[0], context)
+        args.completeWith(currentSuggestions[0]!, context)
         return true
       }
 
       args.activateCompletion(currentSuggestions, context)
 
-      const firstSuggestion = currentSuggestions[0]
+      const firstSuggestion = currentSuggestions[0]!
       if (isLoadingSuggestion(firstSuggestion)) return true
       const currentWord = args.input.slice(context.startPos)
       const wordEnd = currentWord.search(/\s/)

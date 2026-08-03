@@ -201,7 +201,7 @@ export function HelpScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
   const didDoneRef = useRef(false)
 
   const safeOnDone = useCallback(
@@ -319,6 +319,7 @@ export function HelpScreen({
         save()
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

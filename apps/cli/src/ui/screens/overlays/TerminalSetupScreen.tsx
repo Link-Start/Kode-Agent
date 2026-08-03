@@ -151,6 +151,7 @@ export function TerminalSetupScreen({ onDone }: Props): React.ReactNode {
         setCapabilities(snapshotCapabilities())
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

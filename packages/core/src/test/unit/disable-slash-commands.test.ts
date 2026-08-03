@@ -24,12 +24,12 @@ describe('--disable-slash-commands (compatibility)', () => {
     const baseContext = {
       options: {
         commands: [helpCommand],
-        tools: [],
+        tools: [] as any[],
         verbose: false,
         permissionMode: 'default',
         disableSlashCommands: false,
       },
-      messageId: undefined,
+      messageId: undefined as string | undefined,
       abortController: new AbortController(),
       readFileTimestamps: {},
       setForkConvoWithMessagesOnTheNextRender(_fork: Message[]) {},

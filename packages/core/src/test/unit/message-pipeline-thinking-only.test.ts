@@ -48,7 +48,7 @@ async function createCompletedLegacyReasoningOnlyMessage(): Promise<AssistantMes
         {
           index: 0,
           delta: { reasoning_content: 'Plan the next step' },
-          finish_reason: null,
+          finish_reason: null as string | null,
         },
       ],
     }

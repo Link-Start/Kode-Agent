@@ -108,7 +108,7 @@ export function splitCommand(command: string): string[] {
   const out: string[] = []
   let current = ''
   for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
+    const part = parts[i]!
     const next = parts[i + 1]
 
     if (part === null) {

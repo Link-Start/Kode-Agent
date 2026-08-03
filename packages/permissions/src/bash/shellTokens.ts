@@ -277,7 +277,7 @@ export function splitBashCommandIntoSubcommands(command: string): string[] {
   }
 
   for (let i = 0; i < parsed.tokens.length; i++) {
-    const token = parsed.tokens[i]
+    const token = parsed.tokens[i]!
     const next = parsed.tokens[i + 1]
     if (typeof token === 'string') {
       const restored = restoreShellStringToken(token)

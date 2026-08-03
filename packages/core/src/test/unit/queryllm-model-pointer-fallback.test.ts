@@ -10,7 +10,7 @@ describe('queryLLM model pointer fallback (compatibility)', () => {
       resolveModelWithInfo() {
         return {
           success: false,
-          profile: null,
+          profile: null as any,
           error:
             "Model pointer 'quick' points to invalid model 'bad-model'. Use /model to reconfigure.",
         }

@@ -121,7 +121,7 @@ describe('BashTool ctrl+b backgrounding parity (Reference CLI K41 + gH5)', () =>
     } finally {
       rmSync(configDir, { recursive: true, force: true })
     }
-  })
+  }, 20_000) // Needs ~2s ctrl+b hint delay plus ~4s of staged waits; the default is 5s.
 
   test('foreground execution still works when not backgrounded', async () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-config-'))

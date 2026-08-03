@@ -30,12 +30,22 @@ function createLegacyOpenAIStream(text: string) {
     yield {
       ...base,
       choices: [
-        { index: 0, delta: { role: 'assistant' }, finish_reason: null },
+        {
+          index: 0,
+          delta: { role: 'assistant' },
+          finish_reason: null as string | null,
+        },
       ],
     }
     yield {
       ...base,
-      choices: [{ index: 0, delta: { content: text }, finish_reason: null }],
+      choices: [
+        {
+          index: 0,
+          delta: { content: text },
+          finish_reason: null as string | null,
+        },
+      ],
     }
     yield {
       ...base,
@@ -56,9 +66,9 @@ describe('provider assistant stream updates', () => {
           type: 'message',
           role: 'assistant',
           model: 'claude-test',
-          content: [],
-          stop_reason: null,
-          stop_sequence: null,
+          content: [] as any[],
+          stop_reason: null as string | null,
+          stop_sequence: null as string | null,
           usage: { input_tokens: 2, output_tokens: 0 },
         },
       },
@@ -74,7 +84,10 @@ describe('provider assistant stream updates', () => {
       },
       {
         type: 'message_delta',
-        delta: { stop_reason: 'end_turn', stop_sequence: null },
+        delta: {
+          stop_reason: 'end_turn',
+          stop_sequence: null as string | null,
+        },
         usage: { output_tokens: 1 },
       },
       { type: 'message_stop' },

@@ -16,6 +16,7 @@ export function StepSelectModel({ ctx }: { ctx: WizardContextValue }) {
       ctx.goBack()
       return true
     }
+    return undefined
   })
 
   const options = modelOptions()

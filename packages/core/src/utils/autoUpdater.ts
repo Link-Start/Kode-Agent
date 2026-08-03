@@ -79,7 +79,7 @@ export async function getLatestVersion(): Promise<string | null> {
     )
     clearTimeout(timer)
     if (!res.ok) return null
-    const json: any = await res.json().catch(() => null)
+    const json: any = await res.json().catch((): null => null)
     const latest = json && json['dist-tags'] && json['dist-tags'].latest
     return typeof latest === 'string' ? latest : null
   } catch {

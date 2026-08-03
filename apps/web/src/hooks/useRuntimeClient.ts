@@ -52,7 +52,7 @@ export function useRuntimeClient(args: {
   React.useEffect(() => {
     if (!client) {
       setRuntimeAttached(false)
-      return
+      return undefined
     }
 
     setRuntimeAttached(client.isConnected())
@@ -66,7 +66,7 @@ export function useRuntimeClient(args: {
   React.useEffect(() => {
     if (!client) {
       setRuntimeStatus(null)
-      return
+      return undefined
     }
     void refreshRuntimeStatus()
     const timer = setInterval(() => {

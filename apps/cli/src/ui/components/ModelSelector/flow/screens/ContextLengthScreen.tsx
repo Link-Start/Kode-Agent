@@ -31,7 +31,7 @@ export function ContextLengthScreen({
   const selectedOption =
     contextLengthOptions.find(opt => opt.value === contextLength) ||
     contextLengthOptions.find(opt => opt.value === DEFAULT_CONTEXT_LENGTH) ||
-    contextLengthOptions[0]
+    contextLengthOptions[0]!
 
   return (
     <ScreenFrame

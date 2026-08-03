@@ -269,7 +269,11 @@ export const loadCustomCommands = memoize(
 )
 
 export const reloadCustomCommands = (): void => {
-  loadCustomCommands.cache.clear()
+  const { cache } = loadCustomCommands
+  if (typeof cache.clear !== 'function') {
+    throw new Error('Custom command cache does not support clearing')
+  }
+  cache.clear()
 }
 
 export function getCustomCommandDirectories(): {

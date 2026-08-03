@@ -66,6 +66,7 @@ export function WebFetchPermissionRequest({
       reject()
       return true
     }
+    return undefined
   })
 
   return (

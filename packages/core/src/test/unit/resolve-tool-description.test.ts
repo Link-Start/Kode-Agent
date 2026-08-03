@@ -33,10 +33,10 @@ test('resolveToolDescription returns and caches string descriptions', async () =
     inputSchema,
   })
 
-  expect(getToolDescription(tool)).toBe('sync description')
+  expect(getToolDescription(tool as any)).toBe('sync description')
   expect(await resolveToolDescription(tool)).toBe('sync description')
   expect(tool.cachedDescription).toBe('sync description')
-  expect(getToolDescription(tool)).toBe('sync description')
+  expect(getToolDescription(tool as any)).toBe('sync description')
 })
 
 test('resolveToolDescription awaits async descriptions and caches for adapters', async () => {
@@ -52,12 +52,12 @@ test('resolveToolDescription awaits async descriptions and caches for adapters',
     inputSchema,
   })
 
-  expect(getToolDescription(tool)).toBe('Tool: AsyncTool')
+  expect(getToolDescription(tool as any)).toBe('Tool: AsyncTool')
 
   expect(await resolveToolDescription(tool)).toBe('async description')
   expect(calls).toBe(1)
   expect(tool.cachedDescription).toBe('async description')
-  expect(getToolDescription(tool)).toBe('async description')
+  expect(getToolDescription(tool as any)).toBe('async description')
 
   expect(await resolveToolDescription(tool)).toBe('async description')
   expect(calls).toBe(1)

@@ -396,7 +396,7 @@ export function createNodeDaemonProcessController(
           headers: { authorization: `Bearer ${args.token}` },
         })
         if (!response.ok) return false
-        const body: unknown = await response.json().catch(() => null)
+        const body: unknown = await response.json().catch((): null => null)
         return Boolean(
           body &&
           typeof body === 'object' &&

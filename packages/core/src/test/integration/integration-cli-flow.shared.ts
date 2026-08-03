@@ -64,7 +64,7 @@ export function getActiveProfile(): ModelProfile {
         ).join(', ')}`,
       )
     }
-    return RESPONSES_API_MODELS[0]
+    return RESPONSES_API_MODELS[0]!
   }
 
   if (TEST_MODEL === 'minimax') {
@@ -75,7 +75,7 @@ export function getActiveProfile(): ModelProfile {
         ).join(', ')}`,
       )
     }
-    return CHAT_COMPLETIONS_MODELS[0]
+    return CHAT_COMPLETIONS_MODELS[0]!
   }
 
   const foundModel = ACTIVE_PRODUCTION_MODELS.find(

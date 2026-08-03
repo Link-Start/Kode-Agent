@@ -233,7 +233,7 @@ export function useTextInput({
   function handleEnter(key: Key) {
     if (!multiline) {
       onSubmit?.(getCursor().text)
-      return
+      return undefined
     }
 
     // Multiline chat input: Enter submits, Shift+Enter and Option/Alt+Enter insert newline.
@@ -271,6 +271,7 @@ export function useTextInput({
     }
 
     onSubmit?.(getCursor().text)
+    return undefined
   }
 
   function shouldDisableCursorMovement(): boolean {

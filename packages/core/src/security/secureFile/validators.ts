@@ -107,7 +107,7 @@ export function validateFileName(filename: string): ValidateFileNameResult {
     'LPT9',
   ]
 
-  const baseName = filename.split('.')[0].toUpperCase()
+  const baseName = filename.split('.')[0]!.toUpperCase()
   if (reservedNames.includes(baseName)) {
     return { isValid: false, error: 'Filename is reserved' }
   }

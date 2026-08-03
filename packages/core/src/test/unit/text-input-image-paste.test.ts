@@ -5,8 +5,8 @@ describe('text input image paste', () => {
     try {
       mock.module('#core/utils/imagePaste', () => ({
         CLIPBOARD_ERROR_MESSAGE: 'Clipboard does not contain an image',
-        getImageFromClipboard: () => null,
-        getImageFromClipboardAsync: async () => null,
+        getImageFromClipboard: (): null => null,
+        getImageFromClipboardAsync: async (): Promise<null> => null,
       }))
 
       const { resolveImagePastePlaceholder } =

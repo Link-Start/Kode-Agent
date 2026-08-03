@@ -19,7 +19,7 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
       getModelManager: () => ({
         getModelSwitchingDebugInfo: () => ({
           activeModels: 2,
-          availableModels: [],
+          availableModels: [] as string[],
           totalModels: 2,
         }),
         switchToNextModel: () => ({
@@ -37,7 +37,7 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
     let submitCount = 0
 
     function QuickModelSwitchHarness(): React.ReactNode {
-      const modelMessages = useMemo(() => [], [])
+      const modelMessages = useMemo(() => [] as any[], [])
       const switchModel = useQuickModelSwitch({
         messages: modelMessages,
         onSubmitCountChange: updater => {
@@ -72,6 +72,14 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
     let resolveEditor:
       ((value: { text: string | null; editorLabel?: string }) => void) | null =
       null
+    // resolveEditor is assigned inside the mocked module's Promise executor;
+    // call through a closure so CFA doesn't narrow it to null at the call site.
+    const fireResolveEditor = (value: {
+      text: string | null
+      editorLabel?: string
+    }): void => {
+      resolveEditor?.(value)
+    }
 
     mock.module('#cli-utils/externalEditor', () => ({
       launchExternalEditor: () =>
@@ -122,7 +130,7 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
     ])
 
     h.unmount()
-    resolveEditor?.({ text: 'edited text', editorLabel: 'test-editor' })
+    fireResolveEditor({ text: 'edited text', editorLabel: 'test-editor' })
     await h.wait(50)
 
     expect(inputs).toEqual([])

@@ -22,7 +22,11 @@ export async function performConnectionTest(
 ): Promise<ConnectionTestResult> {
   try {
     let testBaseURL =
-      providerBaseUrl || providers[selectedProvider]?.baseURL || ''
+      providerBaseUrl ||
+      (providers as Record<string, { name: string; baseURL: string }>)[
+        selectedProvider
+      ]?.baseURL ||
+      ''
 
     if (selectedProvider === 'azure') {
       testBaseURL = `https://${resourceName}.openai.azure.com/openai/deployments/${selectedModel}`

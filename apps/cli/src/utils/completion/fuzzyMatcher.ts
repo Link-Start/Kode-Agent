@@ -166,7 +166,7 @@ export class FuzzyMatcher {
     if (numMatch) {
       const [, prefix, num] = numMatch
       // Check if text starts with prefix and ends with the same number
-      if (text.startsWith(prefix) && text.endsWith(num)) {
+      if (text.startsWith(prefix!) && text.endsWith(num!)) {
         // Good match for patterns like "py3" → "python3"
         const coverageFactor = pattern.length / text.length
         return 70 * coverageFactor + 20 // Bonus for numeric suffix match
@@ -255,7 +255,11 @@ export class FuzzyMatcher {
     // Special bonus for number matching at end
     const lastPatternChar = pattern[pattern.length - 1]
     const lastTextChar = text[text.length - 1]
-    if (/\d/.test(lastPatternChar) && lastPatternChar === lastTextChar) {
+    if (
+      lastPatternChar !== undefined &&
+      /\d/.test(lastPatternChar) &&
+      lastPatternChar === lastTextChar
+    ) {
       score += 25
     }
 
@@ -278,20 +282,20 @@ export class FuzzyMatcher {
     for (let i = 0; i <= m; i++) {
       dp[i] = []
       for (let j = 0; j <= n; j++) {
-        if (i === 0) dp[i][j] = j
-        else if (j === 0) dp[i][j] = i
+        if (i === 0) dp[i]![j] = j
+        else if (j === 0) dp[i]![j] = i
         else {
           const cost = pattern[i - 1] === text[j - 1] ? 0 : 1
-          dp[i][j] = Math.min(
-            dp[i - 1][j] + 1, // deletion
-            dp[i][j - 1] + 1, // insertion
-            dp[i - 1][j - 1] + cost, // substitution
+          dp[i]![j] = Math.min(
+            dp[i - 1]![j]! + 1, // deletion
+            dp[i]![j - 1]! + 1, // insertion
+            dp[i - 1]![j - 1]! + cost, // substitution
           )
         }
       }
     }
 
-    const distance = dp[m][n]
+    const distance = dp[m]![n]!
     if (distance > this.config.maxEditDistance) return 0
 
     return Math.max(0, 30 - distance * 10)

@@ -127,9 +127,8 @@ export async function runCli(): Promise<void> {
     })
   } catch (error: unknown) {
     if (error instanceof ConfigParseError) {
-      const { showInvalidConfigDialog } = await import(
-        '#ui-ink/screens/setup/InvalidConfigScreen'
-      )
+      const { showInvalidConfigDialog } =
+        await import('#ui-ink/screens/setup/InvalidConfigScreen')
       await showInvalidConfigDialog({ error })
       return
     }
@@ -186,9 +185,8 @@ export async function runCli(): Promise<void> {
     }
   }
   if (process.stdin.isTTY && process.stdout.isTTY) {
-    const { terminalCapabilityManager } = await import(
-      '#ui-ink/utils/terminalCapabilityManager'
-    )
+    const { terminalCapabilityManager } =
+      await import('#ui-ink/utils/terminalCapabilityManager')
     _terminalCapabilityManager = terminalCapabilityManager
     await terminalCapabilityManager.detectCapabilities()
     terminalCapabilityManager.enableSupportedModes()

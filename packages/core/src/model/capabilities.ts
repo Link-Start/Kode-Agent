@@ -14,6 +14,7 @@ export function getVertexRegionForModel(
   if (model?.startsWith('claude-3-7-sonnet')) {
     return process.env.VERTEX_REGION_CLAUDE_3_7_SONNET
   }
+  return undefined
 }
 
 export function analyzeContextCompatibility(

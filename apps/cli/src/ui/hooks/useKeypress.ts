@@ -19,7 +19,7 @@ export function useKeypress(
   }, [])
 
   useEffect(() => {
-    if (!active) return
+    if (!active) return undefined
     subscribe(stableHandler, { priority })
     return () => {
       unsubscribe(stableHandler)

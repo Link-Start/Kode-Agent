@@ -33,6 +33,7 @@ function WorkTasksEmptyView({
         onClose()
         return true
       }
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )
@@ -144,6 +145,8 @@ function WorkTasksListView({
         setSelectedIndex(Math.max(0, items.length - 1))
         return true
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )
@@ -205,7 +208,7 @@ export function WorkTasksScreen({
   onDone: () => void
 }): React.ReactNode {
   const layout = useScreenLayout()
-  const exitState = { pending: false, keyName: null } as const
+  const exitState = { pending: false, keyName: null as null } as const
 
   const tasks = listTaskSummaries()
   const model = getTaskListRenderModel(tasks)

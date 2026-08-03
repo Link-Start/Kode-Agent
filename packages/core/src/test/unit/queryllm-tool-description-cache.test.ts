@@ -41,7 +41,7 @@ describe('queryLLM tool description pre-resolution', () => {
           },
         }
       },
-      resolveModel() {
+      resolveModel(): null {
         return null
       },
     }
@@ -64,7 +64,7 @@ describe('queryLLM tool description pre-resolution', () => {
       [createUserMessage('hi')],
       ['system'],
       0,
-      [tool],
+      [tool as any],
       new AbortController().signal,
       {
         safeMode: false,

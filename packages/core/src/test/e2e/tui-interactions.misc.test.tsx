@@ -334,7 +334,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setTimeout(() => {
             setShowQuestion(false)
@@ -421,7 +421,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
         useKeypress(
           (_input, key) => {
-            if (!key.downArrow) return
+            if (!key.downArrow) return undefined
 
             setTimeout(() => {
               setShowRequest(false)
@@ -872,7 +872,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setTimeout(() => {
             setShowSelect(false)
@@ -1023,7 +1023,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       }, [])
 
       useEffect(() => {
-        if (observedFocus !== 'second') return
+        if (observedFocus !== 'second') return undefined
 
         const timers = [
           setTimeout(() => setFocusValue(undefined), 20),
@@ -1131,7 +1131,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       const [focusValue, setFocusValue] = useState<string | undefined>('first')
 
       useEffect(() => {
-        if (focusValue !== 'second') return
+        if (focusValue !== 'second') return undefined
 
         const timers = [
           setTimeout(() => setMode('missing'), 80),
@@ -1200,7 +1200,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       const [focusedValue, setFocusedValue] = useState('')
 
       useEffect(() => {
-        if (focusedValue !== 'second') return
+        if (focusedValue !== 'second') return undefined
 
         setMode('missing')
         const timers = [setTimeout(() => setMode('full'), 120)]
@@ -1274,7 +1274,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       const [focusedValue, setFocusedValue] = useState('')
 
       useEffect(() => {
-        if (focusedValue !== 'second') return
+        if (focusedValue !== 'second') return undefined
 
         setMode('missing')
         const timer = setTimeout(() => setMode('full'), 120)
@@ -1409,7 +1409,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setShowSelect(false)
           setTimeout(() => setShowSelect(true), 0)
@@ -1474,7 +1474,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setTimeout(() => {
             setShowSelect(false)
@@ -1539,7 +1539,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setTimeout(() => {
             setShowSelect(false)
@@ -1599,7 +1599,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setTimeout(() => {
             setShowSelect(false)
@@ -1661,7 +1661,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setFocusValue(undefined)
           setTimeout(() => {
@@ -1726,7 +1726,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_input, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setShowSelect(false)
           setTimeout(() => setShowSelect(true), 0)
@@ -1953,7 +1953,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       }, [items, selectedIndex])
 
       useKeypress((_, key) => {
-        if (!key.downArrow) return
+        if (!key.downArrow) return undefined
         setSelectedIndex(prev => Math.min(items.length - 1, prev + 1))
         return true
       })
@@ -1974,7 +1974,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setTimeout(() => {
             setShowList(false)
@@ -2023,7 +2023,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       }, [items, selectedIndex])
 
       useKeypress((_, key) => {
-        if (!key.downArrow) return
+        if (!key.downArrow) return undefined
         setSelectedIndex(prev => Math.min(items.length - 1, prev + 1))
         return true
       })
@@ -2044,7 +2044,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         (_, key) => {
-          if (!key.downArrow) return
+          if (!key.downArrow) return undefined
 
           setShowList(false)
           setTimeout(() => setShowList(true), 0)
@@ -2097,7 +2097,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       }, [items, selectedIndex])
 
       useKeypress((_, key) => {
-        if (!key.downArrow) return
+        if (!key.downArrow) return undefined
         setSelectedIndex(prev => Math.min(items.length - 1, prev + 1))
         return true
       })
@@ -2246,7 +2246,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     expect(customProviderLineIndex).toBeGreaterThanOrEqual(0)
 
     const customProviderColumn =
-      outputLines[customProviderLineIndex].indexOf('Custom OpenAI API') + 1
+      outputLines[customProviderLineIndex]!.indexOf('Custom OpenAI API') + 1
     expect(customProviderColumn).toBeGreaterThan(0)
 
     h.clearOutput()
@@ -2281,7 +2281,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     expect(providerLineIndex).toBeGreaterThanOrEqual(0)
 
     const providerColumn =
-      outputLines[providerLineIndex].indexOf('Other Providers') + 1
+      outputLines[providerLineIndex]!.indexOf('Other Providers') + 1
     expect(providerColumn).toBeGreaterThan(0)
 
     h.stdin.write('\x1b[H')
@@ -2461,7 +2461,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         input => {
-          if (input !== 'x') return
+          if (input !== 'x') return undefined
           handledBy.push('dynamic')
           return true
         },
@@ -2470,7 +2470,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useKeypress(
         input => {
-          if (input !== 'x') return
+          if (input !== 'x') return undefined
           handledBy.push('fallback')
           return true
         },
@@ -2515,7 +2515,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useMouse(
         event => {
-          if (event.type !== 'press') return
+          if (event.type !== 'press') return undefined
           handledBy.push('dynamic')
           return true
         },
@@ -2524,7 +2524,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
       useMouse(
         event => {
-          if (event.type !== 'press') return
+          if (event.type !== 'press') return undefined
           handledBy.push('fallback')
           return true
         },

@@ -50,7 +50,7 @@ export function execInBackground(
   const bashId = makeBackgroundTaskId()
   const outputFile = touchTaskOutputFile(bashId)
 
-  const childProcess = spawn(cmdToRun[0], cmdToRun.slice(1), {
+  const childProcess = spawn(cmdToRun[0]!, cmdToRun.slice(1), {
     cwd: executionCwd,
     stdio: getShellStdioForPlatform(process.platform),
   })

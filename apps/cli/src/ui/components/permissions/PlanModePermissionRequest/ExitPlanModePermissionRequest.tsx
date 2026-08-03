@@ -144,7 +144,7 @@ export function ExitPlanModePermissionRequest({
   )
 
   useEffect(() => {
-    if (!planSaved) return
+    if (!planSaved) return undefined
     const timeout = setTimeout(() => setPlanSaved(false), 5000)
     return () => clearTimeout(timeout)
   }, [planSaved])
@@ -381,7 +381,7 @@ export function ExitPlanModePermissionRequest({
         setRemoteExitMessage(null)
         return true
       }
-      return
+      return undefined
     }
 
     if (key.escape) {
@@ -414,7 +414,7 @@ export function ExitPlanModePermissionRequest({
         return true
       }
 
-      return
+      return undefined
     }
 
     if (focusSection === 'options' && modeCycleShortcut.check(input, key)) {
@@ -554,7 +554,7 @@ export function ExitPlanModePermissionRequest({
       }
     }
 
-    if (!(key.ctrl && input.toLowerCase() === 'g')) return
+    if (!(key.ctrl && input.toLowerCase() === 'g')) return undefined
 
     void (async () => {
       if (!planExists) {
@@ -585,6 +585,7 @@ export function ExitPlanModePermissionRequest({
         setPlanSaved(true)
       }
     })()
+    return undefined
   })
 
   if (remoteExitState === 'checking') {

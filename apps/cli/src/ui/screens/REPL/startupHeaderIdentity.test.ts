@@ -6,8 +6,8 @@ describe('buildStartupHeaderIdentityKey', () => {
     const base = {
       forkNumber: 0,
       isDefaultModel: false,
-      updateAvailableVersion: null,
-      updateCommands: null,
+      updateAvailableVersion: null as string | null,
+      updateCommands: null as string[] | null,
       mcpClients: [{ type: 'connected', name: 'codegraph' }],
     }
 
@@ -25,8 +25,8 @@ describe('buildStartupHeaderIdentityKey', () => {
     const base = {
       forkNumber: 0,
       isDefaultModel: true,
-      updateAvailableVersion: null,
-      updateCommands: null,
+      updateAvailableVersion: null as string | null,
+      updateCommands: null as string[] | null,
       mcpClients: [{ type: 'connected', name: 'codegraph' }],
     }
 

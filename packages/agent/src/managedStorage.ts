@@ -277,7 +277,8 @@ function writeAtomically(path: string, content: string): void {
 
 async function withWriteLock<T>(path: string, action: () => T): Promise<T> {
   const previous = writeLocks.get(path) ?? Promise.resolve()
-  let release: (() => void) | null = null
+  // Assigned synchronously by the Promise executor below.
+  let release!: () => void
   const gate = new Promise<void>(resolve => {
     release = resolve
   })
@@ -287,7 +288,7 @@ async function withWriteLock<T>(path: string, action: () => T): Promise<T> {
   try {
     return action()
   } finally {
-    release?.()
+    release()
     if (writeLocks.get(path) === queued) writeLocks.delete(path)
   }
 }

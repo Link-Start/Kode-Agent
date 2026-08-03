@@ -292,7 +292,7 @@ export function PermissionsScreen({
           setMode({ kind: 'list' })
           return true
         }
-        return
+        return undefined
       }
 
       if (mode.kind === 'addRule') {
@@ -315,7 +315,7 @@ export function PermissionsScreen({
             setMode({ kind: 'addRule', step: 'destination' })
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'destination') {
           if (key.escape) {
@@ -337,7 +337,7 @@ export function PermissionsScreen({
             setMode({ kind: 'addRule', step: 'input' })
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'input') {
           if (key.escape) {
@@ -369,7 +369,7 @@ export function PermissionsScreen({
             setDraftInput(prev => prev + inputChar)
             return true
           }
-          return
+          return undefined
         }
       }
 
@@ -394,7 +394,7 @@ export function PermissionsScreen({
             setMode({ kind: 'addDir', step: 'input' })
             return true
           }
-          return
+          return undefined
         }
         if (mode.step === 'input') {
           if (key.escape) {
@@ -424,7 +424,7 @@ export function PermissionsScreen({
             setDraftInput(prev => prev + inputChar)
             return true
           }
-          return
+          return undefined
         }
       }
 
@@ -533,6 +533,8 @@ export function PermissionsScreen({
           }
         }
       }
+
+      return undefined
     },
     { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
   )

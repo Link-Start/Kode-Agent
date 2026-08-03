@@ -26,7 +26,7 @@ export function useMouse(
   }, [])
 
   useEffect(() => {
-    if (!active) return
+    if (!active) return undefined
     subscribeMouse(stableHandler, { priority })
     return () => {
       unsubscribeMouse(stableHandler)
@@ -78,8 +78,8 @@ export function useMousePress(
 ): void {
   useMouse(
     event => {
-      if (event.type !== 'press' || event.button !== 'left') return
-      if (!isMouseInsideElement(ref.current, event)) return
+      if (event.type !== 'press' || event.button !== 'left') return undefined
+      if (!isMouseInsideElement(ref.current, event)) return undefined
 
       onPress(event)
       return true
@@ -95,9 +95,10 @@ export function useMouseWheel(
 ): void {
   useMouse(
     event => {
-      if (event.type !== 'scroll') return
-      if (event.button !== 'wheel-up' && event.button !== 'wheel-down') return
-      if (!isMouseInsideElement(ref.current, event)) return
+      if (event.type !== 'scroll') return undefined
+      if (event.button !== 'wheel-up' && event.button !== 'wheel-down')
+        return undefined
+      if (!isMouseInsideElement(ref.current, event)) return undefined
 
       onWheel(event.button === 'wheel-up' ? 'up' : 'down', event)
       return true

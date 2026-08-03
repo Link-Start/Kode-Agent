@@ -108,7 +108,7 @@ function sedIsSafeSimpleSubstitution(
   const matchScript = script.match(/^s\/(.*?)$/)
   if (!matchScript) return false
 
-  const body = matchScript[1]
+  const body = matchScript[1]!
   let slashCount = 0
   let lastSlashIndex = -1
   for (let i = 0; i < body.length; i++) {

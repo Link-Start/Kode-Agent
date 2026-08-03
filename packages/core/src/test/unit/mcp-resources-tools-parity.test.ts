@@ -51,7 +51,7 @@ describe('MCP resource tools parity: use context.options.mcpClients', () => {
       },
     ])
 
-    const gen = ListMcpResourcesTool.call({}, ctx)
+    const gen = ListMcpResourcesTool.call({} as any, ctx as any)
     const first = await gen.next()
     const firstValue = asRecord(first.value)
     expect(firstValue?.type).toBe('result')

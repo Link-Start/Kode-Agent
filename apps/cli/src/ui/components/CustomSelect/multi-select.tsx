@@ -183,7 +183,7 @@ export function ScopedMultiSelect({
   )
 
   useKeypress((input, key) => {
-    if (options.length === 0) return
+    if (options.length === 0) return undefined
 
     const inputChar = input.length === 1 ? input : ''
     if (key.upArrow || inputChar === 'k') {
@@ -230,6 +230,7 @@ export function ScopedMultiSelect({
       submit()
       return true
     }
+    return undefined
   })
 
   useMouseWheel(

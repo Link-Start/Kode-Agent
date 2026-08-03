@@ -81,9 +81,9 @@ describe('Skill/SlashCommand parity: contextModifier effects', () => {
       )
     }
     const nextCtx = first.value.contextModifier.modifyContext(ctx)
-    expect(nextCtx.options.model).toBe('quick')
-    expect(nextCtx.options.maxThinkingTokens).toBe(123)
-    expect(nextCtx.options.commandAllowedTools).toContain('Read(~/**)')
+    expect(nextCtx.options!.model).toBe('quick')
+    expect(nextCtx.options!.maxThinkingTokens).toBe(123)
+    expect(nextCtx.options!.commandAllowedTools).toContain('Read(~/**)')
   })
 
   test('SlashCommandTool sets model/maxThinkingTokens and accumulates allowed tools', async () => {
@@ -116,9 +116,9 @@ describe('Skill/SlashCommand parity: contextModifier effects', () => {
       )
     }
     const nextCtx = first.value.contextModifier.modifyContext(ctx)
-    expect(nextCtx.options.model).toBe('task')
-    expect(nextCtx.options.maxThinkingTokens).toBe(456)
-    expect(nextCtx.options.commandAllowedTools).toContain(
+    expect(nextCtx.options!.model).toBe('task')
+    expect(nextCtx.options!.maxThinkingTokens).toBe(456)
+    expect(nextCtx.options!.commandAllowedTools).toContain(
       'Edit(~/.kode/settings.json)',
     )
   })

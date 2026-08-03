@@ -92,10 +92,10 @@ export function useStatusLine(input?: unknown): {
   useEffect(() => {
     const nextSignature = serializeStatusLineInput(input)
     inputRef.current = input
-    if (inputSignatureRef.current === nextSignature) return
+    if (inputSignatureRef.current === nextSignature) return undefined
     inputSignatureRef.current = nextSignature
 
-    if (!tickRef.current) return
+    if (!tickRef.current) return undefined
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       tickRef.current?.('input')
@@ -109,7 +109,7 @@ export function useStatusLine(input?: unknown): {
 
   useEffect(() => {
     const enabled = isStatusLineRuntimeEnabled()
-    if (!enabled) return
+    if (!enabled) return undefined
 
     const shell = BunShell.getInstance()
     let alive = true

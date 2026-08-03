@@ -50,8 +50,8 @@ describe('/rename + /tag (session metadata records)', () => {
   test('persists custom-title and tag records for current session', async () => {
     const ctx = {
       options: {
-        commands: [],
-        tools: [],
+        commands: [] as any[],
+        tools: [] as any[],
         slowAndCapableModel: 'test-model',
       },
       abortController: new AbortController(),

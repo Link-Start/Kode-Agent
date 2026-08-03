@@ -131,8 +131,9 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
       estimateCostUSD({
         inputTokens: usage.input_tokens,
         outputTokens: usage.output_tokens,
-        cacheReadInputTokens: usage.cache_read_input_tokens,
-        cacheCreationInputTokens: usage.cache_creation_input_tokens,
+        cacheReadInputTokens: usage.cache_read_input_tokens ?? undefined,
+        cacheCreationInputTokens:
+          usage.cache_creation_input_tokens ?? undefined,
         rates: MODEL_COSTS.deepseekFlash,
       }),
     ).toBeCloseTo(0.00002212, 12)
@@ -164,7 +165,7 @@ describe('OpenAI Chat Completions params (GPT-5 branch)', () => {
     expect(params.stop).toEqual(['STOP'])
     expect(params.tool_choice).toBe('auto')
     expect(Array.isArray(params.tools)).toBe(true)
-    expect(params.tools.length).toBe(1)
+    expect(params.tools!.length).toBe(1)
     expect(params.reasoning_effort).toBe('medium')
   })
 })

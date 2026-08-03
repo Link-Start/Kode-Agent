@@ -286,7 +286,7 @@ export function useModelSelectorInput(args: {
                   opt => opt.value === DEFAULT_CONTEXT_LENGTH,
                 ) || 0
               : args.contextLengthOptions.length - 1
-        args.setContextLength(args.contextLengthOptions[newIndex].value)
+        args.setContextLength(args.contextLengthOptions[newIndex]!.value)
         return true
       }
 
@@ -300,7 +300,7 @@ export function useModelSelectorInput(args: {
                 opt => opt.value === DEFAULT_CONTEXT_LENGTH,
               ) || 0
             : (currentIndex + 1) % args.contextLengthOptions.length
-        args.setContextLength(args.contextLengthOptions[newIndex].value)
+        args.setContextLength(args.contextLengthOptions[newIndex]!.value)
         return true
       }
     }
@@ -335,5 +335,6 @@ export function useModelSelectorInput(args: {
 
       if (currentField?.component === 'select') return false
     }
+    return undefined
   })
 }

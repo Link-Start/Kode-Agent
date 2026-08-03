@@ -17,7 +17,7 @@ export function useInterval(callback: () => void, delay: number | null): void {
   // Set up the interval
   useEffect(() => {
     if (delay === null) {
-      return
+      return undefined
     }
 
     function tick() {

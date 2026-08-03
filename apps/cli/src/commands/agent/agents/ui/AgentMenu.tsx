@@ -26,6 +26,7 @@ export function AgentMenu(props: {
       props.onCancel()
       return true
     }
+    return undefined
   })
 
   const isReadOnly =

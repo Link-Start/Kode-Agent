@@ -56,6 +56,7 @@ function OutputStyleMenu({
       finish(`Kept output style as ${chalk.bold(rawCurrentStyle)}`)
       return true
     }
+    return undefined
   })
 
   return (

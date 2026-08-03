@@ -66,7 +66,7 @@ export async function exec(
     const stdio = getShellStdioForPlatform(process.platform)
     if (options?.stdin !== undefined) stdio[0] = 'pipe'
 
-    state.currentProcess = spawn(cmd[0], cmd.slice(1), {
+    state.currentProcess = spawn(cmd[0]!, cmd.slice(1), {
       cwd: cwdOverride ?? executionCwd,
       stdio,
     })

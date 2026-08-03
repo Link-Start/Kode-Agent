@@ -146,8 +146,8 @@ export function FileWritePermissionRequest({
   )
 
   useKeypress((inputChar, key) => {
-    if (!modeCycleShortcut.check(inputChar, key)) return
-    if (!hasSessionSuggestion) return
+    if (!modeCycleShortcut.check(inputChar, key)) return undefined
+    if (!hasSessionSuggestion) return undefined
     handleChoice('yes-session')
     return true
   })

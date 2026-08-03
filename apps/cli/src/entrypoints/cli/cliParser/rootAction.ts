@@ -163,9 +163,7 @@ export function createRootAction(args: {
     const normalizedPermissionMode =
       typeof permissionMode === 'string' ? permissionMode.trim() : ''
     // --trust flag sets the permission mode to 'yolo' (auto-approve safe operations)
-    const effectivePermissionMode = trust
-      ? 'yolo'
-      : normalizedPermissionMode
+    const effectivePermissionMode = trust ? 'yolo' : normalizedPermissionMode
     const bypassPermissionsRequested =
       effectivePermissionMode === 'bypassPermissions' ||
       dangerouslySkipPermissions === true
