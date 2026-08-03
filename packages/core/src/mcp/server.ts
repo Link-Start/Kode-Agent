@@ -483,7 +483,7 @@ export async function startMCPServer(
       throw new Error(`Invalid or out-of-project resource URI: ${uri}`)
     }
 
-    const fileStat = await stat(filePath).catch(() => null)
+    const fileStat = await stat(filePath).catch((): null => null)
     if (!fileStat?.isFile()) {
       throw new Error(`Resource not found: ${uri}`)
     }
@@ -593,8 +593,8 @@ export async function startMCPServer(
 
       const result = tool.call(toolInput as never, toolUseContext)
       const reportProgress = createMcpProgressReporter(extra, name)
-      let finalResult: Awaited<ReturnType<typeof result.next>>['value'] |
-        undefined
+      let finalResult:
+        Awaited<ReturnType<typeof result.next>>['value'] | undefined
 
       for await (const update of result) {
         if (isRecord(update) && update.type === 'progress') {

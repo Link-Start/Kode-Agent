@@ -172,7 +172,7 @@ async function runShellCommandCaptureOutput(args: {
 
   let proc: ReturnType<typeof spawn>
   try {
-    proc = spawn(cmd[0], cmd.slice(1), {
+    proc = spawn(cmd[0]!, cmd.slice(1), {
       cwd: args.cwd,
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],

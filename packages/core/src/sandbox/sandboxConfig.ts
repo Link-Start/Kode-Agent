@@ -65,6 +65,14 @@ type SettingsSandbox = {
   excludedCommands?: unknown
 }
 
+type MergeableSandboxSetting =
+  | 'enabled'
+  | 'autoAllowBashIfSandboxed'
+  | 'allowUnsandboxedCommands'
+  | 'ignoreViolations'
+  | 'enableWeakerNestedSandbox'
+  | 'excludedCommands'
+
 export type KodeSettingsFile = {
   permissions?: SettingsPermissions
   sandbox?: SettingsSandbox
@@ -120,15 +128,19 @@ function mergeSandboxSettings(
   if (!base && !next) return undefined
   const merged: SettingsSandbox = { ...(base ?? {}) }
 
-  const mergeBool = (k: keyof SettingsSandbox) => {
-    if (next && k in next && next[k] !== undefined) merged[k] = next[k]
+  const mergeTopLevelSetting = <K extends MergeableSandboxSetting>(
+    key: K,
+  ): void => {
+    if (!next || !(key in next)) return
+    const value = next[key]
+    if (value !== undefined) merged[key] = value
   }
-  mergeBool('enabled')
-  mergeBool('autoAllowBashIfSandboxed')
-  mergeBool('allowUnsandboxedCommands')
-  mergeBool('ignoreViolations')
-  mergeBool('enableWeakerNestedSandbox')
-  mergeBool('excludedCommands')
+  mergeTopLevelSetting('enabled')
+  mergeTopLevelSetting('autoAllowBashIfSandboxed')
+  mergeTopLevelSetting('allowUnsandboxedCommands')
+  mergeTopLevelSetting('ignoreViolations')
+  mergeTopLevelSetting('enableWeakerNestedSandbox')
+  mergeTopLevelSetting('excludedCommands')
 
   if (next?.network) {
     merged.network = { ...(merged.network ?? {}), ...next.network }

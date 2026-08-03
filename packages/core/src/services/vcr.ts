@@ -7,7 +7,15 @@ import { env } from '#core/utils/env'
 import { getCwd } from '#core/utils/state'
 import * as path from 'path'
 import { mapValues } from 'lodash-es'
-import type { ContentBlock } from '@anthropic-ai/sdk/resources/index.mjs'
+import type {
+  ContentBlock,
+  ToolResultBlockParam,
+} from '@anthropic-ai/sdk/resources/index.mjs'
+
+type ToolResultContentBlock = Exclude<
+  NonNullable<ToolResultBlockParam['content']>,
+  string
+>[number]
 
 export async function withVCR(
   messages: (UserMessage | AssistantMessage)[],
@@ -75,12 +83,12 @@ function mapMessages(
           if (Array.isArray(_.content)) {
             return {
               ..._,
-              content: _.content.map(_ => {
-                switch (_.type) {
+              content: _.content.map((contentBlock: ToolResultContentBlock) => {
+                switch (contentBlock.type) {
                   case 'text':
-                    return { ..._, text: f(_.text) }
-                  case 'image':
-                    return _
+                    return { ...contentBlock, text: f(contentBlock.text) }
+                  default:
+                    return contentBlock
                 }
               }),
             }
@@ -99,6 +107,8 @@ function mapMessages(
     })
   }) as (UserMessage | AssistantMessage)['message']['content'][]
 }
+
+export const __mapVCRMessagesForTests = mapMessages
 
 function mapAssistantMessage(
   message: AssistantMessage,

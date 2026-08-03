@@ -6,7 +6,7 @@ type NetworkQuery = { host: string; port: number }
 
 function parseConnectTarget(value: string): NetworkQuery | null {
   const trimmed = value.trim()
-  const firstToken = trimmed.split(/\s+/)[0]
+  const firstToken = trimmed.split(/\s+/)[0]!
   const withoutLeadingSlash = firstToken.startsWith('/')
     ? firstToken.slice(1)
     : firstToken
