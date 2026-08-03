@@ -103,13 +103,25 @@ export function execInBackground(
     return count
   }
 
+  // Cap buffered output to prevent unbounded memory growth for
+  // long-running background processes (e.g. tail -f, build watchers).
+  const MAX_BUFFERED_BYTES = 1 << 20 // 1 MiB
+  const appendBuffer = (target: 'stdout' | 'stderr', chunk: string): void => {
+    const key = target
+    if (backgroundProcess[key].length + chunk.length > MAX_BUFFERED_BYTES) {
+      const excess = backgroundProcess[key].length + chunk.length - MAX_BUFFERED_BYTES
+      backgroundProcess[key] = backgroundProcess[key].slice(excess)
+    }
+    backgroundProcess[key] += chunk
+  }
+
   startStreamReader(childProcess.stdout, chunk => {
-    backgroundProcess.stdout += chunk
+    appendBuffer('stdout', chunk)
     appendTaskOutput(bashId, chunk)
     backgroundProcess.stdoutLineCount += countNewlines(chunk)
   })
   startStreamReader(childProcess.stderr, chunk => {
-    backgroundProcess.stderr += chunk
+    appendBuffer('stderr', chunk)
     appendTaskOutput(bashId, chunk)
     backgroundProcess.stderrLineCount += countNewlines(chunk)
   })
@@ -320,21 +332,22 @@ export function listBackgroundShells(
   return Array.from(state.backgroundProcesses.values())
 }
 
+type ProcessStatus = 'running' | 'completed' | 'failed' | 'killed'
+
+function statusFor(proc: BackgroundProcess): ProcessStatus {
+  return proc.killed
+    ? 'killed'
+    : proc.code === null
+      ? 'running'
+      : proc.code === 0
+        ? 'completed'
+        : 'failed'
+}
+
 export function flushBashNotifications(
   state: BunShellState,
 ): BashNotification[] {
   const processes = Array.from(state.backgroundProcesses.values())
-
-  const statusFor = (
-    proc: BackgroundProcess,
-  ): 'running' | 'completed' | 'failed' | 'killed' =>
-    proc.killed
-      ? 'killed'
-      : proc.code === null
-        ? 'running'
-        : proc.code === 0
-          ? 'completed'
-          : 'failed'
 
   const notifications: BashNotification[] = []
 
@@ -363,17 +376,6 @@ export function flushBackgroundShellStatusAttachments(
   state: BunShellState,
 ): BackgroundShellStatusAttachment[] {
   const processes = Array.from(state.backgroundProcesses.values())
-
-  const statusFor = (
-    proc: BackgroundProcess,
-  ): 'running' | 'completed' | 'failed' | 'killed' =>
-    proc.killed
-      ? 'killed'
-      : proc.code === null
-        ? 'running'
-        : proc.code === 0
-          ? 'completed'
-          : 'failed'
 
   const progressAttachments: BackgroundShellStatusAttachment[] = []
 
