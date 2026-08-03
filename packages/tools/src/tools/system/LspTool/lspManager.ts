@@ -30,10 +30,10 @@ export class LspServerManager {
         })
 
         this.servers.set(server.name, instance)
-        instance.onRequest('workspace/configuration', params => {
+        instance.onRequest('workspace/configuration', (params): null[] => {
           const rec = asRecord(params)
           const items = rec && Array.isArray(rec.items) ? rec.items : []
-          return items.map(() => null)
+          return items.map((): null => null)
         })
 
         const mapping = server.extensionToLanguage ?? {}

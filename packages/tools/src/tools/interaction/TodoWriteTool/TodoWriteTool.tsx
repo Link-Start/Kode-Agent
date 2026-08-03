@@ -134,7 +134,7 @@ export const TodoWriteTool = {
   needsPermissions() {
     return false
   },
-  renderResultForAssistant() {
+  renderResultForAssistant(_output?: Output) {
     return 'Todos have been modified successfully. Ensure that you continue to use the todo list to track your progress. Please proceed with the current tasks if applicable'
   },
   renderToolUseMessage(input, { verbose }) {
@@ -237,7 +237,10 @@ export const TodoWriteTool = {
         oldTodos,
         newTodos: todos,
       },
-      resultForAssistant: this.renderResultForAssistant(),
+      resultForAssistant: this.renderResultForAssistant({
+        oldTodos,
+        newTodos: todos,
+      }),
     }
   },
 } satisfies Tool<typeof inputSchema, Output>

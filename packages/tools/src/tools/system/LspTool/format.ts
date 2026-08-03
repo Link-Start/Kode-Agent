@@ -8,7 +8,7 @@ export function extractSymbolAtPosition(
 ): string | null {
   try {
     if (zeroBasedLine < 0 || zeroBasedLine >= lines.length) return null
-    const line = lines[zeroBasedLine]
+    const line = lines[zeroBasedLine]!
     if (zeroBasedCharacter < 0 || zeroBasedCharacter >= line.length) return null
     const tokenRe = /[\w$'!]+|[+\-*/%&|^~<>=]+/g
     let match: RegExpExecArray | null
@@ -63,7 +63,7 @@ export function formatGoToDefinitionResult(
   }
   const fileCount = new Set(locations.map(l => l.fileName)).size
   if (locations.length === 1) {
-    const loc = locations[0]
+    const loc = locations[0]!
     return {
       formatted: `Defined in ${formatLocation(loc.fileName, loc.line0, loc.character0)}`,
       resultCount: 1,
@@ -110,7 +110,7 @@ export function formatFindReferencesResult(
     }
   }
   if (references.length === 1) {
-    const ref = references[0]
+    const ref = references[0]!
     return {
       formatted: `Found 1 reference:\n  ${formatLocation(ref.fileName, ref.line0, ref.character0)}`,
       resultCount: 1,

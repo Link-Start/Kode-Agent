@@ -40,13 +40,15 @@ type Input = {
   description?: string
 }
 
+type AssistantResult = string | unknown[]
+
 export async function* callBashTool(
   input: Input,
   context: ToolUseContext,
-  renderResultForAssistant: (output: Out) => string,
+  renderResultForAssistant: (output: Out) => AssistantResult,
 ): AsyncGenerator<
   | { type: 'progress'; content: unknown }
-  | { type: 'result'; resultForAssistant: string; data: Out }
+  | { type: 'result'; resultForAssistant: AssistantResult; data: Out }
 > {
   const { abortController, readFileTimestamps } = context
   const hasSetToolJSX = (

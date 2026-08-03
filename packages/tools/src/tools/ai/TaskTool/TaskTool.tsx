@@ -21,8 +21,8 @@ export const TaskTool = {
   async description() {
     return 'Launch a new task'
   },
-  async prompt({ safeMode }: { safeMode?: boolean }) {
-    return await getPrompt(safeMode)
+  async prompt(options?: { safeMode?: boolean }) {
+    return await getPrompt(options?.safeMode ?? false)
   },
   userFacingName(input?: Partial<Input>) {
     if (input?.subagent_type && input.subagent_type !== 'general-purpose') {

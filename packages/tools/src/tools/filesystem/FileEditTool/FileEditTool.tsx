@@ -58,16 +58,19 @@ export const FileEditTool = {
   isConcurrencySafe() {
     return false // FileEdit modifies files, not safe for concurrent execution
   },
-  needsPermissions({ file_path }) {
-    return !hasWritePermission(file_path)
+  needsPermissions(input) {
+    if (!input) return true
+    return !hasWritePermission(input.file_path)
   },
   renderToolUseMessage(input, { verbose }) {
     return `file_path: ${verbose ? input.file_path : relative(getCwd(), input.file_path)}`
   },
   async validateInput(
     { file_path, old_string, new_string, replace_all },
-    { readFileTimestamps, readFileHashes },
+    context,
   ) {
+    const readFileTimestamps = context?.readFileTimestamps ?? {}
+    const readFileHashes = context?.readFileHashes
     if (old_string === new_string) {
       return {
         result: false,

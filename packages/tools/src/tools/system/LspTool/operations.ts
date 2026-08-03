@@ -165,7 +165,7 @@ export function runLspOperation({
           type: 'Type',
         } as Record<string, string>
         return (
-          m[kind] ?? (kind ? kind[0].toUpperCase() + kind.slice(1) : 'Unknown')
+          m[kind] ?? (kind ? kind[0]!.toUpperCase() + kind.slice(1) : 'Unknown')
         )
       }
 
@@ -227,7 +227,7 @@ export function runLspOperation({
             ? ts.getLineAndCharacterOfPosition(sf, span.start)
             : { line: 0, character: 0 }
           const label = it.kind
-            ? String(it.kind)[0].toUpperCase() + String(it.kind).slice(1)
+            ? String(it.kind)[0]!.toUpperCase() + String(it.kind).slice(1)
             : 'Symbol'
           let line = `  ${it.name} (${label}) - Line ${lc.line + 1}`
           if (it.containerName) line += ` in ${it.containerName}`

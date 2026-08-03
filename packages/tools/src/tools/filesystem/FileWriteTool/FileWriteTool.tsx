@@ -51,8 +51,9 @@ export const FileWriteTool = {
   isConcurrencySafe() {
     return false // FileWriteTool modifies state/files, not safe for concurrent execution
   },
-  needsPermissions({ file_path }) {
-    return !hasWritePermission(file_path)
+  needsPermissions(input) {
+    if (!input) return true
+    return !hasWritePermission(input.file_path)
   },
   renderToolUseMessage(input, { verbose }) {
     const fullPath = isAbsolute(input.file_path)
@@ -60,7 +61,9 @@ export const FileWriteTool = {
       : resolve(getCwd(), input.file_path)
     return `file_path: ${fullPath}`
   },
-  async validateInput({ file_path }, { readFileTimestamps, readFileHashes }) {
+  async validateInput({ file_path }, context) {
+    const readFileTimestamps = context?.readFileTimestamps ?? {}
+    const readFileHashes = context?.readFileHashes
     const fullFilePath = isAbsolute(file_path)
       ? file_path
       : resolve(getCwd(), file_path)
@@ -223,8 +226,8 @@ export const FileWriteTool = {
       type: 'create' as const,
       filePath: file_path,
       content,
-      structuredPatch: [],
-      originalFile: null,
+      structuredPatch: [] as StructuredPatchHunk[],
+      originalFile: null as string | null,
     }
     yield {
       type: 'result',

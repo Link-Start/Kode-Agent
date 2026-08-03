@@ -19,6 +19,7 @@ import type { Out } from './BashTool'
 import { maybeSummarizeBashOutput } from './summarizeOutput'
 
 type SetToolJSX = SetToolJSXFn<React.ReactNode>
+type AssistantResult = string | unknown[]
 
 export async function* executeForegroundBash(options: {
   command: string
@@ -28,12 +29,12 @@ export async function* executeForegroundBash(options: {
   sandboxOptions: BunShellSandboxOptions | undefined
   dangerouslyDisableSandbox?: boolean
   setToolJSX?: SetToolJSX
-  renderResultForAssistant: (output: Out) => string
+  renderResultForAssistant: (output: Out) => AssistantResult
   conversationKey: string
   skipSummary?: boolean
 }): AsyncGenerator<
   | { type: 'progress'; content: unknown }
-  | { type: 'result'; resultForAssistant: string; data: Out }
+  | { type: 'result'; resultForAssistant: AssistantResult; data: Out }
 > {
   const { command, timeout, abortController, readFileTimestamps } = options
   const setToolJSX = options.setToolJSX

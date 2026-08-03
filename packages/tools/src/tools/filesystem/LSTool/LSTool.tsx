@@ -41,6 +41,14 @@ function resolveDirPath(path: string | undefined): string {
   return isAbsolute(path) ? resolve(path) : resolve(getCwd(), path)
 }
 
+function renderResultForAssistant(output: Output): string {
+  if (output.entries.length === 0) return 'No entries found'
+  const suffix = output.truncated
+    ? `\n(Results are truncated. Showing ${output.entries.length}/${output.total}.)`
+    : ''
+  return `${output.entries.join('\n')}${suffix}`
+}
+
 export const LSTool = {
   name: TOOL_NAME_FOR_PROMPT,
   async description() {
@@ -56,8 +64,8 @@ export const LSTool = {
   isConcurrencySafe() {
     return true
   },
-  needsPermissions({ path }) {
-    return !hasReadPermission(resolveDirPath(path))
+  needsPermissions(input) {
+    return !hasReadPermission(resolveDirPath(input?.path))
   },
   async prompt() {
     return DESCRIPTION
@@ -109,7 +117,7 @@ export const LSTool = {
       }
       yield {
         type: 'result',
-        resultForAssistant: this.renderResultForAssistant(output),
+        resultForAssistant: renderResultForAssistant(output),
         data: output,
       }
       return
@@ -137,15 +145,9 @@ export const LSTool = {
 
     yield {
       type: 'result',
-      resultForAssistant: this.renderResultForAssistant(output),
+      resultForAssistant: renderResultForAssistant(output),
       data: output,
     }
   },
-  renderResultForAssistant(output) {
-    if (output.entries.length === 0) return 'No entries found'
-    const suffix = output.truncated
-      ? `\n(Results are truncated. Showing ${output.entries.length}/${output.total}.)`
-      : ''
-    return `${output.entries.join('\n')}${suffix}`
-  },
+  renderResultForAssistant,
 } satisfies Tool<typeof inputSchema, Output>
