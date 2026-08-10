@@ -73,8 +73,8 @@ export async function saveModelConfiguration({
     provider: actualProvider,
     modelName: model || actualProvider, // Use provider name if no specific model
     baseURL: baseURL,
-    // API keys are never persisted in model profiles. Requests resolve the
-    // named environment variable at runtime and fail closed if it is absent.
+    // API keys are never persisted in model profiles. Requests resolve this
+    // reference from the environment or Kode's owner-only credential store.
     apiKey: '',
     ...(credentialEnv ? { apiKeyEnv: credentialEnv } : {}),
     maxTokens: parseInt(maxTokens) || DEFAULT_MAX_TOKENS,

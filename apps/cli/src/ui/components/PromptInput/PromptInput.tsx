@@ -371,7 +371,8 @@ export function PromptInput({
     setCursorOffset,
     commands,
     disableSlashCommands,
-    isEnabled: completionEnabled,
+    // While a request is active, Tab is reserved for queueing the current input.
+    isEnabled: completionEnabled && !isLoading,
     modelReloadKey: uiRefreshCounter ?? 0,
   })
   const completionVisible =

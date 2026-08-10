@@ -9,6 +9,19 @@ type ModelSuggestionsController = {
   reload?: () => void
 }
 
+async function waitForCondition(
+  harness: ReturnType<typeof createInkTestHarness>,
+  condition: () => boolean,
+  description: string,
+): Promise<void> {
+  const deadline = Date.now() + 1_000
+  while (Date.now() < deadline) {
+    if (condition()) return
+    await harness.wait(20)
+  }
+  throw new Error(`Timed out waiting for ${description}`)
+}
+
 function ModelSuggestionsHarness({
   controller,
   onLoadModelNames,
@@ -70,18 +83,26 @@ describe('TUI E2E regression (Ink render): model suggestions', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitForCondition(
+      h,
+      () => h.getOutput().includes('ask-alpha') && getLoadCount() === 1,
+      'the initial model suggestions',
+    )
     expect(h.getOutput()).toContain('ask-alpha')
     expect(getLoadCount()).toBe(1)
 
     h.clearOutput()
     controller.setModels?.(['beta'])
-    await h.wait(50)
+    await h.wait(20)
     expect(getLoadCount()).toBe(1)
 
     h.clearOutput()
     controller.reload?.()
-    await h.wait(50)
+    await waitForCondition(
+      h,
+      () => h.getOutput().includes('ask-beta') && getLoadCount() === 2,
+      'reloaded model suggestions',
+    )
     expect(h.getOutput()).toContain('ask-beta')
     expect(getLoadCount()).toBe(2)
   })

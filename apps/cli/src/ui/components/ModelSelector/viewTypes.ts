@@ -43,6 +43,7 @@ export type ModelSelectorViewProps = {
 
   apiKeyEnv?: string
   apiKey: string
+  hasStoredApiKey: boolean
   cursorOffset: number
   handleApiKeyChange: (value: string) => void
   handleApiKeySubmit: (key: string) => void | Promise<void>

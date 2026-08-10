@@ -366,6 +366,7 @@ export function ModelSelectorView(
           ollamaBaseUrl={props.ollamaBaseUrl}
           customBaseUrl={props.customBaseUrl}
           apiKeyEnv={props.apiKeyEnv}
+          hasStoredApiKey={props.hasStoredApiKey}
           validationError={props.validationError}
           getProviderLabel={props.getProviderLabel}
         />

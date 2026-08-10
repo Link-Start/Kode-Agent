@@ -8,11 +8,19 @@ import {
 } from '#core/utils/requestStatus'
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+const FIRST_RESPONSE_WARNING_SECONDS = 15
 
-function getLabel(status: RequestStatus): string {
+export function __getRequestStatusLabelForTests(
+  status: RequestStatus,
+  elapsedSeconds: number,
+): string {
   switch (status.kind) {
-    case 'thinking':
-      return 'Preparing response'
+    case 'thinking': {
+      const detail = status.detail?.trim() || 'Preparing response'
+      return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
+        ? `${detail} · waiting for first model response`
+        : detail
+    }
     case 'streaming':
       return 'Generating response'
     default:
@@ -112,7 +120,7 @@ export function RequestStatusIndicator({
   return (
     <Box flexDirection="row" marginTop={marginTop}>
       <Text color={theme.kode} bold>
-        {frames[frame]} {getLabel(status)}
+        {frames[frame]} {__getRequestStatusLabelForTests(status, elapsedTime)}
       </Text>
       <Text color={theme.secondaryText}>
         {' '}

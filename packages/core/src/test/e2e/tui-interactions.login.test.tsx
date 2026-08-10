@@ -92,6 +92,8 @@ describe('TUI E2E regression (Ink render): login selector', () => {
 
     const output = h.getOutput()
     expect(output).toContain('Credential Source / 凭据来源')
-    expect(output).toContain('Enter the variable name, not its secret value.')
+    expect(output).toContain(
+      'Paste a key to save it in Kode credential storage.',
+    )
   })
 })

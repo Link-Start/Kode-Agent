@@ -7,6 +7,7 @@ export default {
   isEnabled: true,
   isHidden: false,
   progressMessage: 'managing capabilities',
+  requestStatusDetail: 'Capabilities: preparing audit',
   disableNonInteractive: true,
   allowedTools: [
     'Task',

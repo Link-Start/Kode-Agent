@@ -18,7 +18,13 @@ import {
   reorderMessages,
 } from '#core/utils/messages'
 import type { Message as KodeMessage } from '#core/query'
-import { getGlobalConfig, saveGlobalConfig } from '#core/utils/config'
+import {
+  clearSessionApiKey,
+  getCredentialStorePath,
+  getGlobalConfig,
+  readApiKey,
+  saveGlobalConfig,
+} from '#core/utils/config'
 import { reloadModelManager } from '#core/utils/model'
 import { Message } from '#ui-ink/components/Message'
 import { MessageResponse } from '#ui-ink/components/MessageResponse'
@@ -36,7 +42,7 @@ import { useMouse } from '#ui-ink/hooks/useMouse'
 import { useScopedIndexState } from '#ui-ink/hooks/useScopedIndexState'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { PermissionProvider } from '#ui-ink/contexts/PermissionContext'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -120,16 +126,20 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(25)
+    await h.wait(75)
 
     h.stdin.write('\u001B[B')
-    await h.wait(10)
+    await h.wait(30)
     h.stdin.write('\u001B[B')
-    await h.wait(10)
+    await waitForCondition(
+      h,
+      () => h.getOutput().includes('Type something.'),
+      'the Other text field to receive focus',
+    )
 
     for (const ch of 'threejs') {
       h.stdin.write(ch)
-      await h.wait(5)
+      await h.wait(20)
     }
 
     h.stdin.write('\r')
@@ -2269,7 +2279,14 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     expect(output).toContain('Enter your custom API URL')
   })
 
-  test('ModelSelector: quick setup records a credential reference and continues to manual model ID', async () => {
+  test('ModelSelector: quick setup saves a direct key without rendering it', async () => {
+    const apiKeyEnv = 'OPENAI_API_KEY'
+    const directApiKey = 'tp-test-key-saved-under-kode'
+    const originalConfigDirectory = process.env.KODE_CONFIG_DIR
+    const credentialRoot = mkdtempSync(join(tmpdir(), 'kode-ui-credentials-'))
+    process.env.KODE_CONFIG_DIR = credentialRoot
+    clearSessionApiKey(apiKeyEnv)
+
     const h = createInkTestHarness(
       <KeypressProvider>
         <ModelSelector
@@ -2284,7 +2301,45 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     await h.wait(75)
     expect(h.getOutput()).toContain('Credential Source')
     expect(h.getOutput()).toContain('OPENAI_API_KEY')
-    expect(h.getOutput()).not.toContain('sk-test-secret')
+    expect(h.getOutput()).toContain(
+      'Paste a key to save it in Kode credential storage.',
+    )
+
+    try {
+      h.stdin.write(directApiKey)
+      await h.wait(100)
+      expect(h.getOutput()).not.toContain(directApiKey)
+
+      h.stdin.write('\r')
+      await h.wait(75)
+      expect(readApiKey(apiKeyEnv)).toBe(directApiKey)
+      expect(readFileSync(getCredentialStorePath(), 'utf8')).toContain(
+        directApiKey,
+      )
+      expect(h.getOutput()).toContain('Manual Model Setup')
+    } finally {
+      clearSessionApiKey(apiKeyEnv)
+      if (originalConfigDirectory === undefined)
+        delete process.env.KODE_CONFIG_DIR
+      else process.env.KODE_CONFIG_DIR = originalConfigDirectory
+      rmSync(credentialRoot, { recursive: true, force: true })
+    }
+  })
+
+  test('ModelSelector: quick setup keeps the suggested environment reference when left empty', async () => {
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <ModelSelector
+          initialProvider="openai"
+          onDone={() => {}}
+          abortController={new AbortController()}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await h.wait(75)
+    expect(h.getOutput()).toContain('env:OPENAI_API_KEY')
 
     h.stdin.write('\r')
     await h.wait(75)
@@ -2426,6 +2481,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
   test('ToolPicker: cursor focus survives keep-alive remount', async () => {
     const focusScope = `test-tool-picker-${Date.now()}`
+    let completed = false
     const tools = [
       { name: 'Read' },
       { name: 'Write' },
@@ -2443,7 +2499,9 @@ describe('TUI E2E regression (Ink render): Misc', () => {
           tools={tools}
           initialTools={undefined}
           focusScope={focusScope}
-          onComplete={() => {}}
+          onComplete={() => {
+            completed = true
+          }}
           onCancel={() => {}}
         />
       ) : (
@@ -2460,22 +2518,20 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     const h = createInkTestHarness(renderHarness(true))
     harnessManager.track(h)
 
-    await h.wait(30)
+    await h.wait(75)
     h.stdin.write('\u001B[B')
-    await h.wait(40)
+    await h.wait(75)
 
-    h.clearOutput()
     h.rerender(renderHarness(false))
-    await h.wait(20)
-    h.rerender(renderHarness(true))
     await h.wait(40)
+    h.rerender(renderHarness(true))
+    await h.wait(100)
 
-    const expected = `${figures.pointer} ${figures.checkboxOn} All tools`
-    const deadline = Date.now() + 1_000
-    while (!h.getOutput().includes(expected) && Date.now() < deadline) {
-      await h.wait(20)
-    }
-    expect(h.getOutput()).toContain(expected)
+    // The focus should remain on "All tools" (index 1). Enter toggles that
+    // row; if focus reset to "Continue" (index 0), it would call onComplete.
+    h.stdin.write('\r')
+    await h.wait(50)
+    expect(completed).toBe(false)
   })
 
   test('KeypressProvider: priority can fall back to default on rerender', async () => {

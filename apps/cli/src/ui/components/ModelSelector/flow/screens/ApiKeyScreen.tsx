@@ -16,7 +16,7 @@ type Props = {
   containerPaddingY: number
   containerGap: number
   selectedProvider: string
-  /** Environment-variable reference only; never a credential value. */
+  /** API key or environment-variable reference. */
   apiKey: string
   cursorOffset: number
   handleApiKeyChange: (value: string) => void
@@ -49,6 +49,8 @@ export function ApiKeyScreen({
   const providerDisplayName = getProviderLabel(selectedProvider, 0).split(
     ' (',
   )[0]
+  const isEnvironmentReference =
+    apiKey.startsWith('env:') || /^[A-Za-z_][A-Za-z0-9_]*$/.test(apiKey)
 
   return (
     <ScreenFrame
@@ -60,15 +62,19 @@ export function ApiKeyScreen({
     >
       <Box flexDirection="column" gap={containerGap}>
         <Text bold wrap="truncate-end">
-          Environment variable for {providerDisplayName}:
+          API key for {providerDisplayName}:
         </Text>
         <Text color={theme.secondaryText} wrap="truncate-end">
-          Enter the variable name, not its secret value. Kode saves only this
-          reference and never shows the key here.
+          Paste a key to save it in Kode credential storage. It is masked, never
+          written to model configuration, and never shown again.
+        </Text>
+        <Text color={theme.secondaryText} wrap="truncate-end">
+          Use env:VARIABLE_NAME for an environment variable; prefix an ambiguous
+          key with key:.
         </Text>
 
         <TextInput
-          placeholder="OPENAI_API_KEY"
+          placeholder="Paste API key or env:OPENAI_API_KEY"
           value={apiKey}
           onChange={handleApiKeyChange}
           onSubmit={handleApiKeySubmit}
@@ -76,6 +82,7 @@ export function ApiKeyScreen({
           maxHeight={1}
           cursorOffset={cursorOffset}
           onChangeCursorOffset={handleCursorOffsetChange}
+          mask={apiKey && !isEnvironmentReference ? '•' : undefined}
           showCursor={!isLoadingModels}
           focus={!isLoadingModels}
         />
@@ -92,7 +99,7 @@ export function ApiKeyScreen({
               {modelLoadError}
             </Text>
             <Text color={theme.secondaryText} wrap="truncate-end">
-              Correct the reference, or press Enter to configure the model ID
+              Correct the credential, or press Enter to configure the model ID
               without discovery.
             </Text>
           </Box>
@@ -100,8 +107,7 @@ export function ApiKeyScreen({
 
         <Box marginTop={tightLayout ? 0 : 1}>
           <Text color={theme.secondaryText} wrap="truncate-end">
-            Enter use reference & enter model ID · Tab discover models · Esc
-            back
+            Enter continue · Tab discover models · Esc back
           </Text>
         </Box>
       </Box>

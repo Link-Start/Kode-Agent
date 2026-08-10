@@ -91,6 +91,20 @@ type PipelineRetryState = {
 
 const MAX_THINKING_ONLY_RETRIES = 3
 
+export function __getInitialRequestStatusDetailForTests(
+  messages: Message[],
+): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.type !== 'user') continue
+
+    const detail = message.options?.requestStatusDetail?.trim()
+    if (detail) return detail
+  }
+
+  return undefined
+}
+
 function createThinkingOnlyRetryPrompt(retryNumber: number): string {
   return [
     'The previous model response contained internal reasoning only, with no final assistant text and no tool call.',
@@ -227,7 +241,12 @@ async function* messagePipelineCore(
   ) => Promise<BinaryFeedbackResult>,
   hookState?: PipelineRetryState,
 ): AsyncGenerator<Message, void> {
-  setRequestStatus({ kind: 'thinking' })
+  setRequestStatus({
+    kind: 'thinking',
+    detail: __getInitialRequestStatusDetailForTests(messages),
+    inputTokens: undefined,
+    outputTokens: undefined,
+  })
 
   try {
     markPhase('QUERY_INIT')
