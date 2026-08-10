@@ -12,13 +12,17 @@ export function loadTokenFromStorage(): string {
 export function persistToken(token: string): void {
   try {
     window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token)
-  } catch {}
+  } catch {
+    // Storage may be unavailable in privacy-restricted browser contexts.
+  }
 }
 
 export function clearToken(): void {
   try {
     window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-  } catch {}
+  } catch {
+    // Storage may be unavailable in privacy-restricted browser contexts.
+  }
 }
 
 export function consumeTokenFromUrl(): string {

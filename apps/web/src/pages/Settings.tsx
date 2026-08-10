@@ -18,8 +18,15 @@ export function SettingsPage(props: {
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
-            <div className="text-sm font-medium">Daemon token</div>
+            <label className="text-sm font-medium" htmlFor="daemon-token">
+              Daemon token
+            </label>
             <Input
+              id="daemon-token"
+              name="kode-daemon-token"
+              type="password"
+              autoComplete="new-password"
+              spellCheck={false}
               value={props.token}
               onChange={e => props.onTokenChange(e.target.value)}
               placeholder="Paste daemon token"

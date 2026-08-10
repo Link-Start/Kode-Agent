@@ -30,6 +30,7 @@ type OAuthFlowService = {
     state: string
     useManualRedirect: boolean
   }): void
+  cancelOAuthFlow?(): void | Promise<void>
 }
 
 export function ConsoleOAuthFlow({
@@ -48,6 +49,13 @@ export function ConsoleOAuthFlow({
   const [pastedCode, setPastedCode] = useState('')
   const [cursorOffset, setCursorOffset] = useState(0)
   const [oauthService] = useState(createOAuthService)
+
+  useEffect(
+    () => () => {
+      void oauthService.cancelOAuthFlow?.()
+    },
+    [oauthService],
+  )
   // After a few seconds we suggest the user to copy/paste url if the
   // browser did not open automatically. In this flow we expect the user to
   // copy the code from the browser and paste it in the terminal
@@ -175,7 +183,9 @@ export function ConsoleOAuthFlow({
           toRetry: { state: 'ready_to_start' },
         })
       }
-    } catch (err) {}
+    } catch {
+      // Each failing operation above has already populated the retry UI.
+    }
   }, [createApiKey, notify, oauthService])
 
   useEffect(() => {

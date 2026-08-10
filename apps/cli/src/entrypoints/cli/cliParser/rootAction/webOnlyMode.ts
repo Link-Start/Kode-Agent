@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -12,21 +18,37 @@ function getKodeConfigDir(): string {
   return join(homedir(), '.kode')
 }
 
-function getOrCreateWebToken(): string {
+const MIN_WEB_TOKEN_LENGTH = 32
+
+function hardenTokenFilePermissions(tokenFile: string): void {
+  if (process.platform === 'win32') return
+  try {
+    chmodSync(tokenFile, 0o600)
+  } catch {
+    // The token remains usable on filesystems that do not expose POSIX modes.
+  }
+}
+
+export function getOrCreateWebToken(): string {
   const configDir = getKodeConfigDir()
   const tokenFile = join(configDir, 'web-token')
 
   if (existsSync(tokenFile)) {
     try {
       const token = readFileSync(tokenFile, 'utf-8').trim()
-      if (token && token.length >= 8) return token
+      if (token.length >= MIN_WEB_TOKEN_LENGTH) {
+        hardenTokenFilePermissions(tokenFile)
+        return token
+      }
     } catch {}
   }
 
-  const newToken = randomUUID().replace(/-/g, '').slice(0, 9)
+  const newToken = randomUUID().replace(/-/g, '')
   try {
-    mkdirSync(configDir, { recursive: true })
-    writeFileSync(tokenFile, newToken, 'utf-8')
+    mkdirSync(configDir, { recursive: true, mode: 0o700 })
+    if (process.platform !== 'win32') chmodSync(configDir, 0o700)
+    writeFileSync(tokenFile, newToken, { encoding: 'utf-8', mode: 0o600 })
+    hardenTokenFilePermissions(tokenFile)
   } catch {}
 
   return newToken

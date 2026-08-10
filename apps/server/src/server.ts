@@ -51,7 +51,10 @@ export async function startKodeDaemon(args: {
 }): Promise<KodeDaemon> {
   const host = args.host ?? '127.0.0.1'
   const port = args.port ?? 0
-  const token = args.token ?? crypto.randomUUID().replace(/-/g, '').slice(0, 9)
+  // The token is a bearer credential that may protect a daemon explicitly
+  // bound beyond loopback. Keep the complete UUID entropy instead of a short
+  // display-oriented prefix.
+  const token = args.token ?? crypto.randomUUID().replace(/-/g, '')
   const cwd = resolve(args.cwd)
   const echo = args.echo === true || process.env.KODE_DAEMON_ECHO === '1'
   const echoDelayMs = Math.max(0, args.echoDelayMs ?? 0)
