@@ -79,7 +79,7 @@ export function buildSandboxCommand(options: {
     const tmpDir = resolveSandboxTmpDir({ platform })
     try {
       mkdirSync(tmpDir, { recursive: true })
-    } catch {}
+    } catch { /* no-op */ }
 
     const cmd = buildLinuxBwrapCommand({
       bwrapPath,
@@ -120,7 +120,7 @@ export function buildSandboxCommand(options: {
     for (const candidate of candidates) {
       try {
         mkdirSync(candidate, { recursive: true })
-      } catch {}
+      } catch { /* no-op */ }
     }
 
     return {

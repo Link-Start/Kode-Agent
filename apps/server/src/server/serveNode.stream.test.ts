@@ -147,7 +147,7 @@ describe('serveNode streaming response adapter', () => {
       releaseSecond()
       try {
         await reader?.cancel()
-      } catch {}
+      } catch { /* no-op */ }
       server?.stop(true)
     }
   })

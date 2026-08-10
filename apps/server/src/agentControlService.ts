@@ -451,7 +451,7 @@ export class AgentControlService {
   private refreshCache(): void {
     try {
       this.deps.clearCache()
-    } catch {}
+    } catch { /* no-op */ }
   }
 
   private safeAudit(
@@ -459,6 +459,6 @@ export class AgentControlService {
   ): void {
     try {
       this.deps.audit(args)
-    } catch {}
+    } catch { /* no-op */ }
   }
 }

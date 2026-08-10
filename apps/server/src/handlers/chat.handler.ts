@@ -340,7 +340,7 @@ export async function handleChatPrompt(args: {
       if (decision.decision === 'deny') {
         try {
           params.toolUseContext.abortController.abort()
-        } catch {}
+        } catch { /* no-op */ }
         const message =
           decision.rejectionMessage && decision.rejectionMessage.trim()
             ? `${REJECT_MESSAGE_WITH_FEEDBACK_PREFIX}${decision.rejectionMessage.trim()}`
@@ -356,7 +356,7 @@ export async function handleChatPrompt(args: {
             null,
             params.toolUseContext,
           )
-        } catch {}
+        } catch { /* no-op */ }
       }
 
       return { result: true }
@@ -465,7 +465,7 @@ export async function handleChatPrompt(args: {
     const wasCancelled = abortController.signal.aborted
     try {
       abortController.abort()
-    } catch {}
+    } catch { /* no-op */ }
     if (wasCancelled) {
       sendAbortedResult()
     } else {

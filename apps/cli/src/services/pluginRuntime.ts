@@ -77,7 +77,7 @@ async function expandPluginDirInputs(
             matched = true
             break
           }
-        } catch {}
+        } catch { /* no-op */ }
       }
       if (matched) continue
     }

@@ -15,7 +15,7 @@ describe('Linux bwrap command construction', () => {
       // This is a pure command-construction test; it can run on any platform.
       try {
         mkdirSync('/tmp/kode', { recursive: true })
-      } catch {}
+      } catch { /* no-op */ }
 
       const cmd = buildLinuxBwrapCommand({
         bwrapPath: '/usr/bin/bwrap',

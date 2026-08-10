@@ -38,7 +38,7 @@ export async function fetchUpdateInfo(
       const cmds = await getUpdateCommandSuggestions()
       return { version: latest, commands: cmds }
     }
-  } catch {}
+  } catch { /* no-op */ }
 
   return { version: null, commands: null }
 }

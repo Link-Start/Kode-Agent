@@ -48,7 +48,7 @@ export function findCommand(
     if (typeof userFacingName === 'function') {
       try {
         if (userFacingName.call(c) === commandName) return c
-      } catch {}
+      } catch { /* no-op */ }
     }
 
     if (Array.isArray(record.aliases) && record.aliases.includes(commandName)) {

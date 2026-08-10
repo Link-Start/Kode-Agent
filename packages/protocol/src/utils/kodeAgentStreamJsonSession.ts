@@ -161,7 +161,7 @@ export async function runKodeAgentStreamJsonSession<
       queryError = e
       try {
         turnAbortController.abort()
-      } catch {}
+      } catch { /* no-op */ }
     } finally {
       args.onActiveTurnAbortControllerChanged?.(null)
       args.onProcessingStateChange?.(false)

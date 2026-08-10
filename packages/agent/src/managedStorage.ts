@@ -248,7 +248,7 @@ function writeAtomically(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   try {
     chmodSync(dirname(path), 0o700)
-  } catch {}
+  } catch { /* no-op */ }
 
   const temporaryPath = `${path}.tmp.${process.pid}.${randomUUID()}`
   let descriptor: number | null = null
@@ -261,16 +261,16 @@ function writeAtomically(path: string, content: string): void {
     renameSync(temporaryPath, path)
     try {
       chmodSync(path, 0o600)
-    } catch {}
+    } catch { /* no-op */ }
   } catch (error) {
     if (descriptor !== null) {
       try {
         closeSync(descriptor)
-      } catch {}
+      } catch { /* no-op */ }
     }
     try {
       unlinkSync(temporaryPath)
-    } catch {}
+    } catch { /* no-op */ }
     throw error
   }
 }

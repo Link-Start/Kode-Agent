@@ -30,7 +30,7 @@ describe('BunShell.exec ampersand backgrounding', () => {
     if (Number.isFinite(pid) && pid > 0) {
       try {
         process.kill(pid)
-      } catch {}
+      } catch { /* no-op */ }
     }
   })
 })

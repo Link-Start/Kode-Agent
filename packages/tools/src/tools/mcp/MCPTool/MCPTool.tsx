@@ -26,7 +26,7 @@ function normalizeTextOutput(output: unknown): string {
     try {
       const resultText = extractSingleResultText(JSON.parse(output))
       if (resultText !== null) return resultText
-    } catch {}
+    } catch { /* no-op */ }
 
     return output
   }

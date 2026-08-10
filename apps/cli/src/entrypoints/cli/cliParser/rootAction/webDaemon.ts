@@ -9,7 +9,7 @@ function registerCleanup() {
   process.on('exit', () => {
     try {
       activeWebDaemon?.stop()
-    } catch {}
+    } catch { /* no-op */ }
   })
 }
 
@@ -35,7 +35,7 @@ export async function startWebDaemon(args: {
 
   try {
     activeWebDaemon?.stop()
-  } catch {}
+  } catch { /* no-op */ }
 
   activeWebDaemon = await startKodeDaemon({
     host,
