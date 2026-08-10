@@ -118,6 +118,7 @@ export function ExitPlanModePermissionRequest({
   const allowedPrompts = parseAllowedPrompts(
     toolUseConfirm.input['allowedPrompts'],
   )
+  const allowedPromptCount = allowedPrompts?.length ?? 0
   const hasAllowedPrompts = allowedPrompts !== null
 
   const [planText, setPlanText] = useState(() => {
@@ -206,14 +207,14 @@ export function ExitPlanModePermissionRequest({
   }
 
   useEffect(() => {
-    if (!allowedPrompts) return
+    if (!hasAllowedPrompts) return
     setFocusedAllowedPromptIndex(prev =>
-      Math.max(0, Math.min(prev, allowedPrompts.length - 1)),
+      Math.max(0, Math.min(prev, allowedPromptCount - 1)),
     )
     setSelectedAllowedPromptIndices(prev =>
-      prev.filter(idx => idx >= 0 && idx < allowedPrompts.length),
+      prev.filter(idx => idx >= 0 && idx < allowedPromptCount),
     )
-  }, [allowedPrompts?.length, setFocusedAllowedPromptIndex])
+  }, [allowedPromptCount, hasAllowedPrompts, setFocusedAllowedPromptIndex])
 
   useEffect(() => {
     setPlanFocusIndex(prev => {

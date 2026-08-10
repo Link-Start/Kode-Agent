@@ -201,6 +201,8 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
       type: 'boolean',
     },
   ]
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
   const [selectedIndex, setSelectedIndex] = useScopedIndexState({
     scope: 'config-screen:settings',
     itemCount: settings.length,
@@ -218,7 +220,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
     (index: number) => {
       if (editingString) return false
 
-      const currentSetting = settings[index]
+      const currentSetting = settingsRef.current[index]
       setSelectedIndex(index)
       if (!currentSetting || currentSetting.disabled) return false
 
@@ -241,7 +243,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
       setInputError(null)
       return true
     },
-    [editingString, settings, setSelectedIndex],
+    [editingString, setSelectedIndex],
   )
 
   useKeypress(

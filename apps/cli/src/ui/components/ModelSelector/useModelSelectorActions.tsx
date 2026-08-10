@@ -1,7 +1,8 @@
 import {
+  clearSessionApiKey,
   getSuggestedApiKeyEnvVar,
   providerUsesApiKey,
-  readApiKeyFromEnvironment,
+  readApiKey,
   type ProviderType,
 } from '#core/utils/config'
 import { logError } from '#core/utils/log'
@@ -57,13 +58,10 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
 
     const apiKeyEnv =
       state.apiKeyEnv ?? getSuggestedApiKeyEnvVar(state.selectedProvider)
-    if (
-      providerUsesApiKey(state.selectedProvider) &&
-      !readApiKeyFromEnvironment(apiKeyEnv)
-    ) {
+    if (providerUsesApiKey(state.selectedProvider) && !readApiKey(apiKeyEnv)) {
       state.setValidationError(
-        `This model was not saved because ${apiKeyEnv ?? 'the provider API key environment variable'} is not set. ` +
-          'Set it in the current environment, then retry. Rotate any API key previously stored in configuration.',
+        `This model was not saved because no credential is available for ${apiKeyEnv ?? 'this provider'}. ` +
+          'Paste a key or set the environment variable, then retry.',
       )
       return
     }
@@ -120,10 +118,13 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
       provider === 'partnerProviders' || provider === 'partnerCodingPlans'
 
     if (!isProviderMenu) {
+      clearSessionApiKey(state.apiKeyEnv)
       const apiKeyEnv = getSuggestedApiKeyEnvVar(provider)
       state.setApiKeyEdited(false)
       state.setApiKeyEnv(apiKeyEnv)
-      state.setCursorOffset(apiKeyEnv?.length ?? 0)
+      state.setApiKeyInput('')
+      state.setHasStoredApiKey(false)
+      state.setCursorOffset(0)
       state.setModelLoadError(null)
       state.setAvailableModels([])
       state.setSelectedModel('')
@@ -158,7 +159,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         params: {
           selectedProvider: state.selectedProvider,
           selectedModel: state.selectedModel,
-          apiKey: readApiKeyFromEnvironment(state.apiKeyEnv) ?? '',
+          apiKey: readApiKey(state.apiKeyEnv) ?? '',
           maxTokens: state.maxTokens,
           providerBaseUrl: state.providerBaseUrl,
           customBaseUrl: state.customBaseUrl,

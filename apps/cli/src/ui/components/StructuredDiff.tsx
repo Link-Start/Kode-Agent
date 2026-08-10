@@ -19,9 +19,10 @@ export function StructuredDiff({
   width,
   overrideTheme,
 }: Props): React.ReactNode {
+  const { lines, oldStart } = patch
   const diff = useMemo(
-    () => structuredDiffLines({ patch, width, dim, overrideTheme }),
-    [patch.lines, patch.oldStart, width, dim, overrideTheme],
+    () => formatDiff(lines, oldStart, width, dim, overrideTheme),
+    [lines, oldStart, width, dim, overrideTheme],
   )
 
   return diff.map((_, i) => <Box key={i}>{_}</Box>)

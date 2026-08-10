@@ -5,6 +5,11 @@ const RETRY_CONFIG = {
   JITTER_FACTOR: 0.1,
 } as const
 
+/** A malformed request or credential cannot succeed on a later attempt. */
+export function isRetryableHttpStatus(status: number): boolean {
+  return status === 408 || status === 409 || status === 429 || status >= 500
+}
+
 export function getRetryDelay(
   attempt: number,
   retryAfter?: string | null,

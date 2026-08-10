@@ -58,7 +58,7 @@ async function getWebSocketImpl(): Promise<WebSocketCtor> {
     const undici = await import('undici')
     const ws = asRecord(undici)?.WebSocket
     if (typeof ws === 'function') return ws as unknown as WebSocketCtor
-  } catch {}
+  } catch { /* no-op */ }
 
   try {
     const wsPkg = await import('ws')
@@ -67,7 +67,7 @@ async function getWebSocketImpl(): Promise<WebSocketCtor> {
     const fallbackDefault = (wsPkg as unknown as { default?: unknown }).default
     if (typeof fallbackDefault === 'function')
       return fallbackDefault as WebSocketCtor
-  } catch {}
+  } catch { /* no-op */ }
 
   const globalWebSocket = getGlobalWebSocketCtor()
   if (globalWebSocket) return globalWebSocket
@@ -172,7 +172,7 @@ export function createKodeDaemonClient(args: {
         try {
           socket.removeEventListener?.('open', onOpen)
           socket.removeEventListener?.('error', onError)
-        } catch {}
+        } catch { /* no-op */ }
       }
 
       socket.addEventListener('open', onOpen, { once: true })
@@ -210,7 +210,7 @@ export function createKodeDaemonClient(args: {
   const close = () => {
     try {
       ws?.close()
-    } catch {}
+    } catch { /* no-op */ }
     queue.close()
   }
 

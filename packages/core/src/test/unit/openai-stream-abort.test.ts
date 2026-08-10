@@ -315,6 +315,72 @@ describe('OpenAI stream degradation', () => {
     })
   })
 
+  test('deduplicates repeated tool-call metadata from compatible providers', async () => {
+    const body = sseBody([
+      `data: ${JSON.stringify(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'Bash',
+                arguments: '',
+              },
+            },
+          ],
+        }),
+      )}`,
+      `data: ${JSON.stringify(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              type: 'function',
+              function: { arguments: '{"command":"git ' },
+            },
+          ],
+        }),
+      )}`,
+      `data: ${JSON.stringify(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              type: 'function',
+              function: { arguments: 'status --short"}' },
+            },
+          ],
+        }),
+      )}`,
+      `data: ${JSON.stringify(rawChunk({ finish_reason: 'tool_calls' }))}`,
+      'data: [DONE]',
+    ])
+
+    const result = await handleMessageStream(
+      createStreamProcessor(body as any) as any,
+      undefined,
+    )
+    const mergedToolCall = result.choices[0]?.message.tool_calls?.[0]
+    const message = convertOpenAIResponseToAnthropic(result, [])
+
+    expect(mergedToolCall).toMatchObject({
+      id: 'call_1',
+      type: 'function',
+      function: {
+        name: 'Bash',
+        arguments: '{"command":"git status --short"}',
+      },
+    })
+    expect(message.content).toContainEqual({
+      type: 'tool_use',
+      name: 'Bash',
+      input: { command: 'git status --short' },
+      id: 'call_1',
+    })
+  })
+
   test('marks non-array tool call deltas as degraded without crashing conversion', async () => {
     async function* stream() {
       yield chunk({ content: 'partial' })

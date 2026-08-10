@@ -8,6 +8,28 @@ import {
   type AssistantStreamUpdateOptions,
 } from '@kode/tool-interface/assistantStreamUpdate'
 
+function parseToolInput(toolCall: any): Record<string, unknown> {
+  const rawInput = toolCall?.input
+  if (rawInput === undefined || rawInput === null || rawInput === '') return {}
+  if (typeof rawInput !== 'string') {
+    throw new Error(
+      `Tool call ${toolCall?.name || toolCall?.id || '<unknown>'} has invalid JSON arguments: arguments must be a string`,
+    )
+  }
+
+  try {
+    const parsed = JSON.parse(rawInput)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('tool arguments must be a JSON object')
+    }
+    return parsed as Record<string, unknown>
+  } catch (error) {
+    throw new Error(
+      `Tool call ${toolCall?.name || toolCall?.id || '<unknown>'} has invalid JSON arguments: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
 export async function processResponsesStream(
   stream: AsyncGenerator<StreamingEvent>,
   startTime: number,
@@ -113,10 +135,7 @@ export async function processResponsesStream(
   }
 
   for (const toolCall of pendingToolCalls) {
-    let toolArgs = {}
-    try {
-      toolArgs = toolCall.input ? JSON.parse(toolCall.input) : {}
-    } catch {}
+    const toolArgs = parseToolInput(toolCall)
 
     contentBlocks.push({
       type: 'tool_use',

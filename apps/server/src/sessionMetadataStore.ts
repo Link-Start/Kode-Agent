@@ -183,7 +183,7 @@ function writeMetadataAtomically(
   } catch (error) {
     try {
       rmSync(temporaryPath, { force: true })
-    } catch {}
+    } catch { /* no-op */ }
     throw error
   }
 }

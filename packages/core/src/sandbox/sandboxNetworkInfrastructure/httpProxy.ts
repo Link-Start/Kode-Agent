@@ -29,10 +29,10 @@ function writeHttpErrorResponse(socket: net.Socket, statusLine: string): void {
     socket.write(
       `HTTP/1.1 ${statusLine}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
     )
-  } catch {}
+  } catch { /* no-op */ }
   try {
     socket.destroy()
-  } catch {}
+  } catch { /* no-op */ }
 }
 
 export async function startHttpProxy(args: {
@@ -104,14 +104,14 @@ export async function startHttpProxy(args: {
             } catch {
               try {
                 upstream.destroy()
-              } catch {}
+              } catch { /* no-op */ }
               return
             }
 
             if (remainder.length > 0) {
               try {
                 upstream.write(remainder)
-              } catch {}
+              } catch { /* no-op */ }
             }
 
             clientSocket.pipe(upstream)
@@ -189,14 +189,14 @@ export async function startHttpProxy(args: {
             writeHttpErrorResponse(clientSocket, '502 Bad Gateway')
             try {
               upstream.destroy()
-            } catch {}
+            } catch { /* no-op */ }
             return
           }
 
           if (remainder.length > 0) {
             try {
               upstream.write(remainder)
-            } catch {}
+            } catch { /* no-op */ }
           }
 
           clientSocket.pipe(upstream)
@@ -204,7 +204,7 @@ export async function startHttpProxy(args: {
           upstream.once('end', () => {
             try {
               clientSocket.end()
-            } catch {}
+            } catch { /* no-op */ }
           })
         })
       })()

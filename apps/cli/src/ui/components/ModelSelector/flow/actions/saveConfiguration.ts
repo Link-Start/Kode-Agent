@@ -41,7 +41,9 @@ export async function saveModelConfiguration({
     string,
     { name: string; baseURL: string }
   >
-  let baseURL = providerBaseUrl || providerCatalog[provider]?.baseURL || ''
+  const normalizedModel = model.trim()
+  let baseURL =
+    providerBaseUrl.trim() || providerCatalog[provider]?.baseURL || ''
   let actualProvider = provider
 
   // For Anthropic provider, use defaults
@@ -52,18 +54,18 @@ export async function saveModelConfiguration({
 
   // For Azure, construct the baseURL using the resource name
   if (provider === 'azure') {
-    baseURL = `https://${resourceName}.openai.azure.com/openai/deployments/${model}`
+    baseURL = `https://${resourceName.trim()}.openai.azure.com/openai/deployments/${normalizedModel}`
   }
   // For custom OpenAI-compatible API, use the custom base URL
   else if (provider === 'custom-openai') {
-    baseURL = customBaseUrl
+    baseURL = customBaseUrl.trim()
   }
 
   const modelManager = (getModelManagerFn ?? getModelManager)()
 
   // Generate a unique name for the model
   // If model is empty (for providers without model selection), use provider name
-  const displayModel = model || 'default'
+  const displayModel = normalizedModel || 'default'
   const modelDisplayName =
     `${providerCatalog[actualProvider]?.name || actualProvider} ${displayModel}`.trim()
   const credentialEnv = apiKeyEnv ?? getSuggestedApiKeyEnvVar(actualProvider)
@@ -71,10 +73,10 @@ export async function saveModelConfiguration({
   const modelConfig = {
     name: modelDisplayName,
     provider: actualProvider,
-    modelName: model || actualProvider, // Use provider name if no specific model
+    modelName: normalizedModel || actualProvider, // Use provider name if no specific model
     baseURL: baseURL,
-    // API keys are never persisted in model profiles. Requests resolve the
-    // named environment variable at runtime and fail closed if it is absent.
+    // API keys are never persisted in model profiles. Requests resolve this
+    // reference from the environment or Kode's owner-only credential store.
     apiKey: '',
     ...(credentialEnv ? { apiKeyEnv: credentialEnv } : {}),
     maxTokens: parseInt(maxTokens) || DEFAULT_MAX_TOKENS,

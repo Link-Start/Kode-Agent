@@ -100,7 +100,7 @@ export function HistorySearchScreen({
   const cycleNext = useCallback(() => {
     if (filtered.length === 0) return
     setSelectedIndex(prev => (prev + 1) % filtered.length)
-  }, [filtered.length])
+  }, [filtered.length, setSelectedIndex])
 
   const onSpecialKey = useCallback(
     (input: string, key: Key): boolean => {
@@ -163,6 +163,7 @@ export function HistorySearchScreen({
       filtered.length,
       onDone,
       query,
+      setSelectedIndex,
     ],
   )
 

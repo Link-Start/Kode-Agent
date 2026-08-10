@@ -11,6 +11,24 @@ import {
 
 const RESERVED_DAEMON_PATHS = new Set(['api', 'health', 'ws'])
 
+const WEBUI_SECURITY_HEADERS = {
+  'content-security-policy': [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "connect-src 'self' ws: wss:",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: blob:",
+    "object-src 'none'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+  ].join('; '),
+  'cross-origin-opener-policy': 'same-origin',
+  'referrer-policy': 'no-referrer',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+} as const
+
 const CONTENT_TYPES: Record<string, string> = {
   '.avif': 'image/avif',
   '.css': 'text/css; charset=utf-8',
@@ -168,6 +186,13 @@ function contentTypeForPath(filePath: string): string {
   )
 }
 
+function cacheControlForFile(file: { segments: string[] }): string {
+  const filename = file.segments[file.segments.length - 1] ?? ''
+  const isHashedAsset =
+    file.segments[0] === 'assets' && /-[A-Za-z0-9_-]{8,}\.[^.]+$/.test(filename)
+  return isHashedAsset ? 'public, max-age=31536000, immutable' : 'no-cache'
+}
+
 export function maybeServeWebui(args: {
   webuiRoot: string
   url: URL
@@ -189,7 +214,8 @@ export function maybeServeWebui(args: {
     return new Response(readFileSync(file.filePath), {
       headers: {
         'content-type': contentTypeForPath(file.filePath),
-        'cache-control': 'no-cache',
+        'cache-control': cacheControlForFile(file),
+        ...WEBUI_SECURITY_HEADERS,
       },
     })
   } catch {

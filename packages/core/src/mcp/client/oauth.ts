@@ -262,7 +262,7 @@ export async function authenticateMcpServer(options: {
     abortCleanup = null
     try {
       server?.close()
-    } catch {}
+    } catch { /* no-op */ }
     server = null
   }
 

@@ -1,7 +1,7 @@
 import type { GlobalConfig, ModelPointers, ModelProfile } from '../schema'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function readString(
@@ -13,23 +13,71 @@ function readString(
   return typeof value === 'string' ? value : ''
 }
 
+function trimConfigString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+/**
+ * Model identifiers are sent to providers verbatim. Normalize the persisted
+ * configuration boundary so accidental whitespace neither changes the model
+ * identity nor causes a remote request to fail.
+ */
+function normalizeModelProfile(profile: Record<string, unknown>): ModelProfile {
+  const modelName = trimConfigString(profile['modelName'])
+  const name = trimConfigString(profile['name'])
+  const provider = trimConfigString(profile['provider'])
+  const baseURL = trimConfigString(profile['baseURL']) || undefined
+  const apiKeyEnv = trimConfigString(profile['apiKeyEnv']) || undefined
+  const hasRuntimeIdentity = Boolean(modelName && name && provider)
+  const hasRuntimeLimits =
+    isPositiveFiniteNumber(profile['maxTokens']) &&
+    isPositiveFiniteNumber(profile['contextLength'])
+  const isActive =
+    profile['isActive'] === true && hasRuntimeIdentity && hasRuntimeLimits
+  const {
+    id: _id,
+    baseURL: _baseURL,
+    apiKeyEnv: _apiKeyEnv,
+    isActive: _isActive,
+    ...rest
+  } = profile
+
+  return {
+    ...rest,
+    modelName,
+    name,
+    provider,
+    isActive,
+    ...(baseURL ? { baseURL } : {}),
+    ...(apiKeyEnv ? { apiKeyEnv } : {}),
+  } as unknown as ModelProfile
+}
+
 export function migrateModelProfilesRemoveId(
   config: GlobalConfig,
 ): GlobalConfig {
-  if (!config.modelProfiles || config.modelProfiles.length === 0) return config
+  const profilesRaw: unknown = config.modelProfiles
+  if (profilesRaw === undefined) return config
+  if (!Array.isArray(profilesRaw)) return { ...config, modelProfiles: [] }
+  if (profilesRaw.length === 0) return config
 
   const idToModelNameMap = new Map<string, string>()
-  const migratedProfiles: ModelProfile[] = config.modelProfiles.map(profile => {
+  const migratedProfiles: ModelProfile[] = profilesRaw.flatMap(profile => {
     const raw: unknown = profile
-    if (!isRecord(raw)) return profile
+    if (!isRecord(raw)) return []
+
+    const normalizedProfile = normalizeModelProfile(raw)
 
     const maybeId = raw['id']
-    if (typeof maybeId === 'string' && profile.modelName) {
-      idToModelNameMap.set(maybeId, profile.modelName)
+    if (typeof maybeId === 'string' && normalizedProfile.modelName) {
+      idToModelNameMap.set(maybeId, normalizedProfile.modelName)
     }
 
-    const { id: _ignored, ...rest } = raw
-    return rest as unknown as ModelProfile
+    return [normalizedProfile]
   })
 
   const migratedPointers: ModelPointers = {
@@ -42,11 +90,12 @@ export function migrateModelProfilesRemoveId(
   const pointersRaw: unknown = config.modelPointers
   const pointers = isRecord(pointersRaw) ? pointersRaw : null
 
-  const rawMain = readString(pointers, 'main')
-  const rawTask = readString(pointers, 'task')
-  const rawQuick = readString(pointers, 'quick')
+  const rawMain = trimConfigString(readString(pointers, 'main'))
+  const rawTask = trimConfigString(readString(pointers, 'task'))
+  const rawQuick = trimConfigString(readString(pointers, 'quick'))
   const rawCompact =
-    readString(pointers, 'compact') || readString(pointers, 'reasoning')
+    trimConfigString(readString(pointers, 'compact')) ||
+    trimConfigString(readString(pointers, 'reasoning'))
 
   if (rawMain) migratedPointers.main = idToModelNameMap.get(rawMain) ?? rawMain
   if (rawTask) migratedPointers.task = idToModelNameMap.get(rawTask) ?? rawTask
@@ -58,10 +107,16 @@ export function migrateModelProfilesRemoveId(
   const configRaw: unknown = config
   const configRecord = isRecord(configRaw) ? configRaw : null
 
-  const legacyDefaultModelId = readString(configRecord, 'defaultModelId')
-  const legacyDefaultModelName = readString(configRecord, 'defaultModelName')
+  const legacyDefaultModelId = trimConfigString(
+    readString(configRecord, 'defaultModelId'),
+  )
+  const legacyDefaultModelName = trimConfigString(
+    readString(configRecord, 'defaultModelName'),
+  )
 
   let defaultModelName: string | undefined = config.defaultModelName
+    ? trimConfigString(config.defaultModelName)
+    : undefined
   if (legacyDefaultModelId) {
     defaultModelName =
       idToModelNameMap.get(legacyDefaultModelId) ?? legacyDefaultModelId

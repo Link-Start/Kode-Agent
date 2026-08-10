@@ -99,7 +99,7 @@ export async function startSocks5Proxy(args: {
           upstream.once('error', () => {
             try {
               socket.write(buildSocks5Reply(0x05))
-            } catch {}
+            } catch { /* no-op */ }
             socket.end()
           })
           upstream.once('connect', () => {
@@ -108,7 +108,7 @@ export async function startSocks5Proxy(args: {
             } catch {
               try {
                 upstream.destroy()
-              } catch {}
+              } catch { /* no-op */ }
               socket.end()
               return
             }

@@ -2,8 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import type { Dirent } from 'fs'
 import { dirname, join, resolve } from 'path'
 import { homedir } from 'os'
-import matter from 'gray-matter'
 import { resolveDataRoots } from '#config/dataRoots'
+import { parseMarkdownFrontmatter } from '#config/frontmatter'
 import { LEGACY_CONFIG_DIRNAME } from '#core/compat/legacyPaths'
 
 export function normalizeString(value: unknown): string | null {
@@ -162,21 +162,12 @@ export function listMarkdownFilesRecursively(rootDir: string): string[] {
   return files
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return value as Record<string, unknown>
-}
-
 export function readMarkdownFile(
   filePath: string,
 ): { frontmatter: Record<string, unknown>; content: string } | null {
   try {
     const raw = readFileSync(filePath, 'utf8')
-    const parsed = matter(raw)
-    return {
-      frontmatter: asRecord(parsed.data),
-      content: String(parsed.content ?? ''),
-    }
+    return parseMarkdownFrontmatter(raw)
   } catch {
     return null
   }

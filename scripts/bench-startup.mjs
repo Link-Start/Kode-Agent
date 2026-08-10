@@ -128,15 +128,36 @@ function mean(values) {
   return Math.round(xs.reduce((a, b) => a + b, 0) / xs.length)
 }
 
+function percentile(values, percentileValue) {
+  const xs = finiteNumbers(values).sort((a, b) => a - b)
+  if (xs.length === 0) return null
+  const index = Math.max(
+    0,
+    Math.min(xs.length - 1, Math.ceil(percentileValue * xs.length) - 1),
+  )
+  return xs[index]
+}
+
 function summarize(values) {
   const xs = finiteNumbers(values)
-  if (xs.length === 0) return { count: 0, min: null, max: null, mean: null }
+  if (xs.length === 0) {
+    return {
+      count: 0,
+      min: null,
+      max: null,
+      mean: null,
+      p50: null,
+      p95: null,
+    }
+  }
 
   return {
     count: xs.length,
     min: Math.min(...xs),
     max: Math.max(...xs),
     mean: mean(xs),
+    p50: percentile(xs, 0.5),
+    p95: percentile(xs, 0.95),
   }
 }
 
@@ -196,6 +217,12 @@ process.stdout.write(
 )
 process.stdout.write(
   `avg prompt_ready_rss: ${report.summary.promptReadyRssMb.mean ?? 'NA'}MB\n`,
+)
+process.stdout.write(
+  `p50/p95 first_render: ${report.summary.firstRenderMs.p50 ?? 'NA'}/${report.summary.firstRenderMs.p95 ?? 'NA'}ms\n`,
+)
+process.stdout.write(
+  `p50/p95 prompt_ready: ${report.summary.promptReadyMs.p50 ?? 'NA'}/${report.summary.promptReadyMs.p95 ?? 'NA'}ms\n`,
 )
 
 if (jsonOutput) {

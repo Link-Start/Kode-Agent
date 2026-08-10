@@ -71,6 +71,7 @@ import {
   type AssistantStreamStore,
 } from './assistantStreamStore'
 import { ensureLspManagerInitialized } from '#tools/tools/system/LspTool/call'
+import { prewarmLlmRuntime } from '#core/ai/llmLazy'
 import { describeToolPermissionRuleSource } from '#core/permissions/ruleString'
 import { triggerModelConfigChange } from '#core/messages'
 import {
@@ -93,6 +94,8 @@ import type {
   SetForkConvoWithMessagesOnTheNextRender,
 } from '#ui-ink/types/conversationReset'
 import type { ToolKeypressHandler } from '@kode/tool-interface/Tool'
+
+const EMPTY_MCP_CLIENTS = [] as NonNullable<REPLProps['mcpClients']>
 
 const batchedUpdates: ((fn: () => void) => void) | null =
   typeof (ReactReconciler as any)?.batchedUpdates === 'function'
@@ -119,7 +122,7 @@ export function useReplController(props: REPLProps) {
   const debug = props.debug ?? false
   const disableSlashCommands = props.disableSlashCommands ?? false
   const safeMode = Boolean(props.safeMode)
-  const mcpClients = props.mcpClients ?? []
+  const mcpClients = props.mcpClients ?? EMPTY_MCP_CLIENTS
   const isDefaultModel = props.isDefaultModel ?? true
   const { rows: terminalRows, columns: terminalColumns } = useTerminalSize()
   const assistantStreamStoreRef = useRef<AssistantStreamStore | null>(null)
@@ -911,7 +914,9 @@ export function useReplController(props: REPLProps) {
                 if (action === 'model') {
                   try {
                     abortController?.abort?.()
-                  } catch {}
+                  } catch {
+                    // Continue opening model settings if cancellation raced.
+                  }
                   setIsLoading(false)
 
                   openToolView({
@@ -968,6 +973,12 @@ export function useReplController(props: REPLProps) {
   useEffect(() => {
     // Best-effort eager init so the first LSP tool call doesn't pay process startup latency.
     void ensureLspManagerInitialized().catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    // Start after the first TUI render. This is process-wide, does no provider
+    // I/O, and shares one promise with an immediately submitted first request.
+    void prewarmLlmRuntime().catch(() => {})
   }, [])
 
   const onCancel = useCallback(() => {
@@ -1542,6 +1553,7 @@ export function useReplController(props: REPLProps) {
       props.messageLogName,
       props.tools,
       restorePastes,
+      setAbortController,
       setForkConvoWithMessagesOnTheNextRender,
       setToolJSXWithClear,
       submitCount,

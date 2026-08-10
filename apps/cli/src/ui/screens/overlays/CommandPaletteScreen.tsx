@@ -8,6 +8,10 @@ import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { computeAvailableColumns } from '#ui-ink/primitives/layout/viewportColumns'
 import type { Command } from '#cli-commands'
+import {
+  compareCommandsForDiscovery,
+  getCommandCategory,
+} from '#cli-commands/catalog'
 
 type PaletteAction = {
   kind: 'action'
@@ -132,21 +136,22 @@ function getCommandItems(commands: Command[]): PaletteCommand[] {
         !command.isHidden &&
         !COMMANDS_WITH_DEDICATED_ACTIONS.has(command.userFacingName()),
     )
+    .sort(compareCommandsForDiscovery)
     .map(command => {
       const name = command.userFacingName()
+      const category = getCommandCategory(command)
       return {
         kind: 'command' as const,
         id: `command:${name}`,
         name,
         label: `/${name}${
           command.argumentHint ? ` ${command.argumentHint}` : ''
-        }`,
-        hint: command.description,
+        } · ${category.shortLabel}`,
+        hint: `${category.label} — ${command.description}`,
         argumentHint: command.argumentHint,
         aliases: command.aliases ?? [],
       }
     })
-    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function matchesQuery(item: PaletteItem, query: string): boolean {

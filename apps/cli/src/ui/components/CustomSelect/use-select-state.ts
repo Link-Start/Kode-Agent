@@ -576,6 +576,7 @@ export const useSelectState = ({
       ? new Set(initialFocusValue.recentValues)
       : new Set(),
   )
+  const usedScopedSnapshotRef = useRef(initialFocusValue.usedScopedSnapshot)
   const ignoredFocusEchoRef = useRef<string | undefined>(undefined)
   const previousFocusValuePropRef = useRef<string | undefined>(focusValue)
   useEffect(() => {
@@ -599,7 +600,7 @@ export const useSelectState = ({
     }
 
     if (
-      initialFocusValue.usedScopedSnapshot &&
+      usedScopedSnapshotRef.current &&
       previousFocusValue === undefined &&
       currentFocusedValue !== focusValue &&
       initialScopedRecentValuesRef.current.has(focusValue)

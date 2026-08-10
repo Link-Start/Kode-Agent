@@ -197,12 +197,16 @@ export function useUnifiedCompletionAutoTrigger(args: {
   const lastInputTimeRef = useRef(0)
   const handledSuppressWakeTickRef = useRef(0)
   const [suppressWakeTick, setSuppressWakeTick] = useState(0)
+  const latestArgsRef = useRef(args)
+  latestArgsRef.current = args
+  const { input, cursorOffset, isEnabled } = args
+  const { isActive, suppressUntil } = args.state
 
   useEffect(() => {
     const delay = __getSuppressWakeDelayForTests({
-      isEnabled: args.isEnabled,
+      isEnabled,
       now: Date.now(),
-      suppressUntil: args.state.suppressUntil,
+      suppressUntil,
     })
     if (delay === null) return undefined
 
@@ -211,50 +215,51 @@ export function useUnifiedCompletionAutoTrigger(args: {
     }, delay)
 
     return () => clearTimeout(timeout)
-  }, [args.input, args.cursorOffset, args.isEnabled, args.state.suppressUntil])
+  }, [isEnabled, suppressUntil])
 
   useEffect(() => {
+    const currentArgs = latestArgsRef.current
     const now = Date.now()
-    const context = args.getWordAtCursor()
+    const context = currentArgs.getWordAtCursor()
     const hasUnhandledSuppressWake =
       suppressWakeTick !== handledSuppressWakeTickRef.current
     const forceRefresh =
       hasUnhandledSuppressWake &&
-      args.state.suppressUntil > 0 &&
-      now >= args.state.suppressUntil &&
-      lastInputRef.current === args.input
-    if (hasUnhandledSuppressWake && now >= args.state.suppressUntil) {
+      currentArgs.state.suppressUntil > 0 &&
+      now >= currentArgs.state.suppressUntil &&
+      lastInputRef.current === currentArgs.input
+    if (hasUnhandledSuppressWake && now >= currentArgs.state.suppressUntil) {
       handledSuppressWakeTickRef.current = suppressWakeTick
     }
     const result = __computeAutoTriggerActionForTests({
-      input: args.input,
+      input: currentArgs.input,
       previousInput: lastInputRef.current,
       now,
       lastInputTime: lastInputTimeRef.current,
       forceRefresh,
-      isEnabled: args.isEnabled,
-      state: args.state,
+      isEnabled: currentArgs.isEnabled,
+      state: currentArgs.state,
       context,
-      generateSuggestions: args.generateSuggestions,
+      generateSuggestions: currentArgs.generateSuggestions,
     })
 
     lastInputRef.current = result.nextLastInput
     lastInputTimeRef.current = result.nextLastInputTime
 
     if (result.action === 'reset') {
-      args.resetCompletion()
+      currentArgs.resetCompletion()
       return
     }
 
     if (result.action === 'activate' && result.suggestions && result.context) {
-      args.activateCompletion(result.suggestions, result.context)
+      currentArgs.activateCompletion(result.suggestions, result.context)
     }
   }, [
-    args.input,
-    args.cursorOffset,
-    args.isEnabled,
-    args.state.isActive,
-    args.state.suppressUntil,
+    cursorOffset,
+    input,
+    isActive,
+    isEnabled,
+    suppressUntil,
     suppressWakeTick,
   ])
 }

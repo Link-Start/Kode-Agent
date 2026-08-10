@@ -119,6 +119,32 @@ describe('model selector actions', () => {
     expect(savedProfile.apiKeyEnv).toBe('TEST_OPENAI_KEY')
   })
 
+  test('normalizes model and custom endpoint input before persisting a profile', async () => {
+    let savedProfile: any = null
+
+    await saveModelConfiguration({
+      provider: 'custom-openai',
+      model: '  mimo-v2.5-pro  ',
+      providerBaseUrl: '',
+      resourceName: '',
+      customBaseUrl: ' https://example.test/v1 ',
+      apiKeyEnv: 'TEST_OPENAI_KEY',
+      maxTokens: '1024',
+      contextLength: 128000,
+      reasoningEffort: 'medium',
+      getModelManagerFn: () =>
+        ({
+          upsertModel: async (profile: any) => {
+            savedProfile = profile
+            return profile.modelName
+          },
+        }) as any,
+    })
+
+    expect(savedProfile.modelName).toBe('mimo-v2.5-pro')
+    expect(savedProfile.baseURL).toBe('https://example.test/v1')
+  })
+
   test('connection test failure does not auto-advance', async () => {
     const navigations: string[] = []
     const timeouts: number[] = []

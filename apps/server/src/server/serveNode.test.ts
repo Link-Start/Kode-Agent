@@ -7,6 +7,36 @@ import { SessionRegistry } from '../sessionRegistry'
 import { DaemonTurnGate } from '../turnGate'
 import { serveNode, type ServeNodeResult } from './serveNode'
 
+const noopWebSocketHandlers = {
+  open: () => {},
+  message: () => {},
+  close: () => {},
+}
+
+function sendRawHttpRequest(port: number, request: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = connect({ host: '127.0.0.1', port })
+    let response = ''
+    const timeout = setTimeout(() => {
+      socket.destroy()
+      reject(new Error('Timed out waiting for HTTP response'))
+    }, 2_000)
+
+    socket.once('connect', () => socket.write(request))
+    socket.on('data', chunk => {
+      response += chunk.toString('utf8')
+    })
+    socket.once('error', error => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+    socket.once('close', () => {
+      clearTimeout(timeout)
+      resolve(response)
+    })
+  })
+}
+
 function waitForUpgradeConnectionClose(port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false
@@ -105,6 +135,91 @@ describe('serveNode WebSocket upgrade handling', () => {
       expect(sessionRegistry.size).toBe(0)
     } finally {
       server?.stop(true)
+    }
+  })
+})
+
+describe('serveNode request limits', () => {
+  test('rejects invalid configured byte limits', async () => {
+    await expect(
+      serveNode({
+        hostname: '127.0.0.1',
+        port: 0,
+        maxRequestBodyBytes: 0,
+        fetch: () => new Response('unexpected'),
+        websocket: noopWebSocketHandlers,
+      }),
+    ).rejects.toThrow('maxRequestBodyBytes must be a positive integer')
+  })
+
+  test('rejects a declared oversized request before invoking the route', async () => {
+    let routeCalls = 0
+    const server = await serveNode({
+      hostname: '127.0.0.1',
+      port: 0,
+      maxRequestBodyBytes: 32,
+      fetch: () => {
+        routeCalls += 1
+        return new Response('unexpected')
+      },
+      websocket: noopWebSocketHandlers,
+    })
+
+    try {
+      const response = await sendRawHttpRequest(
+        server.port,
+        [
+          'POST /oversized HTTP/1.1',
+          `Host: 127.0.0.1:${server.port}`,
+          'Content-Length: 1024',
+          'Connection: close',
+          '',
+          '',
+        ].join('\r\n'),
+      )
+
+      expect(response).toContain('413 Payload Too Large')
+      expect(response).toContain('Payload Too Large')
+      expect(routeCalls).toBe(0)
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test('counts chunked request bytes instead of trusting headers', async () => {
+    let routeCalls = 0
+    const server = await serveNode({
+      hostname: '127.0.0.1',
+      port: 0,
+      maxRequestBodyBytes: 8,
+      fetch: () => {
+        routeCalls += 1
+        return new Response('unexpected')
+      },
+      websocket: noopWebSocketHandlers,
+    })
+
+    try {
+      const response = await sendRawHttpRequest(
+        server.port,
+        [
+          'POST /chunked HTTP/1.1',
+          `Host: 127.0.0.1:${server.port}`,
+          'Transfer-Encoding: chunked',
+          'Connection: close',
+          '',
+          '9',
+          '123456789',
+          '0',
+          '',
+          '',
+        ].join('\r\n'),
+      )
+
+      expect(response).toContain('413 Payload Too Large')
+      expect(routeCalls).toBe(0)
+    } finally {
+      server.stop(true)
     }
   })
 })

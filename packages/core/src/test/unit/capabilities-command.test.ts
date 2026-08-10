@@ -5,6 +5,8 @@ import { join } from 'path'
 
 import capabilities from '#cli-commands/builtin/capabilities'
 import { clearAgentCache, getAgentByType } from '@kode/agent'
+import { __getInitialRequestStatusDetailForTests } from '@kode/engine/message-pipeline'
+import { createUserMessage } from '#core/utils/messages'
 import { setCwd } from '#core/utils/state'
 
 function extractFirstPromptText(prompt: any[]): string {
@@ -54,6 +56,23 @@ describe('/capabilities (prompt command + built-in agent)', () => {
     const text = extractFirstPromptText(prompt)
 
     expect(text).toContain('capabilities audit')
+  })
+
+  test('announces the audit while waiting for the first model response', () => {
+    expect(capabilities.requestStatusDetail).toBe(
+      'Capabilities: preparing audit',
+    )
+
+    const commandMessage = createUserMessage('start audit')
+    commandMessage.options = {
+      isCustomCommand: true,
+      commandName: 'capabilities',
+      requestStatusDetail: capabilities.requestStatusDetail,
+    }
+
+    expect(__getInitialRequestStatusDetailForTests([commandMessage])).toBe(
+      'Capabilities: preparing audit',
+    )
   })
 
   test('built-in agent capabilities-manager is available', async () => {

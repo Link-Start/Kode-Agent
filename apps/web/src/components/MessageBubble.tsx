@@ -1,6 +1,4 @@
 import React from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 
 import type { AgentEvent, SdkContentBlock } from '@kode/protocol'
 
@@ -31,7 +29,7 @@ type BubbleMessage = {
   blocks?: SdkContentBlock[]
 }
 
-const MARKDOWN_PLUGINS = [remarkGfm]
+const MarkdownBody = React.lazy(() => import('./MarkdownBody'))
 
 function isSdkContentBlock(value: unknown): value is SdkContentBlock {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -303,49 +301,6 @@ function renderBlocks(blocks: SdkContentBlock[] | undefined) {
   )
 }
 
-function MarkdownBody(props: { text: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={MARKDOWN_PLUGINS}
-      components={{
-        pre: ({ children }) => (
-          <pre className="my-3 max-h-96 overflow-auto rounded-md border border-[hsl(var(--kode-terminal-border))] bg-[hsl(var(--kode-terminal-bg))] p-3 text-xs leading-relaxed text-[hsl(var(--kode-terminal-text))]">
-            {children}
-          </pre>
-        ),
-        code: ({ className, children, ...codeProps }) => (
-          <code
-            className={cn(
-              'rounded bg-[hsl(var(--kode-terminal-elevated))] px-1 py-0.5 font-mono text-[0.92em] text-[hsl(var(--kode-terminal-text))]',
-              className,
-            )}
-            {...codeProps}
-          >
-            {children}
-          </code>
-        ),
-        table: ({ children }) => (
-          <div className="my-3 max-w-full overflow-x-auto">
-            <table className="w-full border-collapse text-sm">{children}</table>
-          </div>
-        ),
-        th: ({ children }) => (
-          <th className="border border-[hsl(var(--kode-terminal-border))] bg-[hsl(var(--kode-terminal-elevated))] px-2 py-1 text-left font-medium">
-            {children}
-          </th>
-        ),
-        td: ({ children }) => (
-          <td className="border border-[hsl(var(--kode-terminal-border))] px-2 py-1 align-top">
-            {children}
-          </td>
-        ),
-      }}
-    >
-      {props.text}
-    </ReactMarkdown>
-  )
-}
-
 export const MessageBubble = React.memo(function MessageBubble(props: {
   event: AgentEvent
 }) {
@@ -386,7 +341,13 @@ export const MessageBubble = React.memo(function MessageBubble(props: {
           <div className="kode-terminal-message min-w-0 flex-1 break-words text-[hsl(var(--kode-terminal-text))]">
             {msg.text ? (
               <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-headings:text-[hsl(var(--kode-terminal-text))] prose-a:text-[hsl(var(--kode-terminal-assistant))] prose-strong:text-[hsl(var(--kode-terminal-text))] prose-code:break-words">
-                <MarkdownBody text={msg.text} />
+                <React.Suspense
+                  fallback={
+                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                  }
+                >
+                  <MarkdownBody text={msg.text} />
+                </React.Suspense>
               </div>
             ) : (
               <div className="flex flex-col gap-2">

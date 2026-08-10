@@ -12,7 +12,7 @@ describe('resolveReasoningEffort', () => {
     ).toBe('low')
   })
 
-  test('scales with thinking tokens and caps by profile', () => {
+  test('honors explicit profiles independently of thinking-token budgets', () => {
     expect(
       resolveReasoningEffort({
         modelProfile: { reasoningEffort: 'medium' },
@@ -30,6 +30,18 @@ describe('resolveReasoningEffort', () => {
         modelProfile: { reasoningEffort: 'high' },
         thinkingTokens: 5_000,
       }),
-    ).toBe('low')
+    ).toBe('high')
   })
+
+  test.each(['none', 'xhigh', 'max'] as const)(
+    'supports the current OpenAI %s effort',
+    effort => {
+      expect(
+        resolveReasoningEffort({
+          modelProfile: { reasoningEffort: effort },
+          thinkingTokens: 0,
+        }),
+      ).toBe(effort)
+    },
+  )
 })

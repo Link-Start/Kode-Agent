@@ -49,60 +49,31 @@ export async function getReasoningEffort(
     thinkingTokens?: number
     thinkingMode?: 'auto' | 'enabled' | 'disabled'
   },
-): Promise<'low' | 'medium' | 'high' | null> {
-  const thinkingTokens =
-    options?.thinkingTokens ??
-    (await getMaxThinkingTokens(messages, {
-      thinkingMode: options?.thinkingMode,
-    }))
-
-  // Get reasoning effort from ModelProfile first, then fallback to config
-  let reasoningEffort: 'low' | 'medium' | 'high' | undefined
-  if (modelProfile?.reasoningEffort) {
-    const effort = modelProfile.reasoningEffort
-    reasoningEffort =
-      effort === 'high' || effort === 'medium' || effort === 'low'
-        ? effort
-        : effort === 'minimal'
-          ? 'low'
-          : 'medium'
-  } else {
-    const modelManager = getModelManager()
-    const fallbackProfile = modelManager.getModel('main')
-    const effort = fallbackProfile?.reasoningEffort
-    reasoningEffort =
-      effort === 'high' || effort === 'medium' || effort === 'low'
-        ? effort
-        : effort === 'minimal'
-          ? 'low'
-          : 'medium'
-  }
-
-  const maxEffort =
-    reasoningEffort === 'high'
-      ? 2
-      : reasoningEffort === 'medium'
-        ? 1
-        : reasoningEffort === 'low'
-          ? 0
-          : null
-  // `low` maps to 0 — must not treat it as missing with a falsy check.
-  if (maxEffort === null) {
+): Promise<
+  'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
+> {
+  // Anthropic thinking-token budgets and OpenAI reasoning effort are separate
+  // controls. The selected OpenAI profile is therefore authoritative; silently
+  // reducing "high" to "low" when no ultrathink token budget was present made
+  // the ModelSelector value misleading and prevented the newest effort levels.
+  void messages
+  void options
+  const configured =
+    modelProfile?.reasoningEffort ??
+    getModelManager().getModel('main')?.reasoningEffort
+  if (configured === undefined || configured === null || configured === '') {
     return null
   }
-
-  let effort = 0
-  if (thinkingTokens < 10_000) {
-    effort = 0
-  } else if (thinkingTokens >= 10_000 && thinkingTokens < 30_000) {
-    effort = 1
-  } else {
-    effort = 2
+  if (
+    configured === 'none' ||
+    configured === 'minimal' ||
+    configured === 'low' ||
+    configured === 'medium' ||
+    configured === 'high' ||
+    configured === 'xhigh' ||
+    configured === 'max'
+  ) {
+    return configured
   }
-
-  if (effort > maxEffort) {
-    return maxEffort === 2 ? 'high' : maxEffort === 1 ? 'medium' : 'low'
-  }
-
-  return effort === 2 ? 'high' : effort === 1 ? 'medium' : 'low'
+  return 'medium'
 }

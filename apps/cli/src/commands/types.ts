@@ -8,6 +8,8 @@ import type { SetForkConvoWithMessagesOnTheNextRender } from '#ui-ink/types/conv
 export type PromptCommand = {
   type: 'prompt'
   progressMessage: string
+  /** Short status shown while the command is waiting for the first model response. */
+  requestStatusDetail?: string
   argNames?: string[]
   getPromptForCommand(args: string): Promise<MessageParam[]>
 }

@@ -1,4 +1,30 @@
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
+
+import { getKodeRoot } from '../dataRoots'
 import type { ModelProfile, ProviderType } from '../schema'
+
+const sessionApiKeys = new Map<string, string>()
+const CREDENTIAL_STORE_FILE = 'credentials.json'
+const CREDENTIAL_STORE_VERSION = 1
+const MAX_CREDENTIAL_STORE_BYTES = 1_000_000
+const MAX_API_KEY_LENGTH = 64 * 1024
+
+type CredentialStore = {
+  version: typeof CREDENTIAL_STORE_VERSION
+  apiKeys: Record<string, string>
+}
 
 function normalizeProviderForApiKeyEnvVar(provider: string): string {
   if (provider === 'glm-coding') return 'glm'
@@ -33,6 +59,180 @@ export function readApiKeyFromEnvironment(
   return value || undefined
 }
 
+/**
+ * Returns the owner-only credential file in the user's Kode data directory.
+ * A config-directory override is respected so tests and managed installations
+ * never write to the user's default Kode directory by accident.
+ */
+export function getCredentialStorePath(): string {
+  return join(getKodeRoot(), CREDENTIAL_STORE_FILE)
+}
+
+function emptyCredentialStore(): CredentialStore {
+  return { version: CREDENTIAL_STORE_VERSION, apiKeys: {} }
+}
+
+function assertCredentialStoreDirectory(directory: string): void {
+  if (existsSync(directory)) {
+    const stat = lstatSync(directory)
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error('Kode credential directory is not a regular directory')
+    }
+  } else {
+    mkdirSync(directory, { recursive: true, mode: 0o700 })
+  }
+
+  try {
+    chmodSync(directory, 0o700)
+  } catch {
+    // Windows retains the caller's ACL; POSIX modes are not available there.
+  }
+}
+
+function parseCredentialStore(content: string): CredentialStore {
+  const parsed: unknown = JSON.parse(content)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Kode credential store has an invalid format')
+  }
+
+  const store = parsed as Partial<CredentialStore>
+  if (
+    store.version !== CREDENTIAL_STORE_VERSION ||
+    !store.apiKeys ||
+    typeof store.apiKeys !== 'object' ||
+    Array.isArray(store.apiKeys)
+  ) {
+    throw new Error('Kode credential store has an unsupported format')
+  }
+
+  const apiKeys: Record<string, string> = {}
+  for (const [name, value] of Object.entries(store.apiKeys)) {
+    if (
+      !name ||
+      typeof value !== 'string' ||
+      !value ||
+      value.length > MAX_API_KEY_LENGTH
+    ) {
+      throw new Error('Kode credential store contains an invalid credential')
+    }
+    apiKeys[name] = value
+  }
+
+  return { version: CREDENTIAL_STORE_VERSION, apiKeys }
+}
+
+function readCredentialStore(options?: {
+  failOnInvalid?: boolean
+}): CredentialStore {
+  const path = getCredentialStorePath()
+  if (!existsSync(path)) return emptyCredentialStore()
+
+  try {
+    const stat = lstatSync(path)
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      throw new Error('Kode credential store is not a regular file')
+    }
+    if (statSync(path).size > MAX_CREDENTIAL_STORE_BYTES) {
+      throw new Error('Kode credential store is too large')
+    }
+    return parseCredentialStore(readFileSync(path, 'utf8'))
+  } catch (error) {
+    if (options?.failOnInvalid) {
+      throw new Error('Kode credential store cannot be read safely', {
+        cause: error,
+      })
+    }
+    return emptyCredentialStore()
+  }
+}
+
+function removeTemporaryCredentialFile(path: string): void {
+  try {
+    unlinkSync(path)
+  } catch {
+    // Cleanup must not hide the original credential persistence error.
+  }
+}
+
+function writeCredentialStore(store: CredentialStore): void {
+  const path = getCredentialStorePath()
+  const directory = getKodeRoot()
+  assertCredentialStoreDirectory(directory)
+
+  if (existsSync(path) && lstatSync(path).isSymbolicLink()) {
+    throw new Error('Kode credential store must not be a symbolic link')
+  }
+
+  const temporaryPath = `${path}.tmp.${process.pid}.${randomUUID()}`
+  const content = `${JSON.stringify(store, null, 2)}\n`
+
+  try {
+    writeFileSync(temporaryPath, content, {
+      encoding: 'utf8',
+      mode: 0o600,
+      flag: 'wx',
+    })
+    try {
+      chmodSync(temporaryPath, 0o600)
+    } catch {
+      // Windows retains the caller's ACL; the restrictive create mode remains
+      // the best portable request.
+    }
+    renameSync(temporaryPath, path)
+    try {
+      chmodSync(path, 0o600)
+    } catch {
+      // See the Windows note above.
+    }
+  } catch (error) {
+    removeTemporaryCredentialFile(temporaryPath)
+    throw error
+  }
+}
+
+/**
+ * Stores a direct API key in ~/.kode/credentials.json and keeps a process
+ * override so an explicitly pasted key wins over an inherited environment
+ * variable until this Kode process exits. Model profiles retain only the
+ * credential reference, never the key itself.
+ */
+export function storeApiKey(envVarName: string, apiKey: string): void {
+  const normalizedApiKey = apiKey.trim()
+  if (
+    !envVarName ||
+    !normalizedApiKey ||
+    normalizedApiKey.length > MAX_API_KEY_LENGTH
+  ) {
+    throw new Error('API key must be a non-empty supported length')
+  }
+
+  const store = readCredentialStore({ failOnInvalid: true })
+  store.apiKeys[envVarName] = normalizedApiKey
+  writeCredentialStore(store)
+  sessionApiKeys.set(envVarName, normalizedApiKey)
+}
+
+/** Clears only the current process override; stored credentials remain intact. */
+export function clearSessionApiKey(envVarName: string | undefined): void {
+  if (envVarName) sessionApiKeys.delete(envVarName)
+}
+
+export function hasStoredApiKey(envVarName: string | undefined): boolean {
+  if (!envVarName) return false
+  return Boolean(
+    sessionApiKeys.has(envVarName) || readCredentialStore().apiKeys[envVarName],
+  )
+}
+
+export function readApiKey(envVarName: string | undefined): string | undefined {
+  if (!envVarName) return undefined
+  return (
+    sessionApiKeys.get(envVarName) ||
+    readApiKeyFromEnvironment(envVarName) ||
+    readCredentialStore().apiKeys[envVarName]
+  )
+}
+
 export type ModelCredentialStatus =
   { success: true; apiKey: string } | { success: false; error: string }
 
@@ -51,17 +251,18 @@ export function getModelCredentialStatus(
       success: false,
       error:
         `Model '${profile.name}' is blocked for safety because it has no environment-variable credential reference. ` +
-        `Set ${suggestedEnvVar ?? 'a provider API key variable'}, update this profile to reference it, and rotate any API key previously stored in configuration.`,
+        `Configure ${suggestedEnvVar ?? 'a provider API key reference'} and retry. ` +
+        'Please rotate any legacy API key previously stored in model configuration.',
     }
   }
 
-  const apiKey = readApiKeyFromEnvironment(envVarName)
+  const apiKey = readApiKey(envVarName)
   if (!apiKey) {
     return {
       success: false,
       error:
-        `Model '${profile.name}' is blocked for safety because ${envVarName} is not set in this process. ` +
-        'Set the variable, then retry. Rotate any API key previously stored in configuration.',
+        `Model '${profile.name}' is blocked for safety because no credential is available for ${envVarName}. ` +
+        'Paste a key during model setup or set the environment variable, then retry.',
     }
   }
 

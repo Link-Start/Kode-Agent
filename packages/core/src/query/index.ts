@@ -73,6 +73,7 @@ export type UserMessage = {
     isCustomCommand?: boolean
     commandName?: string
     commandArgs?: string
+    requestStatusDetail?: string
   }
 }
 

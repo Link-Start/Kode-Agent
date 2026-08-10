@@ -42,19 +42,20 @@ export function Wizard(props: {
   onCancel: () => void
   onDone: (data: WizardData) => void
 }) {
+  const { steps, initialData, onCancel, onDone } = props
   const [stepIndex, setStepIndex] = useState(0)
-  const [data, setData] = useState<WizardData>(props.initialData ?? {})
+  const [data, setData] = useState<WizardData>(initialData ?? {})
   const [history, setHistory] = useState<number[]>([])
 
   const goNext = useCallback(() => {
     setHistory(prev => [...prev, stepIndex])
-    setStepIndex(prev => Math.min(prev + 1, props.steps.length - 1))
-  }, [props.steps.length, stepIndex])
+    setStepIndex(prev => Math.min(prev + 1, steps.length - 1))
+  }, [steps.length, stepIndex])
 
   const goBack = useCallback(() => {
     setHistory(prev => {
       if (prev.length === 0) {
-        props.onCancel()
+        onCancel()
         return prev
       }
       const next = [...prev]
@@ -62,27 +63,27 @@ export function Wizard(props: {
       if (typeof last === 'number') setStepIndex(last)
       return next
     })
-  }, [props.onCancel])
+  }, [onCancel])
 
   const goToStep = useCallback(
     (index: number) => {
       setHistory(prev => [...prev, stepIndex])
-      setStepIndex(() => Math.max(0, Math.min(index, props.steps.length - 1)))
+      setStepIndex(() => Math.max(0, Math.min(index, steps.length - 1)))
     },
-    [props.steps.length, stepIndex],
+    [steps.length, stepIndex],
   )
 
   const updateWizardData = useCallback((patch: Partial<WizardData>) => {
     setData(prev => ({ ...prev, ...patch }))
   }, [])
 
-  const cancel = useCallback(() => props.onCancel(), [props.onCancel])
-  const done = useCallback(() => props.onDone(data), [props, data])
+  const cancel = useCallback(() => onCancel(), [onCancel])
+  const done = useCallback(() => onDone(data), [data, onDone])
 
   const ctx: WizardContextValue = useMemo(
     () => ({
       stepIndex,
-      totalSteps: props.steps.length,
+      totalSteps: steps.length,
       wizardData: data,
       updateWizardData,
       goNext,
@@ -97,14 +98,14 @@ export function Wizard(props: {
       goBack,
       goNext,
       goToStep,
-      props.steps.length,
+      steps.length,
       stepIndex,
       updateWizardData,
       cancel,
     ],
   )
 
-  return <>{props.steps[stepIndex]?.(ctx) ?? null}</>
+  return <>{steps[stepIndex]?.(ctx) ?? null}</>
 }
 
 export function WizardPanel(props: {

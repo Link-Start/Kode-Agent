@@ -7,7 +7,7 @@ import {
   test,
 } from 'bun:test'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -15,6 +15,7 @@ import {
   __setExternalEditorDependencyLoaderForTests,
   launchExternalEditor,
   launchExternalEditorForFilePath,
+  parseExternalEditorCommand,
   type ExternalEditorDependencies,
 } from './externalEditor'
 
@@ -22,6 +23,9 @@ const lifecycle: string[] = []
 
 let exitCode: number | null = 0
 let fakeStdin: FakeTTYInput
+let lastSpawn:
+  | { command: string; args: string[]; shell: boolean; fileMode: number | null }
+  | undefined
 
 const originalStdin = Object.getOwnPropertyDescriptor(process, 'stdin')
 const originalStdout = Object.getOwnPropertyDescriptor(process, 'stdout')
@@ -81,7 +85,20 @@ function restoreProcessState(): void {
 function createFakeDependencies(): ExternalEditorDependencies {
   const dependencies = {
     spawnSync: () => ({ status: 0 }),
-    spawn: (command: string, args: string[]) => {
+    spawn: (command: string, args: string[], options?: { shell?: boolean }) => {
+      const filePath = args.at(-1)
+      let fileMode: number | null = null
+      try {
+        if (filePath) fileMode = statSync(filePath).mode & 0o777
+      } catch {
+        // Some tests deliberately pass a path that does not exist.
+      }
+      lastSpawn = {
+        command,
+        args,
+        shell: options?.shell === true,
+        fileMode,
+      }
       lifecycle.push(`spawn:${command}`)
       lifecycle.push(`spawn.raw:${fakeStdin?.isRaw ?? false}`)
       lifecycle.push(`spawn.file:${args.at(-1) ?? ''}`)
@@ -125,6 +142,7 @@ function createFakeDependencies(): ExternalEditorDependencies {
 beforeEach(() => {
   lifecycle.length = 0
   exitCode = 0
+  lastSpawn = undefined
   installFakeTty({ isRaw: true })
   process.env.EDITOR = 'test-editor'
   delete process.env.VISUAL
@@ -151,6 +169,8 @@ describe('external editor terminal suspension', () => {
       editorLabel: 'test-editor',
     })
     expect(fakeStdin.isRaw).toBe(true)
+    expect(lastSpawn?.shell).toBe(false)
+    if (process.platform !== 'win32') expect(lastSpawn?.fileMode).toBe(0o600)
     expect(lifecycle).toEqual([
       'stdin.pause',
       'stdin.raw:false',
@@ -174,6 +194,49 @@ describe('external editor terminal suspension', () => {
       'stdin.resume',
       'stdin.raw:true',
     ])
+  })
+
+  test('parses editor flags without invoking a shell', async () => {
+    process.env.EDITOR = 'test-editor --wait --reuse-window'
+
+    const result = await launchExternalEditor('draft')
+
+    expect(result.text).toBe('draft')
+    expect(lastSpawn).toMatchObject({
+      command: 'test-editor',
+      shell: false,
+    })
+    expect(lastSpawn?.args.slice(0, -1)).toEqual(['--wait', '--reuse-window'])
+  })
+
+  test('rejects shell operators in an editor command', async () => {
+    process.env.EDITOR = 'test-editor; unexpected-command'
+
+    const result = await launchExternalEditor('draft')
+
+    expect(result.text).toBeNull()
+    expect(lastSpawn).toBeUndefined()
+  })
+
+  test('parses quoted Unix and Windows editor paths', () => {
+    expect(
+      parseExternalEditorCommand(
+        '"/opt/My Editor/bin/editor" --wait',
+        'darwin',
+      ),
+    ).toMatchObject({
+      command: '/opt/My Editor/bin/editor',
+      args: ['--wait'],
+    })
+    expect(
+      parseExternalEditorCommand(
+        '"C:\\Program Files\\Editor\\editor.exe" --wait',
+        'win32',
+      ),
+    ).toMatchObject({
+      command: 'C:\\Program Files\\Editor\\editor.exe',
+      args: ['--wait'],
+    })
   })
 
   test('launchExternalEditorForFilePath restores terminal state when editor exits non-zero', async () => {

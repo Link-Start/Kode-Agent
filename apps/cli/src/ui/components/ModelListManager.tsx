@@ -37,27 +37,21 @@ export function ModelListManager({ onClose }: Props): React.ReactNode {
   const modelManager = getModelManager()
   const availableModels = modelManager.getAvailableModels()
 
-  function getModelUsage(modelName: string): ModelPointerType[] {
-    const usage: ModelPointerType[] = []
+  const menuItems = useMemo(() => {
+    void refreshKey
     const pointers: ModelPointerType[] = ['main', 'task', 'compact', 'quick']
-
-    pointers.forEach(pointer => {
-      if (config.modelPointers?.[pointer] === modelName) {
-        usage.push(pointer)
+    const modelItems = availableModels.map(model => {
+      const usedBy = pointers.filter(
+        pointer => config.modelPointers?.[pointer] === model.modelName,
+      )
+      return {
+        id: model.modelName,
+        name: model.name,
+        provider: model.provider,
+        usedBy,
+        type: 'model' as const,
       }
     })
-
-    return usage
-  }
-
-  const menuItems = useMemo(() => {
-    const modelItems = availableModels.map(model => ({
-      id: model.modelName,
-      name: model.name,
-      provider: model.provider,
-      usedBy: getModelUsage(model.modelName),
-      type: 'model' as const,
-    }))
 
     return [
       {
@@ -222,6 +216,7 @@ export function ModelListManager({ onClose }: Props): React.ReactNode {
       menuItems,
       onClose,
       selectedIndex,
+      setSelectedIndex,
       window.visibleCount,
     ],
   )

@@ -53,7 +53,9 @@ export function useWorkspaces(args: { token: string | null }): {
     if (!workspaceId) return
     try {
       window.localStorage.setItem(WORKSPACE_STORAGE_KEY, workspaceId)
-    } catch {}
+    } catch {
+      // Workspace selection remains usable when persistence is unavailable.
+    }
   }, [workspaceId])
 
   return { workspaces, workspaceId, setWorkspaceId, loading }

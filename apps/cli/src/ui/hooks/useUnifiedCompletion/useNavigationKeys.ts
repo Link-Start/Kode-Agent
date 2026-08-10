@@ -47,6 +47,7 @@ export function useUnifiedCompletionNavigationKeys(args: {
   const emptyDirMessageTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null)
+  const updateState = args.updateState
 
   const clearDirectoryFollowupTimeout = useCallback(() => {
     if (directoryFollowupTimeoutRef.current === null) return
@@ -70,9 +71,9 @@ export function useUnifiedCompletionNavigationKeys(args: {
     emptyDirMessageTimeoutRef.current = setTimeout(() => {
       emptyDirMessageTimeoutRef.current = null
       if (!mountedRef.current) return
-      args.updateState({ emptyDirMessage: '' })
+      updateState({ emptyDirMessage: '' })
     }, 3000)
-  }, [args.updateState, clearEmptyDirMessageTimeout])
+  }, [updateState, clearEmptyDirMessageTimeout])
 
   useEffect(() => {
     mountedRef.current = true

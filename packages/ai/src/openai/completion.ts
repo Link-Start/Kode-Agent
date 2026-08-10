@@ -14,7 +14,7 @@ import { providers } from '../internal/providers'
 import { tryWithEndpointFallback } from './endpointFallback'
 import { maybeFixModelError, applyModelErrorFixes } from './modelErrors'
 import { applyModelSpecificTransformations } from './modelFeatures'
-import { abortableDelay, getRetryDelay } from './retry'
+import { abortableDelay, getRetryDelay, isRetryableHttpStatus } from './retry'
 import { createStreamProcessor } from './stream'
 
 type OpenAICompatibleProvider =
@@ -69,6 +69,8 @@ const NON_STREAM_OPENAI_COMPATIBLE: readonly Exclude<
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw new Error('Request cancelled by user')
 }
+
+class NonRetryableProviderError extends Error {}
 
 function normalizeToolMessages(opts: OpenAI.ChatCompletionCreateParams): void {
   opts.messages = opts.messages.map(msg => {
@@ -291,7 +293,16 @@ export async function getCompletionWithProfile(
               provider,
             })
           }
+
+          if (!isRetryableHttpStatus(response.status)) {
+            throw new NonRetryableProviderError(
+              `Provider rejected the request (HTTP ${response.status}): ${errorMessage}`,
+            )
+          }
         } catch (parseError) {
+          if (parseError instanceof NonRetryableProviderError) {
+            throw parseError
+          }
           debugLogger.warn('OPENAI_API_ERROR_PARSE_FAILED', {
             model: opts.model,
             status: response.status,
@@ -316,6 +327,12 @@ export async function getCompletionWithProfile(
               },
               provider,
             })
+          }
+
+          if (!isRetryableHttpStatus(response.status)) {
+            throw new NonRetryableProviderError(
+              `Provider rejected the request (HTTP ${response.status}): Could not parse error response: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+            )
           }
         }
 
@@ -347,6 +364,10 @@ export async function getCompletionWithProfile(
       return (await response.json()) as OpenAI.ChatCompletion
     } catch (error) {
       throwIfAborted(signal)
+
+      if (error instanceof NonRetryableProviderError) {
+        throw error
+      }
 
       if (currentAttempt + 1 >= maxAttempts) {
         throw error

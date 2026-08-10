@@ -4,17 +4,54 @@ import {
   DEFAULT_CONTEXT_LENGTH,
   DEFAULT_MAX_TOKENS,
   MAX_TOKENS_OPTIONS,
-  REASONING_EFFORT_OPTIONS,
+  getReasoningEffortOptions,
   REQUEST_STRATEGY_OPTIONS,
 } from './flow/options'
 import type { ModelInfo } from './flow/types'
 import * as modelFetchers from './flow/modelFetchers'
-import { readApiKeyFromEnvironment } from '#core/utils/config'
+import {
+  clearSessionApiKey,
+  getSuggestedApiKeyEnvVar,
+  readApiKey,
+  storeApiKey,
+} from '#core/utils/config'
 import { fetchOllamaModels } from './fetchOllamaModels'
 import type { ModelSelectorState } from './useModelSelectorState'
 import type { ModelParamsField } from './viewTypes'
 
 export function useModelSelectorModelFlow(state: ModelSelectorState) {
+  const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+  function parseCredentialInput(
+    value: string,
+  ):
+    | { type: 'environment'; envVarName: string }
+    | { type: 'session'; apiKey: string }
+    | null {
+    const input = value.trim()
+    if (!input) {
+      return state.apiKeyEnv
+        ? { type: 'environment', envVarName: state.apiKeyEnv }
+        : null
+    }
+
+    if (input.startsWith('env:')) {
+      const envVarName = input.slice('env:'.length).trim()
+      return ENVIRONMENT_VARIABLE_PATTERN.test(envVarName)
+        ? { type: 'environment', envVarName }
+        : null
+    }
+
+    if (input.startsWith('key:')) {
+      const apiKey = input.slice('key:'.length).trim()
+      return apiKey ? { type: 'session', apiKey } : null
+    }
+
+    return ENVIRONMENT_VARIABLE_PATTERN.test(input)
+      ? { type: 'environment', envVarName: input }
+      : { type: 'session', apiKey: input }
+  }
+
   function summarizeErrorMessage(message: string): string {
     const normalized = message.replace(/\s+/g, ' ').trim()
     const htmlIndex = normalized.toLowerCase().indexOf('<html')
@@ -25,10 +62,10 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
   }
 
   async function fetchModels(): Promise<ModelInfo[]> {
-    const apiKey = readApiKeyFromEnvironment(state.apiKeyEnv) ?? ''
+    const apiKey = readApiKey(state.apiKeyEnv) ?? ''
     if (!apiKey && state.selectedProvider !== 'ollama') {
       throw new Error(
-        `Environment variable '${state.apiKeyEnv || 'API_KEY'}' is not set in this shell. Set it, or press Enter to enter a model ID manually.`,
+        `No API key is available for '${state.apiKeyEnv || 'API_KEY'}'. Paste a key, set the variable, or press Enter to enter a model ID manually.`,
       )
     }
 
@@ -83,21 +120,47 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     const errorMessage = summarizeErrorMessage(lastError?.message || '')
 
     state.setModelLoadError(
-      `Model discovery could not use the credential reference after ${MAX_RETRIES} attempts: ${errorMessage}`,
+      `Model discovery could not use the credential after ${MAX_RETRIES} attempts: ${errorMessage}`,
     )
     throw new Error(`Model discovery failed: ${errorMessage}`)
   }
 
   async function handleApiKeySubmit(key: string) {
-    const reference = key.trim()
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(reference)) {
+    const credential = parseCredentialInput(key)
+    if (!credential) {
       state.setModelLoadError(
-        'Use letters, digits, and underscores; the name cannot start with a digit.',
+        'Paste an API key, or enter env:VARIABLE_NAME for an environment variable.',
       )
       return
     }
 
-    state.setApiKeyEnv(reference)
+    if (credential.type === 'environment') {
+      clearSessionApiKey(state.apiKeyEnv)
+      clearSessionApiKey(credential.envVarName)
+      state.setApiKeyEnv(credential.envVarName)
+      state.setApiKeyInput(credential.envVarName)
+      state.setHasStoredApiKey(false)
+    } else {
+      const envVarName =
+        state.apiKeyEnv ?? getSuggestedApiKeyEnvVar(state.selectedProvider)
+      if (!envVarName) {
+        state.setModelLoadError('This provider does not accept an API key.')
+        return
+      }
+
+      try {
+        storeApiKey(envVarName, credential.apiKey)
+      } catch {
+        state.setModelLoadError(
+          'Kode could not securely save this API key. Check the permissions of ~/.kode and retry.',
+        )
+        return
+      }
+      state.setApiKeyEnv(envVarName)
+      state.setApiKeyInput(envVarName)
+      state.setHasStoredApiKey(true)
+    }
+
     state.setModelLoadError(null)
     state.navigateTo(
       state.selectedProvider === 'azure' ? 'resourceName' : 'modelInput',
@@ -249,7 +312,7 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     return fields
   }
 
-  const reasoningEffortOptions = REASONING_EFFORT_OPTIONS
+  const reasoningEffortOptions = getReasoningEffortOptions(state.selectedModel)
   const requestStrategyOptions = REQUEST_STRATEGY_OPTIONS
   const handleContextLengthSubmit = () =>
     state.navigateTo(state.isEditing ? 'confirmation' : 'connectionTest')

@@ -2,6 +2,7 @@ import { test, expect, describe } from 'bun:test'
 import { ModelAdapterFactory } from '#core/ai/modelAdapterFactory'
 import { getModelCapabilities } from '../../constants/modelCapabilities'
 import { testModels, getChatCompletionsModels } from '../testAdapters'
+import { buildAssistantMessageFromUnifiedResponse } from '#core/ai/llm/openai/unifiedResponse'
 
 /**
  * Chat Completions API Unit Tests
@@ -167,6 +168,103 @@ describe('Chat Completions API Tests', () => {
         type: 'image_url',
         image_url: { url: 'data:image/gif;base64,Zm9v' },
       })
+    })
+
+    test('merges fragmented streaming tool calls into one executable block', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+      const streamData = [
+        'data: {"id":"chatcmpl-tool-stream","choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"Bash","arguments":"{\\"command\\":"}}]}}]}\n\n',
+        'data: {"id":"chatcmpl-tool-stream","choices":[{"delta":{"tool_calls":[{"index":0,"type":"function","function":{"name":"Bash","arguments":"\\"pwd\\""}}]}}]}\n\n',
+        'data: {"id":"chatcmpl-tool-stream","choices":[{"delta":{"tool_calls":[{"index":0,"type":"function","function":{"name":"Bash","arguments":"}"}}]}}]}\n\n',
+        'data: [DONE]\n\n',
+      ].join('')
+
+      const unifiedResponse = await adapter.parseResponse(
+        new Response(streamData),
+      )
+      const assistantMessage = buildAssistantMessageFromUnifiedResponse(
+        unifiedResponse,
+        Date.now(),
+      )
+
+      expect(unifiedResponse.toolCalls).toEqual([])
+      expect(unifiedResponse.content).toEqual([
+        {
+          type: 'tool_use',
+          id: 'call_123',
+          name: 'Bash',
+          input: { command: 'pwd' },
+        },
+      ])
+      expect(
+        assistantMessage.message.content.filter(
+          block => block.type === 'tool_use',
+        ),
+      ).toHaveLength(1)
+    })
+
+    test('rejects incomplete streaming tool arguments', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+      const streamData = [
+        'data: {"id":"chatcmpl-bad-tool","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_bad","type":"function","function":{"name":"Bash","arguments":"{\\"command\\":"}}]}}]}\n\n',
+        'data: [DONE]\n\n',
+      ].join('')
+
+      await expect(
+        adapter.parseResponse(new Response(streamData)),
+      ).rejects.toThrow('invalid JSON arguments')
+    })
+
+    test('rejects malformed non-streaming tool calls', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      await expect(
+        adapter.parseResponse({
+          id: 'chatcmpl-bad-buffered-tool',
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_bad',
+                    type: 'functionfunction',
+                    function: {
+                      name: 'Bash',
+                      arguments: '{"command":"pwd"}',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow('unsupported type')
+
+      await expect(
+        adapter.parseResponse({
+          id: 'chatcmpl-bad-buffered-args',
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_bad_args',
+                    type: 'function',
+                    function: {
+                      name: 'Bash',
+                      arguments: '{"command":',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ).rejects.toThrow('invalid JSON arguments')
     })
   })
 })

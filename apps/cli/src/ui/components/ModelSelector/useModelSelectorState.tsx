@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   getSuggestedApiKeyEnvVar,
   getGlobalConfig,
+  hasStoredApiKey as hasSavedApiKey,
   type ModelProfile,
   type ProviderType,
 } from '#core/utils/config'
@@ -75,6 +76,12 @@ export function useModelSelectorState(opts: {
           'anthropic',
       ),
   )
+  const [apiKeyInput, setApiKeyInput] = useState<string>(
+    initialModelProfile?.apiKeyEnv ?? '',
+  )
+  const [hasStoredApiKey, setHasStoredApiKey] = useState<boolean>(() =>
+    hasSavedApiKey(initialModelProfile?.apiKeyEnv),
+  )
 
   const [maxTokens, setMaxTokens] = useState<string>(
     initialMaxTokens.toString(),
@@ -125,9 +132,7 @@ export function useModelSelectorState(opts: {
   const [modelSearchQuery, setModelSearchQuery] = useState<string>('')
   const [modelSearchCursorOffset, setModelSearchCursorOffset] =
     useState<number>(0)
-  const [cursorOffset, setCursorOffset] = useState<number>(
-    apiKeyEnv?.length ?? 0,
-  )
+  const [cursorOffset, setCursorOffset] = useState<number>(apiKeyInput.length)
   const [apiKeyEdited, setApiKeyEdited] = useState<boolean>(false)
 
   const focusScope =
@@ -197,6 +202,10 @@ export function useModelSelectorState(opts: {
     setSelectedModel,
     apiKeyEnv,
     setApiKeyEnv,
+    apiKeyInput,
+    setApiKeyInput,
+    hasStoredApiKey,
+    setHasStoredApiKey,
     maxTokens,
     setMaxTokens,
     maxTokensMode,

@@ -19,6 +19,7 @@ type Props = {
   ollamaBaseUrl: string
   customBaseUrl: string
   apiKeyEnv?: string
+  hasStoredApiKey: boolean
   validationError: string | null
   getProviderLabel: (provider: string, modelCount: number) => string
 }
@@ -36,6 +37,7 @@ export function ConfirmationScreen({
   ollamaBaseUrl,
   customBaseUrl,
   apiKeyEnv,
+  hasStoredApiKey,
   validationError,
   getProviderLabel,
 }: Props) {
@@ -59,7 +61,7 @@ export function ConfirmationScreen({
         <Text bold>Quick configuration / 快速配置</Text>
         {!tightLayout && (
           <Text color={theme.secondaryText}>
-            Review the provider, model, and credential reference before saving.
+            Review the provider, model, and credential source before saving.
           </Text>
         )}
 
@@ -108,9 +110,11 @@ export function ConfirmationScreen({
             <Text>
               <Text bold>Credential: </Text>
               <Text color={theme.suggestion}>
-                {apiKeyEnv
-                  ? `environment variable ${apiKeyEnv}`
-                  : '(environment variable required)'}
+                {hasStoredApiKey
+                  ? 'saved in Kode credential storage'
+                  : apiKeyEnv
+                    ? `environment variable ${apiKeyEnv}`
+                    : '(environment variable required)'}
               </Text>
             </Text>
           )}

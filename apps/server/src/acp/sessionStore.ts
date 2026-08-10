@@ -99,7 +99,7 @@ export async function persistAcpSessionToDisk(
   } catch (error) {
     try {
       await rm(tmpPath, { force: true })
-    } catch {}
+    } catch { /* no-op */ }
     debug.warn('ACP_SESSION_PERSIST_FAILED', {
       sessionId: session.sessionId,
       durationMs: Date.now() - startedAt,
@@ -176,7 +176,7 @@ export async function cleanupExpiredAcpSessions(options?: {
         if (nowMs - info.mtimeMs <= ttlMs) continue
         await rm(filePath, { force: true })
         deleted += 1
-      } catch {}
+      } catch { /* no-op */ }
     }
   }
 

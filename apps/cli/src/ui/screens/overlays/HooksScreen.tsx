@@ -356,14 +356,7 @@ export function HooksScreen({ onDone }: Props): React.ReactNode {
       count: countsByEvent.get(event) ?? 0,
     }))
     return [...actions, ...eventRows]
-  }, [
-    countsByEvent,
-    disableState.disabled,
-    entries,
-    mode.kind,
-    mode,
-    projectDir,
-  ])
+  }, [countsByEvent, disableState.disabled, entries, mode])
   const selectionScope =
     mode.kind === 'events'
       ? 'hooks-screen:events'

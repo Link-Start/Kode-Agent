@@ -18,6 +18,8 @@ export function useMouse(
 ): void {
   const { subscribeMouse, unsubscribeMouse } = useKeypressContext()
   const active = isActive !== false
+  const priorityRef = useRef(priority)
+  priorityRef.current = priority
   const handlerRef = useRef(onMouse)
   handlerRef.current = onMouse
 
@@ -27,7 +29,7 @@ export function useMouse(
 
   useEffect(() => {
     if (!active) return undefined
-    subscribeMouse(stableHandler, { priority })
+    subscribeMouse(stableHandler, { priority: priorityRef.current })
     return () => {
       unsubscribeMouse(stableHandler)
     }

@@ -1,5 +1,4 @@
-import matter from 'gray-matter'
-import { JSON_SCHEMA, load } from 'js-yaml'
+import { parseMarkdownFrontmatter } from '#config/frontmatter'
 
 import type { CustomCommandFrontmatter } from './types'
 
@@ -7,20 +6,10 @@ export function parseFrontmatter(content: string): {
   frontmatter: CustomCommandFrontmatter
   content: string
 } {
-  const parsed = matter(content, {
-    engines: {
-      yaml: {
-        parse: (input: string): object => {
-          if (input.trim() === '') return {}
-          const loaded = load(input, { schema: JSON_SCHEMA })
-          return typeof loaded === 'object' && loaded !== null ? loaded : {}
-        },
-      },
-    },
-  })
+  const parsed = parseMarkdownFrontmatter(content)
   return {
-    frontmatter: (parsed.data ?? {}) as CustomCommandFrontmatter,
-    content: parsed.content ?? '',
+    frontmatter: parsed.frontmatter as CustomCommandFrontmatter,
+    content: parsed.content,
   }
 }
 

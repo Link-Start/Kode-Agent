@@ -194,7 +194,7 @@ function createProcess(): RuntimeProcess {
             return
           }
           proc.kill()
-        } catch {}
+        } catch { /* no-op */ }
       }
 
       if (

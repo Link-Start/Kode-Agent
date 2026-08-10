@@ -238,7 +238,7 @@ function writeForkTranscript(args: {
   } catch (error) {
     try {
       rmSync(temporaryPath, { force: true })
-    } catch {}
+    } catch { /* no-op */ }
     throw error
   }
 }
@@ -595,12 +595,12 @@ export class PersistentSessionService {
           rmSync(getSessionLogFilePath({ cwd: args.cwd, sessionId }), {
             force: true,
           })
-        } catch {}
+        } catch { /* no-op */ }
         try {
           rmSync(getSessionMetadataFilePath({ cwd: args.cwd, sessionId }), {
             force: true,
           })
-        } catch {}
+        } catch { /* no-op */ }
       }
       return {
         ok: false,

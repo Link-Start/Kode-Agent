@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { Message } from '../pipeline/types'
-import { collectGoalVerificationEvidence } from './evidence'
+import {
+  collectGoalVerificationEvidence,
+  getTurnVerificationState,
+} from './evidence'
 
 const receipt = {
   version: 1 as const,
@@ -46,6 +49,14 @@ function toolResult(data: unknown, toolUseId = receipt.toolUseId): Message {
       ],
     },
     toolUseResult: { data, resultForAssistant: 'tool output' },
+  }
+}
+
+function userPrompt(text: string): Message {
+  return {
+    type: 'user',
+    uuid: crypto.randomUUID() as never,
+    message: { role: 'user', content: text },
   }
 }
 
@@ -202,5 +213,101 @@ describe('goal verification evidence', () => {
         }),
       ]),
     ).toEqual([])
+  })
+
+  test('scopes the completion gate to the active human turn', () => {
+    const messages: Message[] = [
+      userPrompt('Edit a.ts'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      toolResult({}, 'edit-1'),
+      userPrompt('Now explain the architecture without changing files.'),
+    ]
+
+    expect(getTurnVerificationState(messages)).toMatchObject({
+      turnStartMessageIndex: 3,
+      hasMutation: false,
+      hasTerminalEvidence: false,
+      evidence: [],
+    })
+  })
+
+  test('treats an image-only human message as a new turn boundary', () => {
+    const messages: Message[] = [
+      userPrompt('Edit a.ts'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      toolResult({}, 'edit-1'),
+      userPrompt([
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: 'image/png', data: 'AA==' },
+        },
+      ] as never),
+    ]
+
+    expect(getTurnVerificationState(messages).hasMutation).toBe(false)
+  })
+
+  test('requires terminal evidence after the latest mutation in the active turn', () => {
+    const base: Message[] = [
+      userPrompt('Implement the change.'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      toolResult({}, 'edit-1'),
+    ]
+
+    expect(getTurnVerificationState(base)).toMatchObject({
+      turnStartMessageIndex: 0,
+      hasMutation: true,
+      hasTerminalEvidence: false,
+      evidence: [],
+    })
+
+    const withStartedVerification = [
+      ...base,
+      toolUse([
+        {
+          id: receipt.toolUseId,
+          name: 'Bash',
+          input: { command: 'bun test', run_in_background: true },
+        },
+      ]),
+      toolResult({
+        verification: { ...receipt, status: 'started' as const },
+      }),
+    ]
+    expect(getTurnVerificationState(withStartedVerification)).toMatchObject({
+      hasMutation: true,
+      hasTerminalEvidence: false,
+    })
+
+    const withPassedVerification = [
+      ...base,
+      toolUse([
+        {
+          id: receipt.toolUseId,
+          name: 'Bash',
+          input: { command: 'bun test' },
+        },
+      ]),
+      toolResult({ verification: receipt }),
+    ]
+    expect(getTurnVerificationState(withPassedVerification)).toMatchObject({
+      hasMutation: true,
+      hasTerminalEvidence: true,
+      evidence: [receipt],
+    })
+  })
+
+  test('does not let an engine recovery prompt hide the original mutation', () => {
+    const state = getTurnVerificationState([
+      userPrompt('Implement the change.'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      toolResult({}, 'edit-1'),
+      userPrompt(
+        '<verification-recovery>Run an applicable check.</verification-recovery>',
+      ),
+    ])
+
+    expect(state.turnStartMessageIndex).toBe(0)
+    expect(state.hasMutation).toBe(true)
   })
 })

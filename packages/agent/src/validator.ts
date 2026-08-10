@@ -2,10 +2,9 @@ import { readFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { basename } from 'path'
 
-import matter from 'gray-matter'
-import { JSON_SCHEMA, load } from 'js-yaml'
 import { z } from 'zod'
 
+import { parseMarkdownFrontmatter } from '#config/frontmatter'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import { logError } from '#core/utils/log'
 
@@ -27,22 +26,7 @@ function readMarkdownFile(
 ): { frontmatter: Record<string, unknown>; content: string } | null {
   try {
     const raw = readFileSync(filePath, 'utf8')
-    const parsed = matter(raw, {
-      engines: {
-        yaml: {
-          parse: (input: string) => {
-            if (input.trim() === '') return {}
-            const loaded = load(input, { schema: JSON_SCHEMA })
-            return asRecord(loaded) ?? {}
-          },
-        },
-      },
-    })
-
-    return {
-      frontmatter: asRecord(parsed.data) ?? {},
-      content: String(parsed.content ?? ''),
-    }
+    return parseMarkdownFrontmatter(raw)
   } catch {
     return null
   }
@@ -53,22 +37,7 @@ async function readMarkdownFileAsync(
 ): Promise<{ frontmatter: Record<string, unknown>; content: string } | null> {
   try {
     const raw = await readFile(filePath, 'utf8')
-    const parsed = matter(raw, {
-      engines: {
-        yaml: {
-          parse: (input: string) => {
-            if (input.trim() === '') return {}
-            const loaded = load(input, { schema: JSON_SCHEMA })
-            return asRecord(loaded) ?? {}
-          },
-        },
-      },
-    })
-
-    return {
-      frontmatter: asRecord(parsed.data) ?? {},
-      content: String(parsed.content ?? ''),
-    }
+    return parseMarkdownFrontmatter(raw)
   } catch {
     return null
   }

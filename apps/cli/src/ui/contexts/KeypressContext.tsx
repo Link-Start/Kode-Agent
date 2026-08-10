@@ -1085,10 +1085,12 @@ export function KeypressProvider({
   ])
 
   useEffect(() => {
+    const mouseSubscriptions = mouseSubscriptionsRef
+    const orderedMouseSubscriptions = orderedMouseSubscriptionsRef
     return () => {
-      if (mouseSubscriptionsRef.current.size > 0) {
-        mouseSubscriptionsRef.current.clear()
-        orderedMouseSubscriptionsRef.current = []
+      if (mouseSubscriptions.current.size > 0) {
+        mouseSubscriptions.current.clear()
+        orderedMouseSubscriptions.current = []
         disableMouseEvents()
       }
     }

@@ -28,9 +28,12 @@ function parseCompatReasoningEffort(raw: unknown): number | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
   const normalized = trimmed.toLowerCase()
+  if (normalized === 'none') return 0
+  if (normalized === 'minimal') return 20
   if (normalized === 'low') return 45
   if (normalized === 'medium') return 75
   if (normalized === 'high') return 99
+  if (normalized === 'xhigh' || normalized === 'max') return 100
   const asNumber = Number(trimmed)
   if (!Number.isFinite(asNumber)) return null
   return Math.max(0, Math.min(100, Math.round(asNumber)))

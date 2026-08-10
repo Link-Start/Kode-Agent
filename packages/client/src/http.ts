@@ -637,7 +637,7 @@ export class HttpClient
     for (const listener of this.eventListeners) {
       try {
         listener(event)
-      } catch {}
+      } catch { /* no-op */ }
     }
   }
 
@@ -685,7 +685,7 @@ export class HttpClient
     for (const listener of this.connectionListeners) {
       try {
         listener(connected)
-      } catch {}
+      } catch { /* no-op */ }
     }
   }
 
@@ -718,7 +718,7 @@ export class HttpClient
       try {
         ws.removeEventListener?.('close', onClose)
         ws.removeEventListener?.('error', onError)
-      } catch {}
+      } catch { /* no-op */ }
     }
   }
 
@@ -732,7 +732,7 @@ export class HttpClient
 
     try {
       socket?.close()
-    } catch {}
+    } catch { /* no-op */ }
 
     if (wasConnected) this.emitConnectionChange(false)
   }
@@ -804,7 +804,7 @@ export class HttpClient
         if (historySyncTimeout) clearTimeout(historySyncTimeout)
         try {
           ws.removeEventListener?.('open', onOpen)
-        } catch {}
+        } catch { /* no-op */ }
       }
 
       const completeIfReady = () => {
@@ -834,7 +834,7 @@ export class HttpClient
         }
         try {
           ws.close()
-        } catch {}
+        } catch { /* no-op */ }
         reject(error)
       }
 

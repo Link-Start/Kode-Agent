@@ -298,16 +298,6 @@ export function useModelSelectorInput(args: {
       }
     }
 
-    if (
-      args.currentScreen === 'apiKey' &&
-      ((key.ctrl && input === 'v') || (key.meta && input === 'v'))
-    ) {
-      args.setModelLoadError(
-        "Paste the environment variable name with your terminal's normal paste action.",
-      )
-      return true
-    }
-
     if (args.currentScreen === 'modelParams' && key.tab) {
       const formFields = args.getFormFieldsForModelParams()
       args.setActiveFieldIndex(current => (current + 1) % formFields.length)

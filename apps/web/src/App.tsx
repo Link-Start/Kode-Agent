@@ -19,8 +19,17 @@ import {
 } from './lib/token'
 import { ChatPage } from './pages/Chat'
 import { ConnectPage } from './pages/Connect'
-import { SchedulesPage } from './pages/Schedules'
-import { SettingsPage } from './pages/Settings'
+
+const SchedulesPage = React.lazy(() =>
+  import('./pages/Schedules').then(module => ({
+    default: module.SchedulesPage,
+  })),
+)
+const SettingsPage = React.lazy(() =>
+  import('./pages/Settings').then(module => ({
+    default: module.SettingsPage,
+  })),
+)
 
 type View = 'chat' | 'schedules' | 'settings'
 
@@ -55,6 +64,17 @@ function baseUrlForClient(): string {
     return window.location.origin
   }
   return 'http://127.0.0.1:3000'
+}
+
+function PageLoading(): React.ReactNode {
+  return (
+    <div
+      className="flex h-full items-center justify-center font-mono text-sm text-[hsl(var(--kode-terminal-muted))]"
+      role="status"
+    >
+      Loading view...
+    </div>
+  )
 }
 
 export default function App() {
@@ -210,50 +230,52 @@ export default function App() {
           </div>
 
           <div className="min-h-0 flex-1">
-            {view === 'settings' ? (
-              <SettingsPage
-                token={token}
-                onTokenChange={t => {
-                  persistToken(t)
-                  setToken(t)
-                }}
-                onTokenClear={() => {
-                  clearToken()
-                  setToken('')
-                }}
-              />
-            ) : view === 'schedules' ? (
-              <SchedulesPage
-                client={client}
-                sessionId={chat.selectedSessionId}
-                sessions={chat.sessions}
-                onSelectSession={id => {
-                  void chat.selectSession(id)
-                }}
-                onNewSession={() => {
-                  chat.startNewSession()
-                }}
-              />
-            ) : (
-              <ChatPage
-                events={chat.events}
-                input={chat.input}
-                onInputChange={chat.setInput}
-                onPasteText={chat.insertPastedText}
-                onSend={() => void chat.send()}
-                onCancel={chat.cancel}
-                failedPrompt={chat.failedPrompt}
-                onRestoreFailedPrompt={chat.restoreFailedPrompt}
-                disabled={!client}
-                sending={chat.sending}
-                permissionRequest={chat.permissionRequest}
-                runtimeAttached={runtimeAttached}
-                runtimeStatus={runtimeStatus}
-                sessionKey={chat.selectedSessionId}
-                sessionTitle={selectedSessionTitle}
-                workspacePath={currentWorkspace?.path ?? null}
-              />
-            )}
+            <React.Suspense fallback={<PageLoading />}>
+              {view === 'settings' ? (
+                <SettingsPage
+                  token={token}
+                  onTokenChange={t => {
+                    persistToken(t)
+                    setToken(t)
+                  }}
+                  onTokenClear={() => {
+                    clearToken()
+                    setToken('')
+                  }}
+                />
+              ) : view === 'schedules' ? (
+                <SchedulesPage
+                  client={client}
+                  sessionId={chat.selectedSessionId}
+                  sessions={chat.sessions}
+                  onSelectSession={id => {
+                    void chat.selectSession(id)
+                  }}
+                  onNewSession={() => {
+                    chat.startNewSession()
+                  }}
+                />
+              ) : (
+                <ChatPage
+                  events={chat.events}
+                  input={chat.input}
+                  onInputChange={chat.setInput}
+                  onPasteText={chat.insertPastedText}
+                  onSend={() => void chat.send()}
+                  onCancel={chat.cancel}
+                  failedPrompt={chat.failedPrompt}
+                  onRestoreFailedPrompt={chat.restoreFailedPrompt}
+                  disabled={!client}
+                  sending={chat.sending}
+                  permissionRequest={chat.permissionRequest}
+                  runtimeAttached={runtimeAttached}
+                  runtimeStatus={runtimeStatus}
+                  sessionKey={chat.selectedSessionId}
+                  sessionTitle={selectedSessionTitle}
+                  workspacePath={currentWorkspace?.path ?? null}
+                />
+              )}
+            </React.Suspense>
           </div>
         </div>
       </div>

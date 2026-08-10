@@ -7,8 +7,7 @@ export function useModelSelectorTextHandlers(state: ModelSelectorState) {
 
   function handleApiKeyChange(value: string) {
     state.setApiKeyEdited(true)
-    // This field stores an environment-variable name, not a credential value.
-    state.setApiKeyEnv(value)
+    state.setApiKeyInput(value)
     state.setCursorOffset(value.length)
   }
 

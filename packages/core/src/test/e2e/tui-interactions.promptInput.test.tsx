@@ -13,6 +13,7 @@ import { useCancelRequest } from '#ui-ink/hooks/useCancelRequest'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { setCwd } from '#core/utils/state'
 import { clearConfigCacheForTesting } from '#config'
+import type { Command } from '#cli-commands'
 import {
   createInkHarnessManager,
   createInkTestHarness,
@@ -383,8 +384,10 @@ function DraftPastePersistenceHarnessInner(): React.ReactNode {
 
 function PromptQueueAutoDrainHarness({
   conversationKey,
+  commands = [],
 }: {
   conversationKey: string
+  commands?: Command[]
 }): React.ReactNode {
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<PromptMode>('prompt')
@@ -409,7 +412,7 @@ function PromptQueueAutoDrainHarness({
           <Text>PROCESSED:{JSON.stringify(processed)}</Text>
           <Text>LOADING:{String(isLoading)}</Text>
           <PromptInput
-            commands={[]}
+            commands={commands}
             forkNumber={0}
             messageLogName="tui"
             initialPrompt="test harness"
@@ -878,6 +881,37 @@ describe('TUI E2E regression (Ink render): PromptInput', () => {
     await h.wait(900)
 
     expect(h.getOutput()).toContain('PROCESSED:[\"urgent\",\"first\"]')
+  })
+
+  test('a running request does not open slash-command completion on Tab', async () => {
+    const conversationKey = `tui:${Math.random().toString(16).slice(2)}`
+    const agentsCommand = {
+      type: 'local',
+      name: 'agents',
+      description: 'Manage agent configurations',
+      isEnabled: true,
+      isHidden: false,
+      userFacingName: () => 'agents',
+      call: async () => '',
+    } satisfies Command
+    const h = createInkTestHarness(
+      <PromptQueueAutoDrainHarness
+        conversationKey={conversationKey}
+        commands={[agentsCommand]}
+      />,
+    )
+    harnessManager.track(h)
+
+    await h.wait(25)
+    h.clearOutput()
+    h.stdin.write('/a')
+    await h.wait(75)
+    expect(h.getOutput()).not.toContain('/agents')
+
+    h.stdin.write('\t')
+    await h.wait(75)
+    expect(h.getOutput()).not.toContain('/agents')
+    await waitForOutput(h, 'PROCESSED:[\"/a\"]', 1_500)
   })
 
   test('statusline renders when configured', async () => {

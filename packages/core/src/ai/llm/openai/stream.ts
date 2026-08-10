@@ -32,6 +32,79 @@ function getToolCallDeltaIndex(
   throw new Error('OpenAI stream tool_calls delta index must be a number')
 }
 
+function mergeToolCallDelta(
+  previous: unknown,
+  delta: Record<string, unknown>,
+): Record<string, unknown> {
+  const previousTool = isRecord(previous) ? previous : null
+  const previousFunction = isRecord(previousTool?.function)
+    ? previousTool.function
+    : null
+  const merged: Record<string, unknown> = {}
+  const mergedFunction: Record<string, unknown> = {}
+
+  if (typeof previousTool?.id === 'string') merged.id = previousTool.id
+  if (typeof previousTool?.type === 'string') merged.type = previousTool.type
+  if (typeof previousFunction?.name === 'string') {
+    mergedFunction.name = previousFunction.name
+  }
+  if (typeof previousFunction?.arguments === 'string') {
+    mergedFunction.arguments = previousFunction.arguments
+  }
+
+  // Tool-call metadata is a snapshot field, not streamed text. Some
+  // OpenAI-compatible providers repeat it with every arguments delta.
+  if (delta.id !== null && delta.id !== undefined) {
+    if (typeof delta.id !== 'string') {
+      throw new Error('OpenAI stream tool_calls delta id must be a string')
+    }
+    if (delta.id) merged.id = delta.id
+  }
+  if (delta.type !== null && delta.type !== undefined) {
+    if (typeof delta.type !== 'string') {
+      throw new Error('OpenAI stream tool_calls delta type must be a string')
+    }
+    if (delta.type) merged.type = delta.type
+  }
+
+  if (delta.function !== null && delta.function !== undefined) {
+    if (!isRecord(delta.function)) {
+      throw new Error(
+        'OpenAI stream tool_calls delta function must be an object',
+      )
+    }
+    if (delta.function.name !== null && delta.function.name !== undefined) {
+      if (typeof delta.function.name !== 'string') {
+        throw new Error(
+          'OpenAI stream tool_calls delta function name must be a string',
+        )
+      }
+      if (delta.function.name) mergedFunction.name = delta.function.name
+    }
+    if (
+      delta.function.arguments !== null &&
+      delta.function.arguments !== undefined
+    ) {
+      if (typeof delta.function.arguments !== 'string') {
+        throw new Error(
+          'OpenAI stream tool_calls delta function arguments must be a string',
+        )
+      }
+      const previousArguments =
+        typeof mergedFunction.arguments === 'string'
+          ? mergedFunction.arguments
+          : ''
+      mergedFunction.arguments = previousArguments + delta.function.arguments
+    }
+  }
+
+  if (previousFunction || isRecord(delta.function)) {
+    merged.function = mergedFunction
+  }
+
+  return merged
+}
+
 function messageReducer(
   previous: OpenAI.ChatCompletionMessage,
   item: OpenAI.ChatCompletionChunk,
@@ -59,12 +132,12 @@ function messageReducer(
           const index = getToolCallDeltaIndex(toolCall, i)
           if (index > accArray.length) {
             throw new Error(
-              `Error: An array has an empty value when tool_calls are constructed. tool_calls: ${accArray}; tool: ${value}`,
+              `OpenAI stream tool_calls delta index ${index} exceeds the next valid index ${accArray.length}`,
             )
           }
 
           const { index: _index, ...chunkTool } = toolCall
-          accArray[index] = reduce(accArray[index], chunkTool)
+          accArray[index] = mergeToolCallDelta(accArray[index], chunkTool)
         }
         acc[key] = accArray
         continue
@@ -88,7 +161,7 @@ function messageReducer(
           const { index, ...chunkTool } = value[i]
           if (index - accArray.length > 1) {
             throw new Error(
-              `Error: An array has an empty value when tool_calls are constructed. tool_calls: ${accArray}; tool: ${value}`,
+              `OpenAI stream array delta index ${index} exceeds the current length ${accArray.length}`,
             )
           }
           accArray[index] = reduce(accArray[index], chunkTool)

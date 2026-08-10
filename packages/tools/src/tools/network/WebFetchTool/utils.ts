@@ -1,4 +1,11 @@
+import { lookup } from 'node:dns/promises'
+import { isIP, type LookupFunction } from 'node:net'
+import { Address4, Address6 } from 'ip-address'
+import { Agent, fetch as undiciFetch } from 'undici'
+
 const MAX_CONTENT_CHARS = 100_000
+const MAX_URL_LENGTH = 2000
+const MAX_REDIRECTS = 10
 
 type TextContentBlock = { type: 'text'; text: string }
 
@@ -39,6 +46,237 @@ export function normalizeUrl(url: string): string {
     return url.replace('http://', 'https://')
   }
   return url
+}
+
+function unbracketHostname(hostname: string): string {
+  return hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname
+}
+
+export function isPublicNetworkAddress(address: string): boolean {
+  try {
+    if (isIP(address) === 4) {
+      const parsed = new Address4(address)
+      const [first, second, third] = parsed.toArray()
+      return !(
+        parsed.isPrivate() ||
+        parsed.isLoopback() ||
+        parsed.isLinkLocal() ||
+        parsed.isUnspecified() ||
+        parsed.isBroadcast() ||
+        parsed.isCGNAT() ||
+        parsed.isMulticast() ||
+        first! >= 224 ||
+        (first === 192 && second === 0) ||
+        (first === 198 && (second === 18 || second === 19)) ||
+        (first === 198 && second === 51 && third === 100) ||
+        (first === 203 && second === 0 && third === 113)
+      )
+    }
+
+    if (isIP(address) === 6) {
+      const parsed = new Address6(address)
+      // Current public unicast space is 2000::/3. Limiting literals and DNS
+      // answers to it also rejects mapped IPv4, NAT64, ULA, link-local,
+      // loopback, multicast, and other special-use address families.
+      return (
+        parsed.binaryZeroPad().startsWith('001') &&
+        !parsed.isPrivate() &&
+        !parsed.isLoopback() &&
+        !parsed.isLinkLocal() &&
+        !parsed.isUnspecified() &&
+        !parsed.isMulticast() &&
+        !parsed.isDocumentation() &&
+        !parsed.isTeredo() &&
+        !parsed.is6to4()
+      )
+    }
+  } catch {
+    return false
+  }
+  return false
+}
+
+export function isValidWebFetchUrl(url: string): boolean {
+  if (url.length > MAX_URL_LENGTH) return false
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  if (parsed.username || parsed.password) return false
+
+  const hostname = unbracketHostname(parsed.hostname)
+  const ipVersion = isIP(hostname)
+  if (ipVersion !== 0) return isPublicNetworkAddress(hostname)
+
+  const labels = hostname.replace(/\.$/u, '').split('.')
+  return labels.length >= 2 && labels.every(label => label.length > 0)
+}
+
+export type WebFetchAddress = { address: string; family?: number }
+
+export type WebFetchLookup = (hostname: string) => Promise<WebFetchAddress[]>
+
+export type ResolvedWebFetchTarget = {
+  hostname: string
+  addresses: Array<{ address: string; family: 4 | 6 }>
+}
+
+export type WebFetchRequest = (
+  url: string,
+  init: {
+    method: 'GET'
+    headers: Record<string, string>
+    signal: AbortSignal
+    redirect: 'manual'
+  },
+  target: ResolvedWebFetchTarget,
+) => Promise<Response>
+
+const lookupAll: WebFetchLookup = async hostname =>
+  await lookup(hostname, { all: true, verbatim: true })
+
+export async function assertPublicWebFetchTarget(
+  url: string,
+  lookupHostname: WebFetchLookup = lookupAll,
+): Promise<void> {
+  await resolvePublicWebFetchTarget(url, lookupHostname)
+}
+
+export async function resolvePublicWebFetchTarget(
+  url: string,
+  lookupHostname: WebFetchLookup = lookupAll,
+): Promise<ResolvedWebFetchTarget> {
+  if (!isValidWebFetchUrl(url)) throw new Error('Invalid URL')
+
+  const parsed = new URL(url)
+  const hostname = unbracketHostname(parsed.hostname)
+  const literalFamily = isIP(hostname)
+  if (literalFamily === 4 || literalFamily === 6) {
+    return {
+      hostname,
+      addresses: [{ address: hostname, family: literalFamily }],
+    }
+  }
+
+  const addresses = await lookupHostname(hostname)
+  if (
+    addresses.length === 0 ||
+    addresses.some(result => !isPublicNetworkAddress(result.address))
+  ) {
+    throw new Error('URL resolves to a non-public network address')
+  }
+
+  return {
+    hostname,
+    addresses: addresses.map(result => {
+      const family = isIP(result.address)
+      if (family !== 4 && family !== 6) {
+        throw new Error('URL resolves to an invalid network address')
+      }
+      return { address: result.address, family }
+    }),
+  }
+}
+
+export function createPinnedLookup(
+  addresses: ResolvedWebFetchTarget['addresses'],
+): LookupFunction {
+  const pinned = addresses.map(address => ({ ...address }))
+  return (_hostname, options, callback) => {
+    const compatible =
+      options.family === 4 || options.family === 6
+        ? pinned.filter(address => address.family === options.family)
+        : pinned
+    if (compatible.length === 0) {
+      const error = Object.assign(new Error('No approved address family'), {
+        code: 'ENOTFOUND',
+      })
+      callback(error, '', 0)
+      return
+    }
+    if (options.all) {
+      callback(null, compatible)
+      return
+    }
+    const selected = compatible[0]!
+    callback(null, selected.address, selected.family)
+  }
+}
+
+async function closeAgent(agent: Agent, force = false): Promise<void> {
+  try {
+    if (force) await agent.destroy()
+    else await agent.close()
+  } catch {
+    // The response transport is already closed.
+  }
+}
+
+function bindResponseToAgent(response: Response, agent: Agent): Response {
+  if (!response.body) {
+    void closeAgent(agent)
+    return response
+  }
+
+  const reader = response.body.getReader()
+  let finished = false
+  const finish = async (force = false) => {
+    if (finished) return
+    finished = true
+    await closeAgent(agent, force)
+  }
+
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          controller.close()
+          await finish()
+          return
+        }
+        if (value) controller.enqueue(value)
+      } catch (error) {
+        controller.error(error)
+        await finish(true)
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason)
+      } finally {
+        await finish(true)
+      }
+    },
+  })
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
+const pinnedWebFetchRequest: WebFetchRequest = async (url, init, target) => {
+  const agent = new Agent({
+    autoSelectFamily: true,
+    connect: { lookup: createPinnedLookup(target.addresses) },
+  })
+  try {
+    const response = await undiciFetch(url, {
+      ...init,
+      dispatcher: agent,
+    })
+    return bindResponseToAgent(response as unknown as Response, agent)
+  } catch (error) {
+    await closeAgent(agent, true)
+    throw error
+  }
 }
 
 function normalizeHostname(hostname: string): string {
@@ -210,6 +448,10 @@ function getChromeLikeHeaders(): Record<string, string> {
 export async function fetchWithRedirectDetection(
   url: string,
   signal: AbortSignal,
+  options: {
+    lookupHostname?: WebFetchLookup
+    fetchImpl?: WebFetchRequest
+  } = {},
 ): Promise<
   | {
       type: 'redirect'
@@ -221,24 +463,35 @@ export async function fetchWithRedirectDetection(
 > {
   let current = url
   const headers = getChromeLikeHeaders()
-  for (let i = 0; i < 10; i++) {
-    const response = await fetch(current, {
-      method: 'GET',
-      headers,
-      signal,
-      redirect: 'manual',
-    })
+  const fetchImpl = options.fetchImpl ?? pinnedWebFetchRequest
+  for (let i = 0; i < MAX_REDIRECTS; i++) {
+    const target = await resolvePublicWebFetchTarget(
+      current,
+      options.lookupHostname,
+    )
+    const response = await fetchImpl(
+      current,
+      {
+        method: 'GET',
+        headers,
+        signal,
+        redirect: 'manual',
+      },
+      target,
+    )
 
-    if ([301, 302, 307, 308].includes(response.status)) {
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location')
       if (!location) {
         return { type: 'response', response, finalUrl: current }
       }
       const redirectUrl = new URL(location, current).toString()
       if (isSameHost(current, redirectUrl)) {
+        await response.body?.cancel()
         current = redirectUrl
         continue
       }
+      await response.body?.cancel()
       return {
         type: 'redirect',
         originalUrl: url,
@@ -249,12 +502,5 @@ export async function fetchWithRedirectDetection(
 
     return { type: 'response', response, finalUrl: current }
   }
-
-  const response = await fetch(current, {
-    method: 'GET',
-    headers,
-    signal,
-    redirect: 'manual',
-  })
-  return { type: 'response', response, finalUrl: current }
+  throw new Error(`Too many redirects (maximum ${MAX_REDIRECTS})`)
 }

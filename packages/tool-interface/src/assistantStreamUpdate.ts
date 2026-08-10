@@ -32,5 +32,5 @@ export function emitAssistantStreamUpdate(
   try {
     const result = callback(event)
     if (result) void result.catch(() => {})
-  } catch {}
+  } catch { /* no-op */ }
 }

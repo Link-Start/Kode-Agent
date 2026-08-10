@@ -46,7 +46,10 @@ import {
 import { evaluateActiveGoalAfterTurn, GoalService } from '#core/goals'
 import { checkAutoCompact } from '#core/utils/autoCompactCore'
 import { checkMicroCompact } from '#core/utils/microCompactCore'
-import { collectGoalVerificationEvidence } from './verification/evidence'
+import {
+  collectGoalVerificationEvidence,
+  getTurnVerificationState,
+} from './verification/evidence'
 import { asRecord } from '@kode/hooks/types'
 import {
   drainHookSystemPromptAdditions,
@@ -87,9 +90,84 @@ type PipelineRetryState = {
   stopHookActive?: boolean
   stopHookAttempts?: number
   thinkingOnlyAttempts?: number
+  requiredToolUseAttempts?: number
+  verificationAttempts?: number
 }
 
 const MAX_THINKING_ONLY_RETRIES = 3
+const MAX_REQUIRED_TOOL_USE_RECOVERIES = 1
+const MAX_VERIFICATION_RECOVERIES = 1
+
+const TOOL_USE_INTENT_PATTERNS = [
+  /(?:查看|看看|检查|检视|浏览|读取|搜索|查找|分析|审查|审阅|排查).{0,20}(?:项目|工程|代码库|代码|仓库|文件|目录|工作区)/u,
+  /(?:运行|执行|测试|构建|编译|打包|安装|提交|推送|部署|修复|修改|编辑).{0,20}(?:项目|工程|代码|仓库|文件|目录|测试|构建|编译|打包|安装|提交|推送|部署)/u,
+  /\b(?:inspect|explore|search|find|read|look\s+at|check|review|analy[sz]e)\b[\s\S]{0,48}\b(?:project|repository|repo|codebase|source|files?|directories?|workspace)\b/i,
+  /\b(?:run|execute|test|build|compile|package|install|commit|push|deploy|edit|modify|fix)\b[\s\S]{0,48}\b(?:project|repository|repo|codebase|source|files?|directories?|workspace|tests?|build|compile|package)\b/i,
+]
+
+const TOOL_USE_NEGATION_PATTERN =
+  /(?:不要|无需|不必|别|不用).{0,16}(?:查看|看看|检查|检视|浏览|读取|搜索|查找|分析|审查|审阅|排查|运行|执行|测试|构建|编译|打包|安装|提交|推送|部署|修复|修改|编辑)|\b(?:do not|don't|no need to|without)\b[\s\S]{0,32}\b(?:inspect|explore|search|find|read|check|review|run|execute|test|build|compile|package|install|commit|push|deploy|edit|modify|fix)\b/i
+
+const TOOL_USE_ADVISORY_QUESTION_PATTERN =
+  /^\s*(?:what|which)\b[\s\S]{0,96}\b(?:should|would|could)\b[\s\S]{0,64}\b(?:use|choose|prefer|recommend)\b\s*\??\s*$/i
+
+function hasExplicitToolUseIntent(prompt: string | null): boolean {
+  if (!prompt?.trim()) return false
+  if (TOOL_USE_NEGATION_PATTERN.test(prompt)) return false
+  if (TOOL_USE_ADVISORY_QUESTION_PATTERN.test(prompt)) return false
+  return TOOL_USE_INTENT_PATTERNS.some(pattern => pattern.test(prompt))
+}
+
+function requiresToolUseForPrompt(
+  prompt: string | null,
+  availableToolCount: number,
+): boolean {
+  return availableToolCount > 0 && hasExplicitToolUseIntent(prompt)
+}
+
+function createRequiredToolUseInstruction(): string {
+  return [
+    '<tool_use_requirement>',
+    'The user explicitly requested local project inspection or an action.',
+    'Before giving a final answer, call at least one appropriate available tool.',
+    'For inspection, begin with a read-only discovery tool. For an action, use the relevant tool and report only evidence from its result.',
+    'Do not invent project details or claim the request was completed without a tool result.',
+    '</tool_use_requirement>',
+  ].join('\n')
+}
+
+function createRequiredToolUseRecoveryMessage(): UserMessage {
+  return createUserMessage(
+    [
+      '<tool_use_recovery>',
+      'The previous response did not call a tool despite the user explicitly requesting project inspection or an action.',
+      'Call an appropriate available tool now before replying. Do not provide a plan, recollection, or unverified answer.',
+      '</tool_use_recovery>',
+    ].join('\n'),
+  )
+}
+
+function isRequiredToolUseRecoveryMessage(message: Message): boolean {
+  return (
+    message.type === 'user' &&
+    typeof message.message.content === 'string' &&
+    message.message.content.startsWith('<tool_use_recovery>')
+  )
+}
+
+export function __getInitialRequestStatusDetailForTests(
+  messages: Message[],
+): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.type !== 'user') continue
+
+    const detail = message.options?.requestStatusDetail?.trim()
+    if (detail) return detail
+  }
+
+  return undefined
+}
 
 function createThinkingOnlyRetryPrompt(retryNumber: number): string {
   return [
@@ -119,6 +197,35 @@ function isThinkingOnlyRecoveryMessage(message: Message): boolean {
     message.type === 'user' &&
     typeof message.message.content === 'string' &&
     message.message.content.startsWith('<thinking-only-recovery>')
+  )
+}
+
+function createVerificationRecoveryMessage(): UserMessage {
+  return createUserMessage(
+    [
+      '<verification-recovery>',
+      'Workspace changes were made in this turn, but no trusted terminal verification result was recorded after the latest change.',
+      'Run the narrowest applicable deterministic test, typecheck, lint, build, or check now. Read project instructions first if the command is unclear.',
+      'If verification fails, fix the issue when it is in scope and rerun the relevant check. If verification is blocked, report the exact blocker and do not claim that checks passed.',
+      'Do not make unrelated changes.',
+      '</verification-recovery>',
+    ].join('\n'),
+  )
+}
+
+function isVerificationRecoveryMessage(message: Message): boolean {
+  return (
+    message.type === 'user' &&
+    typeof message.message.content === 'string' &&
+    message.message.content.startsWith('<verification-recovery>')
+  )
+}
+
+function isEngineRecoveryMessage(message: Message): boolean {
+  return (
+    isRequiredToolUseRecoveryMessage(message) ||
+    isThinkingOnlyRecoveryMessage(message) ||
+    isVerificationRecoveryMessage(message)
   )
 }
 
@@ -227,13 +334,20 @@ async function* messagePipelineCore(
   ) => Promise<BinaryFeedbackResult>,
   hookState?: PipelineRetryState,
 ): AsyncGenerator<Message, void> {
-  setRequestStatus({ kind: 'thinking' })
+  setRequestStatus({
+    kind: 'thinking',
+    detail: __getInitialRequestStatusDetailForTests(messages),
+    inputTokens: undefined,
+    outputTokens: undefined,
+  })
 
   try {
     markPhase('QUERY_INIT')
     const stopHookActive = hookState?.stopHookActive === true
     const stopHookAttempts = hookState?.stopHookAttempts ?? 0
     const thinkingOnlyAttempts = hookState?.thinkingOnlyAttempts ?? 0
+    const requiredToolUseAttempts = hookState?.requiredToolUseAttempts ?? 0
+    const verificationAttempts = hookState?.verificationAttempts ?? 0
 
     const maxTurns = toolUseContext.options.maxTurns
     const normalizedMaxTurns =
@@ -392,7 +506,7 @@ async function* messagePipelineCore(
     {
       const last = messages[messages.length - 1]
       let userPromptText: string | null = null
-      if (last?.type === 'user') {
+      if (last?.type === 'user' && !isEngineRecoveryMessage(last)) {
         const content = last.message.content
         if (typeof content === 'string') {
           userPromptText = content
@@ -449,6 +563,28 @@ async function* messagePipelineCore(
         context,
         toolUseContext.agentId,
       )
+
+    const hasExplicitToolUseIntentForTurn =
+      requiredToolUseAttempts > 0 ||
+      hasExplicitToolUseIntent(latestUserPromptText)
+    const availableToolCount = toolUseContext.options.tools.length
+
+    // Never let an explicit project action silently degrade into a text-only
+    // answer when startup/configuration failed to provide the core tool set.
+    // Retrying the model cannot repair a request that contains no tools.
+    if (hasExplicitToolUseIntentForTurn && availableToolCount === 0) {
+      yield createAssistantAPIErrorMessage(
+        'API_ERROR: No local tools are available in this session, so the requested project inspection or action was not executed. Restart Kode or run /capabilities; if this persists, check the model endpoint and tool configuration.',
+      )
+      return
+    }
+
+    const requiresToolUse =
+      requiredToolUseAttempts > 0 ||
+      requiresToolUseForPrompt(latestUserPromptText, availableToolCount)
+    if (requiresToolUse) {
+      fullSystemPrompt.push(createRequiredToolUseInstruction())
+    }
 
     // Durable memory is deliberately conservative: only explicit preference /
     // convention-like statements are extracted, and ephemeral calls opt out by
@@ -587,6 +723,19 @@ async function* messagePipelineCore(
     }
 
     const assistantMessage = result.message
+    // Count every completed model request before any internal recovery recurs.
+    // This keeps --max-turns and SDK num_turns aligned with actual provider
+    // calls instead of allowing hidden retries to bypass the configured cap.
+    toolUseContext.turnCount = turnsUsed + 1
+
+    // Provider/stream errors are already classified by the LLM adapter. Never
+    // execute tool blocks from an error response, and preserve the original
+    // evidence instead of rewriting it as a misleading no-tool failure.
+    if (assistantMessage.isApiErrorMessage) {
+      yield assistantMessage
+      return
+    }
+
     const shouldSkipPermissionCheck = result.shouldSkipPermissionCheck
 
     // @see https://docs.anthropic.com/en/docs/build-with-claude/tool-use
@@ -623,14 +772,76 @@ async function* messagePipelineCore(
           return
         }
 
-        toolUseContext.turnCount = turnsUsed + 1
         yield createAssistantAPIErrorMessage(
           `API_ERROR: Model returned internal reasoning only for ${MAX_THINKING_ONLY_RETRIES + 1} consecutive attempts without a final response or tool call. Please retry or switch models.`,
         )
         return
       }
 
-      toolUseContext.turnCount = turnsUsed + 1
+      if (requiresToolUse) {
+        if (requiredToolUseAttempts < MAX_REQUIRED_TOOL_USE_RECOVERIES) {
+          yield* await messagePipelineCore(
+            [
+              ...messages.filter(
+                message => !isRequiredToolUseRecoveryMessage(message),
+              ),
+              createRequiredToolUseRecoveryMessage(),
+            ],
+            [...systemPrompt, createRequiredToolUseInstruction()],
+            context,
+            canUseTool,
+            toolUseContext,
+            getBinaryFeedbackResponse,
+            {
+              ...hookState,
+              requiredToolUseAttempts: requiredToolUseAttempts + 1,
+            },
+          )
+          return
+        }
+
+        yield createAssistantAPIErrorMessage(
+          'The model did not request a tool after an automatic retry. This project request was not executed; retry or switch to a model with reliable tool calling.',
+        )
+        return
+      }
+
+      const hasTrustedVerificationTool = toolUseContext.options.tools.some(
+        tool => tool.name === 'Bash' && tool.isTrustedExecutionTool === true,
+      )
+      const verificationState = getTurnVerificationState(messages)
+      if (
+        hasTrustedVerificationTool &&
+        verificationState.hasMutation &&
+        !verificationState.hasTerminalEvidence
+      ) {
+        if (verificationAttempts < MAX_VERIFICATION_RECOVERIES) {
+          yield* await messagePipelineCore(
+            [
+              ...messages.filter(
+                message => !isVerificationRecoveryMessage(message),
+              ),
+              assistantMessage,
+              createVerificationRecoveryMessage(),
+            ],
+            systemPrompt,
+            context,
+            canUseTool,
+            toolUseContext,
+            getBinaryFeedbackResponse,
+            {
+              ...hookState,
+              verificationAttempts: verificationAttempts + 1,
+            },
+          )
+          return
+        }
+
+        yield createAssistantAPIErrorMessage(
+          'API_ERROR: Workspace changes were made, but the model stopped without recording a trusted test, typecheck, lint, build, or check result after the latest change. The changes remain unverified; run an applicable check or retry with a model that can complete verification.',
+        )
+        return
+      }
 
       const stopHookEvent =
         toolUseContext.agentId && toolUseContext.agentId !== 'main'
@@ -748,7 +959,6 @@ async function* messagePipelineCore(
       return
     }
 
-    toolUseContext.turnCount = turnsUsed + 1
     yield assistantMessage
     const siblingToolUseIDs = new Set<string>(toolUseMessages.map(_ => _.id))
     const toolQueue = new ToolUseQueue({
@@ -791,6 +1001,7 @@ async function* messagePipelineCore(
         stopHookActive: false,
         stopHookAttempts: 0,
         thinkingOnlyAttempts: 0,
+        verificationAttempts,
       },
     )
   } finally {

@@ -61,7 +61,7 @@ function writeAtomic(path: string, value: unknown): void {
     if (!canFallback) {
       try {
         unlinkSync(temp)
-      } catch {}
+      } catch { /* no-op */ }
       throw error
     }
     try {
@@ -69,7 +69,7 @@ function writeAtomic(path: string, value: unknown): void {
     } finally {
       try {
         unlinkSync(temp)
-      } catch {}
+      } catch { /* no-op */ }
     }
   }
 }
@@ -91,7 +91,7 @@ function acquireRunStoreLock(storageRoot: string | undefined): () => void {
       return () => {
         try {
           unlinkSync(lockPath)
-        } catch {}
+        } catch { /* no-op */ }
       }
     } catch {
       try {
@@ -99,7 +99,7 @@ function acquireRunStoreLock(storageRoot: string | undefined): () => void {
           unlinkSync(lockPath)
           continue
         }
-      } catch {}
+      } catch { /* no-op */ }
       const memory = new Int32Array(new SharedArrayBuffer(4))
       Atomics.wait(memory, 0, 0, 20)
     }

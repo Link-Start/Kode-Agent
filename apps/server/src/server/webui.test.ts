@@ -124,6 +124,31 @@ describe('WebUI static hosting', () => {
     ).toBe('image/x-icon')
   })
 
+  test('sets browser security headers and caches only fingerprinted assets', () => {
+    const webuiRoot = createWebuiFixture(createTemporaryDirectory())
+    writeFixtureFile(webuiRoot, 'assets/index-AbCd1234.js', 'script')
+    writeFixtureFile(webuiRoot, 'assets/runtime.js', 'script')
+
+    const indexResponse = requireWebuiResponse(webuiRoot, '/')
+    expect(indexResponse.headers.get('content-security-policy')).toContain(
+      "frame-ancestors 'none'",
+    )
+    expect(indexResponse.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(indexResponse.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(indexResponse.headers.get('cache-control')).toBe('no-cache')
+
+    expect(
+      requireWebuiResponse(webuiRoot, '/assets/index-AbCd1234.js').headers.get(
+        'cache-control',
+      ),
+    ).toBe('public, max-age=31536000, immutable')
+    expect(
+      requireWebuiResponse(webuiRoot, '/assets/runtime.js').headers.get(
+        'cache-control',
+      ),
+    ).toBe('no-cache')
+  })
+
   test('uses an SPA fallback without masking daemon routes or missing assets', async () => {
     const webuiRoot = createWebuiFixture(createTemporaryDirectory())
     writeFixtureFile(webuiRoot, 'api/health', 'must not mask daemon health')

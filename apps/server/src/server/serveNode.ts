@@ -18,6 +18,8 @@ export type ServeNodeWebSocketServer = Pick<
 export type ServeNodeOptions<TData> = {
   hostname: string
   port: number
+  maxRequestBodyBytes?: number
+  maxWebSocketMessageBytes?: number
   fetch: (
     req: Request,
     server: ServeNodeFetchServer<TData>,
@@ -38,24 +40,102 @@ export type ServeNodeResult = {
   stop: (force?: boolean) => void
 }
 
+export const DEFAULT_MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024
+export const DEFAULT_MAX_WEBSOCKET_MESSAGE_BYTES = 16 * 1024 * 1024
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+export const DEFAULT_HEADERS_TIMEOUT_MS = 15_000
+
+class RequestBodyTooLargeError extends Error {
+  constructor() {
+    super('Request body too large')
+    this.name = 'RequestBodyTooLargeError'
+  }
+}
+
+function positiveByteLimit(
+  name: 'maxRequestBodyBytes' | 'maxWebSocketMessageBytes',
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (value === undefined) return fallback
+  if (Number.isSafeInteger(value) && value > 0) return value
+  throw new Error(`${name} must be a positive integer`)
+}
+
 async function readRequestBody(
   req: IncomingMessage,
+  maxBytes: number,
 ): Promise<ArrayBuffer | undefined> {
   const method = req.method ?? 'GET'
   if (method === 'GET' || method === 'HEAD') return undefined
 
-  const chunks: Buffer[] = []
-  for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
+  const declaredLength = req.headers['content-length']
+  if (typeof declaredLength === 'string') {
+    const parsedLength = Number(declaredLength)
+    if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
+      throw new RequestBodyTooLargeError()
+    }
   }
-  if (chunks.length === 0) return undefined
-  const buf = Buffer.concat(chunks)
-  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+
+  return await new Promise<ArrayBuffer | undefined>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let totalBytes = 0
+    let settled = false
+
+    const cleanup = () => {
+      req.removeListener('data', onData)
+      req.removeListener('end', onEnd)
+      req.removeListener('aborted', onAborted)
+      req.removeListener('error', onError)
+    }
+    const fail = (error: Error) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(error)
+    }
+    const onData = (chunk: Buffer | string) => {
+      const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+      totalBytes += buffer.byteLength
+      if (totalBytes > maxBytes) {
+        // Stop consuming attacker-controlled bytes while preserving the socket
+        // long enough to send a deterministic 413 response.
+        req.pause()
+        fail(new RequestBodyTooLargeError())
+        return
+      }
+      chunks.push(buffer)
+    }
+    const onEnd = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      if (chunks.length === 0) {
+        resolve(undefined)
+        return
+      }
+      const buffer = Buffer.concat(chunks, totalBytes)
+      resolve(
+        buffer.buffer.slice(
+          buffer.byteOffset,
+          buffer.byteOffset + buffer.byteLength,
+        ),
+      )
+    }
+    const onAborted = () => fail(new Error('Request aborted'))
+    const onError = (error: Error) => fail(error)
+
+    req.on('data', onData)
+    req.once('end', onEnd)
+    req.once('aborted', onAborted)
+    req.once('error', onError)
+  })
 }
 
 async function toFetchRequest(
   req: IncomingMessage,
   hostname: string,
+  maxRequestBodyBytes: number,
   signal?: AbortSignal,
 ): Promise<Request> {
   const base = `http://${req.headers.host ?? hostname}`
@@ -65,7 +145,7 @@ async function toFetchRequest(
     if (typeof value === 'string') headers.set(key, value)
     else if (Array.isArray(value)) headers.set(key, value.join(', '))
   }
-  const body = await readRequestBody(req)
+  const body = await readRequestBody(req, maxRequestBodyBytes)
   return new Request(url.toString(), {
     method: req.method ?? 'GET',
     headers,
@@ -127,7 +207,9 @@ async function cancelReader(
 ): Promise<void> {
   try {
     await reader.cancel()
-  } catch {}
+  } catch {
+    // Cancellation is best-effort after the consumer has already stopped.
+  }
 }
 
 async function pipeResponseBody(args: {
@@ -162,7 +244,9 @@ async function pipeResponseBody(args: {
     if (args.signal.aborted) cancel()
     try {
       reader.releaseLock()
-    } catch {}
+    } catch {
+      // A cancelled stream may have released its reader already.
+    }
   }
 }
 
@@ -263,7 +347,9 @@ async function cancelResponseBody(
 ): Promise<void> {
   try {
     await response?.body?.cancel()
-  } catch {}
+  } catch {
+    // The transport is already closing; cancellation is best-effort.
+  }
 }
 
 async function sendFetchResponse(
@@ -275,7 +361,9 @@ async function sendFetchResponse(
   for (const [key, value] of response.headers.entries()) {
     try {
       res.setHeader(key, value)
-    } catch {}
+    } catch {
+      // Ignore a malformed upstream header without failing the whole response.
+    }
   }
 
   if (!response.body || res.req?.method === 'HEAD') {
@@ -356,7 +444,22 @@ async function sendFetchResponseToSocket(
 export async function serveNode<TData>(
   options: ServeNodeOptions<TData>,
 ): Promise<ServeNodeResult> {
-  const wss = options.webSocketServer ?? new WebSocketServer({ noServer: true })
+  const maxRequestBodyBytes = positiveByteLimit(
+    'maxRequestBodyBytes',
+    options.maxRequestBodyBytes,
+    DEFAULT_MAX_REQUEST_BODY_BYTES,
+  )
+  const maxWebSocketMessageBytes = positiveByteLimit(
+    'maxWebSocketMessageBytes',
+    options.maxWebSocketMessageBytes,
+    DEFAULT_MAX_WEBSOCKET_MESSAGE_BYTES,
+  )
+  const wss =
+    options.webSocketServer ??
+    new WebSocketServer({
+      noServer: true,
+      maxPayload: maxWebSocketMessageBytes,
+    })
   const sockets = new Set<Duplex>()
 
   const httpServer = createServer(async (req, res) => {
@@ -365,6 +468,7 @@ export async function serveNode<TData>(
       const request = await toFetchRequest(
         req,
         options.hostname,
+        maxRequestBodyBytes,
         abortScope.signal,
       )
       if (abortScope.signal.aborted) return
@@ -380,15 +484,26 @@ export async function serveNode<TData>(
         return
       }
       await sendFetchResponse(res, response, abortScope.signal)
-    } catch {
-      if (!abortScope.signal.aborted && !res.destroyed && !res.writableEnded) {
-        res.statusCode = 500
-        res.end('Internal Server Error')
+    } catch (error) {
+      if (!res.destroyed && !res.writableEnded) {
+        if (error instanceof RequestBodyTooLargeError) {
+          res.statusCode = 413
+          res.shouldKeepAlive = false
+          res.setHeader('connection', 'close')
+          res.end('Payload Too Large')
+        } else if (!abortScope.signal.aborted) {
+          res.statusCode = 500
+          res.end('Internal Server Error')
+        }
       }
     } finally {
       abortScope.cleanup()
     }
   })
+  httpServer.requestTimeout = DEFAULT_REQUEST_TIMEOUT_MS
+  httpServer.headersTimeout = DEFAULT_HEADERS_TIMEOUT_MS
+  httpServer.keepAliveTimeout = 5_000
+  httpServer.maxHeadersCount = 100
 
   httpServer.on('connection', socket => {
     sockets.add(socket)
@@ -402,6 +517,7 @@ export async function serveNode<TData>(
         const request = await toFetchRequest(
           req,
           options.hostname,
+          maxRequestBodyBytes,
           abortScope.signal,
         )
         if (abortScope.signal.aborted) return
@@ -433,14 +549,18 @@ export async function serveNode<TData>(
                 ws.on('close', () => {
                   try {
                     options.websocket.close(wsWithData)
-                  } catch {}
+                  } catch {
+                    // User cleanup must not crash the transport close handler.
+                  }
                 })
 
                 accepted = true
                 upgradeState = 'upgraded'
                 try {
                   options.websocket.open(wsWithData)
-                } catch {}
+                } catch {
+                  // The socket lifecycle remains valid if user setup fails.
+                }
               })
             } catch {
               upgradeState = 'failed'
@@ -503,23 +623,33 @@ export async function serveNode<TData>(
       wss.clients.forEach(ws => {
         try {
           ws.close()
-        } catch {}
+        } catch {
+          // Continue closing the remaining sockets.
+        }
       })
-    } catch {}
+    } catch {
+      // A custom WebSocket server may already be closed.
+    }
     try {
       wss.close()
-    } catch {}
+    } catch {
+      // Stop is idempotent.
+    }
     if (force) {
       for (const socket of sockets) {
         try {
           socket.destroy()
-        } catch {}
+        } catch {
+          // Continue destroying the remaining sockets.
+        }
       }
       sockets.clear()
     }
     try {
       httpServer.close()
-    } catch {}
+    } catch {
+      // Stop is idempotent.
+    }
   }
 
   return { port: actualPort, stop }

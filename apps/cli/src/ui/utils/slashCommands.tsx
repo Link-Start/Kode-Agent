@@ -129,6 +129,7 @@ export async function getMessagesForSlashCommand(
             isCustomCommand: true,
             commandName: command.userFacingName(),
             commandArgs: args,
+            requestStatusDetail: command.requestStatusDetail,
           }
 
           return userMessage
