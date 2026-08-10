@@ -13,7 +13,25 @@ import { useCancelRequest } from '#ui-ink/hooks/useCancelRequest'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { setCwd } from '#core/utils/state'
 import { clearConfigCacheForTesting } from '#config'
-import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
+import {
+  createInkHarnessManager,
+  createInkTestHarness,
+  type InkTestHarness,
+} from './inkTestHarness'
+
+async function waitForHarnessOutput(
+  harness: InkTestHarness,
+  expected: string,
+  timeoutMs = 2_000,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs
+  let output = harness.getOutput()
+  while (!output.includes(expected) && Date.now() < deadline) {
+    await harness.wait(25)
+    output = harness.getOutput()
+  }
+  return output
+}
 
 function PromptInputHarness({
   conversationKey,
@@ -991,9 +1009,8 @@ describe('TUI E2E regression (Ink render): PromptInput', () => {
     await h.wait(75)
 
     h.stdin.write('\u001b')
-    await h.wait(100)
 
-    const out = h.getOutput()
+    const out = await waitForHarnessOutput(h, 'LOADING:false')
     expect(out).toContain('RAW:\"\"')
     expect(out).toContain('LOADING:false')
     expect(out).toContain('ABORTED:true')
