@@ -33,6 +33,10 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      - name: Dependency audit
+        if: runner.os == 'Linux'
+        run: bun run security:audit
+
       - name: Format
         run: bun run format:check
         shell: bash
