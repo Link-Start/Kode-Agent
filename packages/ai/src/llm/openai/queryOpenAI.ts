@@ -74,6 +74,10 @@ function createAssistantMessageFromOpenAIResponse(args: {
   start: number
 }): AssistantMessage {
   const message = convertOpenAIResponseToAnthropic(args.response, args.tools)
+  const finishReason = args.response.choices?.[0]?.finish_reason
+  const hasUnusableToolCall =
+    (finishReason === 'tool_calls' || finishReason === 'function_call') &&
+    !message.content.some(block => block.type === 'tool_use')
   const assistantMsg: AssistantMessage = {
     type: 'assistant',
     message,
@@ -81,7 +85,7 @@ function createAssistantMessageFromOpenAIResponse(args: {
     durationMs: Date.now() - args.start,
     uuid: randomUUID() as UUID,
   }
-  if (isOpenAIStreamDegradedResponse(args.response)) {
+  if (isOpenAIStreamDegradedResponse(args.response) || hasUnusableToolCall) {
     assistantMsg.isApiErrorMessage = true
   }
   return assistantMsg

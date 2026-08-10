@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
-import { createAssistantMessage, createUserMessage } from '#core/utils/messages'
+import {
+  createAssistantAPIErrorMessage,
+  createAssistantMessage,
+  createUserMessage,
+} from '#core/utils/messages'
 import type { AssistantMessage, Message } from '@kode/engine/message-pipeline'
 import { __setLlmLazyQueryLLMLoaderForTests } from '#core/ai/llmLazy'
 import { handleMessageStream } from '#core/ai/llm/openai/stream'
@@ -248,6 +252,57 @@ describe('messagePipeline thinking-only recovery', () => {
     )
   })
 
+  test('preserves a classified provider error without a no-tool retry', async () => {
+    queryLLM.mockClear()
+    const providerError = createAssistantAPIErrorMessage(
+      'API Error: The provider returned an invalid tool call.',
+    )
+    providerError.message.content.unshift({
+      type: 'tool_use',
+      id: 'must_not_run',
+      name: 'Read',
+      input: { file_path: '/tmp/must-not-run' },
+    })
+    queryLLMImplementation = async () => providerError
+    const canUseTool = mock(async () => ({
+      result: true,
+      message: createAssistantAPIErrorMessage(
+        'API Error: The provider returned an invalid tool call.',
+      ),
+    }))
+
+    const { messagePipeline } = await import('@kode/engine/message-pipeline')
+    const out: Message[] = []
+    for await (const message of messagePipeline(
+      [createUserMessage('查看项目代码')],
+      [],
+      {},
+      canUseTool as any,
+      createToolUseContext(2, [{ name: 'Read' }]),
+    )) {
+      out.push(message)
+    }
+
+    const assistantMessages = out.filter(
+      (message): message is AssistantMessage => message.type === 'assistant',
+    )
+    expect(queryLLM).toHaveBeenCalledTimes(1)
+    expect(canUseTool).not.toHaveBeenCalled()
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0]?.isApiErrorMessage).toBe(true)
+    expect(assistantMessages[0]?.message.content).toContainEqual({
+      type: 'text',
+      text: 'API Error: The provider returned an invalid tool call.',
+      citations: [],
+    })
+    expect(assistantMessages[0]?.message.content).toContainEqual({
+      type: 'tool_use',
+      id: 'must_not_run',
+      name: 'Read',
+      input: { file_path: '/tmp/must-not-run' },
+    })
+  })
+
   test('fails closed without querying the model when an explicit project request has no tools', async () => {
     queryLLM.mockClear()
     queryLLMImplementation = async () =>
@@ -302,6 +357,27 @@ describe('messagePipeline thinking-only recovery', () => {
     expect(calls[0]!.systemPrompt.join('\n')).not.toContain(
       '<tool_use_requirement>',
     )
+    expect(out.filter(message => message.type === 'assistant')).toHaveLength(1)
+  })
+
+  test('does not mistake an advisory package question for an execution request', async () => {
+    queryLLM.mockClear()
+    queryLLMImplementation = async () =>
+      createAssistantMessage('This project should use Bun.')
+
+    const { messagePipeline } = await import('@kode/engine/message-pipeline')
+    const out: Message[] = []
+    for await (const message of messagePipeline(
+      [createUserMessage('Which package runtime should this project use?')],
+      [],
+      {},
+      (async () => ({ result: true })) as any,
+      createToolUseContext(2),
+    )) {
+      out.push(message)
+    }
+
+    expect(queryLLM).toHaveBeenCalledTimes(1)
     expect(out.filter(message => message.type === 'assistant')).toHaveLength(1)
   })
 })

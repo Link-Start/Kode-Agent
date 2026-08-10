@@ -13,8 +13,8 @@ function readString(
   return typeof value === 'string' ? value : ''
 }
 
-function trimConfigString(value: string): string {
-  return value.trim()
+function trimConfigString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 /**

@@ -108,9 +108,13 @@ const TOOL_USE_INTENT_PATTERNS = [
 const TOOL_USE_NEGATION_PATTERN =
   /(?:不要|无需|不必|别|不用).{0,16}(?:查看|看看|检查|检视|浏览|读取|搜索|查找|分析|审查|审阅|排查|运行|执行|测试|构建|编译|打包|安装|提交|推送|部署|修复|修改|编辑)|\b(?:do not|don't|no need to|without)\b[\s\S]{0,32}\b(?:inspect|explore|search|find|read|check|review|run|execute|test|build|compile|package|install|commit|push|deploy|edit|modify|fix)\b/i
 
+const TOOL_USE_ADVISORY_QUESTION_PATTERN =
+  /^\s*(?:what|which)\b[\s\S]{0,96}\b(?:should|would|could)\b[\s\S]{0,64}\b(?:use|choose|prefer|recommend)\b\s*\??\s*$/i
+
 function hasExplicitToolUseIntent(prompt: string | null): boolean {
   if (!prompt?.trim()) return false
   if (TOOL_USE_NEGATION_PATTERN.test(prompt)) return false
+  if (TOOL_USE_ADVISORY_QUESTION_PATTERN.test(prompt)) return false
   return TOOL_USE_INTENT_PATTERNS.some(pattern => pattern.test(prompt))
 }
 
@@ -723,6 +727,15 @@ async function* messagePipelineCore(
     // This keeps --max-turns and SDK num_turns aligned with actual provider
     // calls instead of allowing hidden retries to bypass the configured cap.
     toolUseContext.turnCount = turnsUsed + 1
+
+    // Provider/stream errors are already classified by the LLM adapter. Never
+    // execute tool blocks from an error response, and preserve the original
+    // evidence instead of rewriting it as a misleading no-tool failure.
+    if (assistantMessage.isApiErrorMessage) {
+      yield assistantMessage
+      return
+    }
+
     const shouldSkipPermissionCheck = result.shouldSkipPermissionCheck
 
     // @see https://docs.anthropic.com/en/docs/build-with-claude/tool-use
