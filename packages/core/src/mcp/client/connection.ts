@@ -211,7 +211,9 @@ async function runShellCommandCaptureOutput(args: {
       ? setTimeout(() => {
           try {
             proc.kill()
-          } catch {}
+          } catch {
+            // The process may have already exited.
+          }
         }, args.timeoutMs)
       : null
 
