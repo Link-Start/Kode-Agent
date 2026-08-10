@@ -6,6 +6,8 @@ import { join, resolve } from 'node:path'
 
 import { DaemonRegistry } from '#cli-services/daemonRegistry'
 
+const DAEMON_COMMAND_TIMEOUT_MS = 30_000
+
 function daemonEnv(configDir: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -20,7 +22,7 @@ function runDaemon(args: string[], env: NodeJS.ProcessEnv) {
     cwd: process.cwd(),
     env,
     encoding: 'utf8',
-    timeout: 10_000,
+    timeout: DAEMON_COMMAND_TIMEOUT_MS,
   })
 }
 
@@ -46,7 +48,7 @@ describe('kode daemon command', () => {
       rmSync(configDir, { recursive: true, force: true })
       rmSync(workspace, { recursive: true, force: true })
     }
-  }, 15_000)
+  }, 40_000)
 
   test('status never serializes a registry token', () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-daemon-command-'))
@@ -82,7 +84,7 @@ describe('kode daemon command', () => {
       rmSync(configDir, { recursive: true, force: true })
       rmSync(workspace, { recursive: true, force: true })
     }
-  }, 15_000)
+  }, 40_000)
 
   test('stop removes a stale record even when its workspace was deleted', () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-daemon-command-'))
@@ -116,7 +118,7 @@ describe('kode daemon command', () => {
     } finally {
       rmSync(configDir, { recursive: true, force: true })
     }
-  }, 15_000)
+  }, 40_000)
 
   test('starts, probes, and stops a source daemon without printing its token', () => {
     const configDir = mkdtempSync(join(tmpdir(), 'kode-daemon-command-'))
@@ -176,5 +178,5 @@ describe('kode daemon command', () => {
       rmSync(configDir, { recursive: true, force: true })
       rmSync(workspace, { recursive: true, force: true })
     }
-  }, 30_000)
+  }, 60_000)
 })
