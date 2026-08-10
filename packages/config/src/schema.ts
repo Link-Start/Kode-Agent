@@ -4,11 +4,13 @@ export type ThemeNames =
   // Light themes
   | 'light'
   | 'light-daltonized'
+  | 'high-contrast-light'
   | 'solarized-light'
   | 'github-light'
   // Dark themes
   | 'dark'
   | 'dark-daltonized'
+  | 'high-contrast-dark'
   | 'dracula'
   | 'nord'
   | 'monokai'
