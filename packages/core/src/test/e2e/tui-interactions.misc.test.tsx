@@ -47,6 +47,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const harnessManager = createInkHarnessManager()
+const SCOPED_INDEX_TEST_ITEMS = ['first', 'second', 'third'] as const
 
 async function waitForCondition(
   harness: ReturnType<typeof createInkTestHarness>,
@@ -1960,7 +1961,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     const scope = `test:scoped-index-remount:${Date.now()}:${Math.random()}`
 
     function ScopedIndexList(): React.ReactNode {
-      const items = ['first', 'second', 'third']
+      const items = SCOPED_INDEX_TEST_ITEMS
       const [selectedIndex, setSelectedIndex] = useScopedIndexState({
         scope,
         itemCount: items.length,
@@ -2030,7 +2031,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     const scope = `test:scoped-index-sync-remount:${Date.now()}:${Math.random()}`
 
     function ScopedIndexList(): React.ReactNode {
-      const items = ['first', 'second', 'third']
+      const items = SCOPED_INDEX_TEST_ITEMS
       const [selectedIndex, setSelectedIndex] = useScopedIndexState({
         scope,
         itemCount: items.length,
@@ -2094,7 +2095,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
     const scope = `test:scoped-index-initial-churn:${Date.now()}:${Math.random()}`
 
     function ScopedIndexChurnList(): React.ReactNode {
-      const items = ['first', 'second', 'third']
+      const items = SCOPED_INDEX_TEST_ITEMS
       const [tick, setTick] = useState(0)
 
       useEffect(() => {

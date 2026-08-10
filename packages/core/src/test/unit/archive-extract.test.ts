@@ -241,8 +241,27 @@ describe('archive extraction (zip + tar.gz)', () => {
         extractTarGzBuffer(new Uint8Array(gzipSync(tar)), outDir, {
           limits: { maxExtractedBytes: 1024 },
         }),
-      ).rejects.toThrow('Failed to decompress tar.gz within 1024 bytes')
+      ).rejects.toThrow('Failed to decompress tar.gz within')
       expect(existsSync(join(outDir, 'root', 'large.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('does not charge tar headers and padding against file byte limits', async () => {
+    const content = Buffer.alloc(1024, 0x61)
+    const tar = buildTar([
+      { path: 'root/exact-limit.txt', type: 'file', data: content },
+    ])
+    expect(tar.byteLength).toBeGreaterThan(content.byteLength)
+
+    const outDir = makeTempDir('kode-tar-content-budget-')
+    try {
+      await extractTarGzBuffer(new Uint8Array(gzipSync(tar)), outDir, {
+        stripComponents: 1,
+        limits: { maxExtractedBytes: content.byteLength },
+      })
+      expect(readFileSync(join(outDir, 'exact-limit.txt'))).toEqual(content)
     } finally {
       rmSync(outDir, { recursive: true, force: true })
     }

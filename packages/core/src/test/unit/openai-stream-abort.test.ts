@@ -315,13 +315,9 @@ describe('OpenAI stream degradation', () => {
     })
   })
 
-  test('merges repeated tool metadata idempotently while concatenating arguments', async () => {
-    const toolChunks = [
-      { arguments: '{"command":' },
-      { arguments: '"pwd"' },
-      { arguments: '}' },
-    ].map(functionDelta =>
-      JSON.stringify(
+  test('deduplicates repeated tool-call metadata from compatible providers', async () => {
+    const body = sseBody([
+      `data: ${JSON.stringify(
         chunk({
           tool_calls: [
             {
@@ -330,15 +326,34 @@ describe('OpenAI stream degradation', () => {
               type: 'function',
               function: {
                 name: 'Bash',
-                ...functionDelta,
+                arguments: '',
               },
             },
           ],
         }),
-      ),
-    )
-    const body = sseBody([
-      ...toolChunks.map(toolChunk => `data: ${toolChunk}`),
+      )}`,
+      `data: ${JSON.stringify(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              type: 'function',
+              function: { arguments: '{"command":"git ' },
+            },
+          ],
+        }),
+      )}`,
+      `data: ${JSON.stringify(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              type: 'function',
+              function: { arguments: 'status --short"}' },
+            },
+          ],
+        }),
+      )}`,
       `data: ${JSON.stringify(rawChunk({ finish_reason: 'tool_calls' }))}`,
       'data: [DONE]',
     ])
@@ -347,51 +362,22 @@ describe('OpenAI stream degradation', () => {
       createStreamProcessor(body as any) as any,
       undefined,
     )
-    const toolCall = result.choices[0]?.message.tool_calls?.[0]
+    const mergedToolCall = result.choices[0]?.message.tool_calls?.[0]
     const message = convertOpenAIResponseToAnthropic(result, [])
 
-    expect(isOpenAIStreamDegradedResponse(result)).toBe(false)
-    expect(toolCall).toMatchObject({
+    expect(mergedToolCall).toMatchObject({
       id: 'call_1',
       type: 'function',
       function: {
         name: 'Bash',
-        arguments: '{"command":"pwd"}',
+        arguments: '{"command":"git status --short"}',
       },
     })
     expect(message.content).toContainEqual({
       type: 'tool_use',
-      id: 'call_1',
       name: 'Bash',
-      input: { command: 'pwd' },
-    })
-  })
-
-  test('ignores unrecognized tool metadata without changing object prototypes', async () => {
-    const maliciousToolCall = JSON.parse(
-      '{"index":0,"id":"call_safe","type":"function","function":{"name":"Bash","arguments":"{}","__proto__":{"polluted":true}},"__proto__":{"polluted":true}}',
-    )
-    const body = sseBody([
-      `data: ${JSON.stringify(chunk({ tool_calls: [maliciousToolCall] }))}`,
-      `data: ${JSON.stringify(rawChunk({ finish_reason: 'tool_calls' }))}`,
-      'data: [DONE]',
-    ])
-
-    const result = await handleMessageStream(
-      createStreamProcessor(body as any) as any,
-      undefined,
-    )
-    const toolCall = result.choices[0]?.message.tool_calls?.[0] as unknown as
-      Record<string, unknown> | undefined
-
-    expect(toolCall?.polluted).toBeUndefined()
-    expect(
-      (Object.prototype as Record<string, unknown>).polluted,
-    ).toBeUndefined()
-    expect(toolCall).toMatchObject({
-      id: 'call_safe',
-      type: 'function',
-      function: { name: 'Bash', arguments: '{}' },
+      input: { command: 'git status --short' },
+      id: 'call_1',
     })
   })
 

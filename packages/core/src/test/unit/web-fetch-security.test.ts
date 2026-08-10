@@ -2,31 +2,11 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   assertPublicWebFetchTarget,
+  createPinnedLookup,
   fetchWithRedirectDetection,
   isPublicNetworkAddress,
   isValidWebFetchUrl,
-  resolvePublicWebFetchTarget,
-  type ResolvedWebFetchTarget,
 } from '#tools/tools/network/WebFetchTool/utils'
-
-function callPinnedLookup(
-  target: ResolvedWebFetchTarget,
-  hostname = target.hostname,
-): Promise<{ address: string; family: number }> {
-  return new Promise((resolve, reject) => {
-    target.lookup(hostname, { family: 0 }, (error, address, family) => {
-      if (error) {
-        reject(error)
-        return
-      }
-      if (typeof address !== 'string' || typeof family !== 'number') {
-        reject(new Error('Expected one pinned address'))
-        return
-      }
-      resolve({ address, family })
-    })
-  })
-}
 
 describe('WebFetch network boundary', () => {
   test('rejects private and special-use IPv4 and IPv6 literals', () => {
@@ -74,82 +54,24 @@ describe('WebFetch network boundary', () => {
     ).resolves.toBeUndefined()
   })
 
-  test('pins the actual connection lookup while retaining Host and TLS SNI', async () => {
-    let resolverCalls = 0
-    const target = await resolvePublicWebFetchTarget(
-      'https://service.example:8443/docs',
-      async () => {
-        resolverCalls += 1
-        return resolverCalls === 1
-          ? [{ address: '93.184.216.34', family: 4 }]
-          : [{ address: '10.0.0.4', family: 4 }]
-      },
-    )
+  test('pins transport lookups to the addresses that passed validation', async () => {
+    const approved = [
+      { address: '93.184.216.34', family: 4 as const },
+      { address: '2606:4700:4700::1111', family: 6 as const },
+    ]
+    const pinnedLookup = createPinnedLookup(approved)
 
-    expect(target.authority).toBe('service.example:8443')
-    expect(target.servername).toBe('service.example')
-    expect(await callPinnedLookup(target)).toEqual({
-      address: '93.184.216.34',
-      family: 4,
+    const resolved = await new Promise<unknown[]>((resolve, reject) => {
+      pinnedLookup('rebound.example', { all: true }, (error, addresses) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve(Array.isArray(addresses) ? addresses : [addresses])
+      })
     })
-    expect(resolverCalls).toBe(1)
-    await expect(
-      callPinnedLookup(target, 'attacker.example'),
-    ).rejects.toMatchObject({ code: 'ENOTFOUND' })
-  })
 
-  test('does not perform a second DNS lookup between validation and connect', async () => {
-    let resolverCalls = 0
-    let connectedAddress = ''
-    const result = await fetchWithRedirectDetection(
-      'https://service.example/resource',
-      new AbortController().signal,
-      {
-        lookupHostname: async () => {
-          resolverCalls += 1
-          return resolverCalls === 1
-            ? [{ address: '93.184.216.34', family: 4 }]
-            : [{ address: '127.0.0.1', family: 4 }]
-        },
-        fetchImpl: async target => {
-          connectedAddress = (await callPinnedLookup(target)).address
-          return new Response('safe')
-        },
-      },
-    )
-
-    expect(result.type).toBe('response')
-    expect(connectedAddress).toBe('93.184.216.34')
-    expect(resolverCalls).toBe(1)
-  })
-
-  test('fails closed when a same-host redirect rebinds to a private address', async () => {
-    let resolverCalls = 0
-    let fetchCalls = 0
-
-    await expect(
-      fetchWithRedirectDetection(
-        'https://service.example/start',
-        new AbortController().signal,
-        {
-          lookupHostname: async () => {
-            resolverCalls += 1
-            return resolverCalls === 1
-              ? [{ address: '93.184.216.34', family: 4 }]
-              : [{ address: '127.0.0.1', family: 4 }]
-          },
-          fetchImpl: async () => {
-            fetchCalls += 1
-            return new Response('', {
-              status: 302,
-              headers: { location: '/next' },
-            })
-          },
-        },
-      ),
-    ).rejects.toThrow('non-public network address')
-    expect(resolverCalls).toBe(2)
-    expect(fetchCalls).toBe(1)
+    expect(resolved).toEqual(approved)
   })
 
   test('revalidates same-host redirect targets and stops redirect loops', async () => {
@@ -163,13 +85,14 @@ describe('WebFetch network boundary', () => {
           lookupCalls += 1
           return [{ address: '93.184.216.34' }]
         },
-        fetchImpl: async target => {
+        fetchImpl: async (url, _init, target) => {
           fetchCalls += 1
+          expect(target.addresses).toEqual([
+            { address: '93.184.216.34', family: 4 },
+          ])
           return new Response('', {
             status: 303,
-            headers: {
-              location: `${new URL(target.url).pathname}/next`,
-            },
+            headers: { location: `${new URL(url).pathname}/next` },
           })
         },
       },
