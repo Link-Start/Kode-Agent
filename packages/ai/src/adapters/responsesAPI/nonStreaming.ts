@@ -1,5 +1,28 @@
 import type { UnifiedResponse } from '../../internal/modelCapabilityTypes'
 
+function normalizeToolArguments(value: unknown, toolName: string): string {
+  const rawArguments =
+    value === undefined || value === null || value === '' ? '{}' : value
+  if (typeof rawArguments !== 'string') {
+    throw new Error(
+      `Tool call ${toolName} has invalid JSON arguments: arguments must be a string`,
+    )
+  }
+
+  try {
+    const parsed = JSON.parse(rawArguments)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('tool arguments must be a JSON object')
+    }
+  } catch (error) {
+    throw new Error(
+      `Tool call ${toolName} has invalid JSON arguments: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+
+  return rawArguments
+}
+
 function parseToolCalls(response: any): any[] {
   // Tool call parsing (Responses API)
   if (!response.output || !Array.isArray(response.output)) {
@@ -9,36 +32,21 @@ function parseToolCalls(response: any): any[] {
   const toolCalls = []
 
   for (const item of response.output) {
-    if (item.type === 'function_call') {
-      // Parse tool call with better structure
+    if (item.type === 'function_call' || item.type === 'tool_call') {
       const callId = item.call_id || item.id
-      const name = item.name || ''
-      const args = item.arguments || '{}'
-
-      // Validate required fields
-      if (
-        typeof callId === 'string' &&
-        typeof name === 'string' &&
-        typeof args === 'string'
-      ) {
-        toolCalls.push({
-          id: callId,
-          type: 'function',
-          function: {
-            name: name,
-            arguments: args,
-          },
-        })
+      const name = typeof item.name === 'string' ? item.name.trim() : ''
+      if (typeof callId !== 'string' || !callId || !name) {
+        throw new Error('Responses API returned an incomplete tool call')
       }
-    } else if (item.type === 'tool_call') {
-      // Handle alternative tool_call type
-      const callId =
-        item.id || `tool_${Math.random().toString(36).substring(2, 15)}`
+      const args = normalizeToolArguments(item.arguments, name)
+
       toolCalls.push({
         id: callId,
-        type: 'tool_call',
-        name: item.name,
-        arguments: item.arguments,
+        type: 'function',
+        function: {
+          name,
+          arguments: args,
+        },
       })
     }
   }

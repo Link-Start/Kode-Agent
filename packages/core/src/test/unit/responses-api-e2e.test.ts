@@ -113,6 +113,52 @@ describe('Responses API Tests', () => {
       expect(unifiedResponse.responseId).toBe('resp-nested-output-text')
     })
 
+    test('normalizes alternative non-streaming tool calls', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      const unifiedResponse = await adapter.parseResponse({
+        id: 'resp-alt-tool',
+        output: [
+          {
+            type: 'tool_call',
+            id: 'call_alt',
+            name: 'read_file',
+            arguments: '{"path":"README.md"}',
+          },
+        ],
+      })
+
+      expect(unifiedResponse.toolCalls).toEqual([
+        {
+          id: 'call_alt',
+          type: 'function',
+          function: {
+            name: 'read_file',
+            arguments: '{"path":"README.md"}',
+          },
+        },
+      ])
+    })
+
+    test('rejects malformed non-streaming function call arguments', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+
+      await expect(
+        adapter.parseResponse({
+          id: 'resp-bad-buffered-tool',
+          output: [
+            {
+              type: 'function_call',
+              id: 'fc_bad',
+              call_id: 'call_bad',
+              name: 'read_file',
+              arguments: '{"path":',
+            },
+          ],
+        }),
+      ).rejects.toThrow('invalid JSON arguments')
+    })
+
     test('includes reasoning and verbosity parameters when provided', () => {
       const adapter = ModelAdapterFactory.createAdapter(testModel)
 
@@ -381,6 +427,20 @@ describe('Responses API Tests', () => {
         input: { path: 'README.md' },
       })
       expect(assistantMessage.responseId).toBe('resp-tool-stream')
+    })
+
+    test('rejects malformed streamed function call arguments', async () => {
+      const adapter = ModelAdapterFactory.createAdapter(testModel)
+      const streamData = [
+        'data: {"type":"response.created","response":{"id":"resp-bad-tool"}}\n\n',
+        'data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_bad","type":"function_call","status":"in_progress","name":"read_file","arguments":"","call_id":"call_bad"}}\n\n',
+        'data: {"type":"response.function_call_arguments.done","item_id":"fc_bad","output_index":0,"arguments":"{\\"path\\":"}\n\n',
+        'data: [DONE]\n\n',
+      ].join('')
+
+      await expect(
+        adapter.parseResponse(new Response(streamData)),
+      ).rejects.toThrow('invalid JSON arguments')
     })
 
     test('streaming failure before assistant output rejects', async () => {

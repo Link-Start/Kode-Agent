@@ -14,6 +14,108 @@ import {
 } from '#core/utils/visionContent'
 
 export class ChatCompletionsAdapter extends OpenAIAdapter {
+  private mergeStreamMetadata(previous: string, next: string): string {
+    if (!next || previous === next || previous.endsWith(next)) return previous
+    if (!previous || next.startsWith(previous)) return next
+    return previous + next
+  }
+
+  private accumulateToolCallDeltas(
+    toolCalls: unknown[],
+    reasoningContext?: ReasoningStreamingContext,
+  ): void {
+    if (!reasoningContext) {
+      throw new Error('Chat Completions stream state is unavailable')
+    }
+
+    const calls =
+      reasoningContext.responseFunctionCalls ??
+      (reasoningContext.responseFunctionCalls = new Map())
+
+    for (
+      let fallbackIndex = 0;
+      fallbackIndex < toolCalls.length;
+      fallbackIndex++
+    ) {
+      const toolCall = toolCalls[fallbackIndex]
+      if (
+        !toolCall ||
+        typeof toolCall !== 'object' ||
+        Array.isArray(toolCall)
+      ) {
+        throw new Error(
+          'Chat Completions stream tool_calls entries must be objects',
+        )
+      }
+
+      const delta = toolCall as Record<string, unknown>
+      const rawIndex = delta.index
+      if (
+        rawIndex !== undefined &&
+        (typeof rawIndex !== 'number' ||
+          !Number.isInteger(rawIndex) ||
+          rawIndex < 0)
+      ) {
+        throw new Error(
+          'Chat Completions stream tool_calls index must be a non-negative integer',
+        )
+      }
+      const index = typeof rawIndex === 'number' ? rawIndex : fallbackIndex
+      const key = `chat:${index}`
+      const state = calls.get(key) ?? { arguments: '' }
+
+      if (typeof delta.id === 'string') {
+        state.id = this.mergeStreamMetadata(state.id ?? '', delta.id)
+      }
+
+      const fn = delta.function
+      if (fn !== undefined) {
+        if (!fn || typeof fn !== 'object' || Array.isArray(fn)) {
+          throw new Error(
+            'Chat Completions stream tool call function must be an object',
+          )
+        }
+        const functionDelta = fn as Record<string, unknown>
+        if (typeof functionDelta.name === 'string') {
+          state.name = this.mergeStreamMetadata(
+            state.name ?? '',
+            functionDelta.name,
+          )
+        }
+        if (typeof functionDelta.arguments === 'string') {
+          state.arguments += functionDelta.arguments
+        }
+      }
+
+      calls.set(key, state)
+    }
+  }
+
+  private takePendingToolCalls(
+    reasoningContext?: ReasoningStreamingContext,
+  ): Array<{ id: string; name: string; input: string }> {
+    const calls = reasoningContext?.responseFunctionCalls
+    if (!calls || calls.size === 0) return []
+
+    const completed: Array<{ id: string; name: string; input: string }> = []
+    for (const state of calls.values()) {
+      const id = state.id?.trim()
+      const name = state.name?.trim()
+      if (!id || !name) {
+        throw new Error(
+          'Chat Completions stream ended with an incomplete tool call',
+        )
+      }
+      completed.push({
+        id,
+        name,
+        input: state.arguments || '{}',
+      })
+    }
+    calls.clear()
+    return completed
+  }
+
   createRequest(params: UnifiedRequestParams): any {
     const { messages, systemPrompt, tools, maxTokens, stream } = params
 
@@ -86,6 +188,68 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
     }))
   }
 
+  private normalizeToolCalls(value: unknown): any[] {
+    if (value === undefined || value === null) return []
+    if (!Array.isArray(value)) {
+      throw new Error('Chat Completions tool_calls must be an array')
+    }
+
+    return value.map((toolCall, index) => {
+      if (
+        !toolCall ||
+        typeof toolCall !== 'object' ||
+        Array.isArray(toolCall)
+      ) {
+        throw new Error(`Chat Completions tool call ${index} must be an object`)
+      }
+
+      const call = toolCall as Record<string, unknown>
+      const callType = typeof call.type === 'string' ? call.type : 'function'
+      if (callType !== 'function') {
+        throw new Error(
+          `Chat Completions tool call ${index} has unsupported type ${callType}`,
+        )
+      }
+
+      const id = typeof call.id === 'string' ? call.id.trim() : ''
+      const fn = call.function
+      if (!fn || typeof fn !== 'object' || Array.isArray(fn)) {
+        throw new Error(
+          `Chat Completions tool call ${index} is missing its function`,
+        )
+      }
+      const functionCall = fn as Record<string, unknown>
+      const name =
+        typeof functionCall.name === 'string' ? functionCall.name.trim() : ''
+      const rawArguments =
+        functionCall.arguments === undefined ||
+        functionCall.arguments === null ||
+        functionCall.arguments === ''
+          ? '{}'
+          : functionCall.arguments
+      if (!id || !name || typeof rawArguments !== 'string') {
+        throw new Error(`Chat Completions tool call ${index} is incomplete`)
+      }
+
+      try {
+        const parsed = JSON.parse(rawArguments)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('tool arguments must be a JSON object')
+        }
+      } catch (error) {
+        throw new Error(
+          `Tool call ${name} has invalid JSON arguments: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+
+      return {
+        id,
+        type: 'function',
+        function: { name, arguments: rawArguments },
+      }
+    })
+  }
+
   protected parseNonStreamingResponse(response: any): UnifiedResponse {
     // Validate response structure
     if (!response || typeof response !== 'object') {
@@ -100,9 +264,7 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
     // Extract message content safely
     const message = choice.message || {}
     const content = typeof message.content === 'string' ? message.content : ''
-    const toolCalls = Array.isArray(message.tool_calls)
-      ? message.tool_calls
-      : []
+    const toolCalls = this.normalizeToolCalls(message.tool_calls)
 
     // Extract usage safely
     const usage = response.usage || {}
@@ -215,18 +377,19 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
     }
 
     // Handle tool calls (Chat Completions format)
-    if (choice?.delta?.tool_calls && Array.isArray(choice.delta.tool_calls)) {
-      for (const toolCall of choice.delta.tool_calls) {
-        if (toolCall && typeof toolCall === 'object') {
-          yield {
-            type: 'tool_request',
-            tool: {
-              id: toolCall.id || `tool_${Date.now()}`,
-              name: toolCall.function?.name || 'unknown',
-              input: toolCall.function?.arguments || '{}',
-            },
-          }
-        }
+    const toolCallDeltas = choice?.delta?.tool_calls
+    if (toolCallDeltas !== undefined && toolCallDeltas !== null) {
+      if (!Array.isArray(toolCallDeltas)) {
+        throw new Error(
+          'Chat Completions stream tool_calls delta must be an array',
+        )
+      }
+      this.accumulateToolCallDeltas(toolCallDeltas, reasoningContext)
+    }
+
+    if (choice?.finish_reason != null) {
+      for (const tool of this.takePendingToolCalls(reasoningContext)) {
+        yield { type: 'tool_request', tool }
       }
     }
 
@@ -238,6 +401,14 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
         type: 'usage',
         usage: { ...this.cumulativeUsage },
       }
+    }
+  }
+
+  protected async *finalizeStreamingResponse(
+    reasoningContext: ReasoningStreamingContext,
+  ): AsyncGenerator<StreamingEvent> {
+    for (const tool of this.takePendingToolCalls(reasoningContext)) {
+      yield { type: 'tool_request', tool }
     }
   }
 
@@ -290,6 +461,10 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
         if (event.type === 'message_start') {
           responseId = event.responseId || responseId
           continue
+        }
+
+        if (event.type === 'error') {
+          throw new Error(event.error)
         }
 
         if (event.type === 'text_delta') {
@@ -364,8 +539,16 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
     for (const toolCall of pendingToolCalls) {
       let toolArgs = {}
       try {
-        toolArgs = toolCall.input ? JSON.parse(toolCall.input) : {}
-      } catch {}
+        const parsed = toolCall.input ? JSON.parse(toolCall.input) : {}
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('tool arguments must be a JSON object')
+        }
+        toolArgs = parsed
+      } catch (error) {
+        throw new Error(
+          `Tool call ${toolCall.name || toolCall.id || '<unknown>'} has invalid JSON arguments: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
 
       contentBlocks.push({
         type: 'tool_use',

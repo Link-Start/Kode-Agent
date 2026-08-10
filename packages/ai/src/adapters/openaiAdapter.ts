@@ -43,16 +43,10 @@ export abstract class OpenAIAdapter extends ModelAPIAdapter {
       return {
         id: assistantMessage.responseId,
         content: assistantMessage.message.content,
-        toolCalls: assistantMessage.message.content
-          .filter((block: any) => block.type === 'tool_use')
-          .map((block: any) => ({
-            id: block.id,
-            type: 'function',
-            function: {
-              name: block.name,
-              arguments: JSON.stringify(block.input),
-            },
-          })),
+        // Streaming already produced canonical tool_use content blocks. Keep
+        // one representation so the unified-response converter cannot append
+        // and execute every tool call a second time.
+        toolCalls: [],
         usage: this.normalizeUsageForAdapter(assistantMessage.message.usage),
         responseId: assistantMessage.responseId,
       }
@@ -130,6 +124,8 @@ export abstract class OpenAIAdapter extends ModelAPIAdapter {
           }
         }
       }
+
+      yield* this.finalizeStreamingResponse(reasoningContext)
     } catch (error) {
       logAiError(error)
       debugLogger.warn('OPENAI_ADAPTER_STREAM_READ_ERROR', {
@@ -299,6 +295,12 @@ export abstract class OpenAIAdapter extends ModelAPIAdapter {
     accumulatedContent: string,
     reasoningContext?: ReasoningStreamingContext,
   ): AsyncGenerator<StreamingEvent>
+
+  protected async *finalizeStreamingResponse(
+    _reasoningContext: ReasoningStreamingContext,
+  ): AsyncGenerator<StreamingEvent> {
+    return
+  }
 
   protected abstract updateStreamingState(
     parsed: any,
