@@ -218,11 +218,28 @@ export type GoalTurnEvaluation = {
   continuationPrompt?: string
 }
 
+/**
+ * Execution evidence created by the engine for the active conversation. It is
+ * intentionally bounded to opaque digests so goal evaluation never needs raw
+ * commands or tool output.
+ */
+export type GoalVerificationEvidence = {
+  version: 1
+  kind: 'test' | 'typecheck' | 'lint' | 'build' | 'check'
+  status: 'passed' | 'failed' | 'blocked' | 'interrupted' | 'started'
+  toolUseId: string
+  commandDigest: string
+  outputDigest: string
+  recordedAt: string
+}
+
 export type GoalTurnEvaluator = (input: {
   goal: Goal
   cwd: string
   sessionId: string
   assistantText: string
+  /** Recent, engine-generated evidence that survived later detected writes. */
+  verificationEvidence?: GoalVerificationEvidence[]
   signal?: AbortSignal
 }) => Promise<GoalTurnEvaluation>
 

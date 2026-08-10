@@ -5,6 +5,7 @@ import {
   formatGoToDefinitionResult,
   formatHoverResult,
   groupLocationsByFile,
+  toProjectRelativeIfPossible,
 } from './format'
 
 type Args = {
@@ -15,6 +16,147 @@ type Args = {
   program: any
   service: any
   sourceFile: any
+}
+
+type CallHierarchyItem = {
+  name?: string
+  kind?: string
+  kindModifiers?: string
+  file?: string
+  span?: { start?: number }
+  selectionSpan?: { start?: number }
+  containerName?: string
+}
+
+function formatKind(kind: unknown): string {
+  const value = String(kind ?? '')
+  return value ? value[0]!.toUpperCase() + value.slice(1) : 'Symbol'
+}
+
+function getLine(item: CallHierarchyItem, ts: any, program: any): number {
+  const fileName = typeof item.file === 'string' ? item.file : null
+  const start = item.selectionSpan?.start ?? item.span?.start
+  if (!fileName || typeof start !== 'number') return 1
+  const source = program.getSourceFile(fileName)
+  if (!source) return 1
+  return ts.getLineAndCharacterOfPosition(source, start).line + 1
+}
+
+function formatCallHierarchyItem(
+  item: CallHierarchyItem,
+  ts: any,
+  program: any,
+): string {
+  const name = item.name || '(anonymous)'
+  const kind = formatKind(item.kind)
+  const file = item.file ? toProjectRelativeIfPossible(item.file) : '<unknown>'
+  const detail = item.containerName ? ` [${item.containerName}]` : ''
+  return `${name} (${kind}) - ${file}:${getLine(item, ts, program)}${detail}`
+}
+
+function formatPreparedCallHierarchy(
+  value: CallHierarchyItem | CallHierarchyItem[] | undefined,
+  ts: any,
+  program: any,
+): { formatted: string; resultCount: number; fileCount: number } {
+  const items = value ? (Array.isArray(value) ? value : [value]) : []
+  if (items.length === 0) {
+    return {
+      formatted: 'No call hierarchy item found at this position',
+      resultCount: 0,
+      fileCount: 0,
+    }
+  }
+
+  const fileCount = new Set(items.map(item => item.file).filter(Boolean)).size
+  if (items.length === 1) {
+    return {
+      formatted: `Call hierarchy item: ${formatCallHierarchyItem(items[0]!, ts, program)}`,
+      resultCount: 1,
+      fileCount,
+    }
+  }
+
+  return {
+    formatted: [
+      `Found ${items.length} call hierarchy items:`,
+      ...items.map(item => `  ${formatCallHierarchyItem(item, ts, program)}`),
+    ].join('\n'),
+    resultCount: items.length,
+    fileCount,
+  }
+}
+
+function formatCallHierarchyCalls(
+  calls: Array<{
+    from?: CallHierarchyItem
+    to?: CallHierarchyItem
+    fromSpans?: Array<{ start?: number }>
+  }>,
+  direction: 'incoming' | 'outgoing',
+  ts: any,
+  program: any,
+  originSourceFile: any,
+): { formatted: string; resultCount: number; fileCount: number } {
+  const itemKey = direction === 'incoming' ? 'from' : 'to'
+  const label = direction === 'incoming' ? 'incoming' : 'outgoing'
+  const emptyMessage =
+    direction === 'incoming'
+      ? 'No incoming calls found (nothing calls this function)'
+      : 'No outgoing calls found (this function calls nothing)'
+  const validCalls = calls.filter(call => call[itemKey])
+  if (validCalls.length === 0) {
+    return { formatted: emptyMessage, resultCount: 0, fileCount: 0 }
+  }
+
+  const grouped = new Map<string, typeof validCalls>()
+  for (const call of validCalls) {
+    const item = call[itemKey]!
+    const file = item.file
+      ? toProjectRelativeIfPossible(item.file)
+      : '<unknown>'
+    const entries = grouped.get(file)
+    if (entries) entries.push(call)
+    else grouped.set(file, [call])
+  }
+
+  const lines = [
+    `Found ${validCalls.length} ${label} call${validCalls.length === 1 ? '' : 's'}:`,
+  ]
+  for (const [file, entries] of grouped) {
+    lines.push('', `${file}:`)
+    for (const call of entries) {
+      const item = call[itemKey]!
+      const detail = item.containerName ? ` [${item.containerName}]` : ''
+      let text = `  ${item.name || '(anonymous)'} (${formatKind(item.kind)}) - Line ${getLine(item, ts, program)}${detail}`
+      const source =
+        direction === 'outgoing'
+          ? originSourceFile
+          : item.file
+            ? program.getSourceFile(item.file)
+            : undefined
+      const refs = (call.fromSpans ?? [])
+        .map(span => {
+          if (!source || typeof span.start !== 'number') return null
+          const pos = ts.getLineAndCharacterOfPosition(source, span.start)
+          return `${pos.line + 1}:${pos.character + 1}`
+        })
+        .filter(Boolean)
+      if (refs.length > 0) {
+        text +=
+          direction === 'incoming'
+            ? ` [calls at: ${refs.join(', ')}]`
+            : ` [called from: ${refs.join(', ')}]`
+      }
+      lines.push(text)
+    }
+  }
+
+  return {
+    formatted: lines.join('\n'),
+    resultCount: validCalls.length,
+    fileCount: grouped.size,
+  }
 }
 
 export function runLspOperation({
@@ -130,7 +272,7 @@ export function runLspOperation({
             parts.push(`@${tag.name}${tagText ? ` ${tagText}` : ''}`)
           }
         }
-        text = parts.filter(Boolean).join('\\n\\n')
+        text = parts.filter(Boolean).join('\n\n')
         const lc = ts.getLineAndCharacterOfPosition(
           sourceFile,
           info.textSpan.start,
@@ -234,18 +376,46 @@ export function runLspOperation({
           lines.push(line)
         }
       }
-      formatted = lines.join('\\n')
+      formatted = lines.join('\n')
       resultCount = items.length
       fileCount = grouped.size
       break
     }
-    case 'prepareCallHierarchy':
-    case 'incomingCalls':
+    case 'prepareCallHierarchy': {
+      const res = formatPreparedCallHierarchy(
+        service.prepareCallHierarchy?.(absPath, pos),
+        ts,
+        program,
+      )
+      formatted = res.formatted
+      resultCount = res.resultCount
+      fileCount = res.fileCount
+      break
+    }
+    case 'incomingCalls': {
+      const res = formatCallHierarchyCalls(
+        service.provideCallHierarchyIncomingCalls?.(absPath, pos) ?? [],
+        'incoming',
+        ts,
+        program,
+        sourceFile,
+      )
+      formatted = res.formatted
+      resultCount = res.resultCount
+      fileCount = res.fileCount
+      break
+    }
     case 'outgoingCalls': {
-      const opLabel = input.operation
-      formatted = `Error performing ${opLabel}: Call hierarchy is not supported by the TypeScript backend`
-      resultCount = 0
-      fileCount = 0
+      const res = formatCallHierarchyCalls(
+        service.provideCallHierarchyOutgoingCalls?.(absPath, pos) ?? [],
+        'outgoing',
+        ts,
+        program,
+        sourceFile,
+      )
+      formatted = res.formatted
+      resultCount = res.resultCount
+      fileCount = res.fileCount
       break
     }
     default: {

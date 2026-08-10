@@ -31,13 +31,6 @@ import {
 } from '#protocol/utils/kodeAgentSessionLog'
 import { getOriginalCwd } from '#core/utils/state'
 import { getPlanConversationKey, readPlanFile } from '#core/utils/planMode'
-import {
-  hasSupportingToolEvidence,
-  PROJECT_LEARNING_COMPACTION_INSTRUCTIONS,
-  isCompactionSummarySafe,
-  recordProjectLearningFromCompaction,
-} from '#core/projectLearning'
-import { getEffectiveSessionId } from '#core/utils/sessionId'
 
 /**
  * Retrieves the context length for a model pointer (e.g. "main", "gpt-4.1", ...).
@@ -100,9 +93,7 @@ Coding style, formatting, and organizational preferences. Communication patterns
 ## Key Decisions
 Important technical decisions made and their rationale. Alternative approaches considered and why they were rejected. Trade-offs accepted and their implications.
 
-Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.
-
-${PROJECT_LEARNING_COMPACTION_INSTRUCTIONS}`
+Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.`
 
 /**
  * Determines if auto-compact should trigger based on token usage
@@ -316,11 +307,6 @@ async function executeAutoCompact(
       'Failed to generate conversation summary - response did not contain valid text content',
     )
   }
-  if (!isCompactionSummarySafe(summary)) {
-    throw new Error(
-      'Auto-compaction summary failed its continuation-integrity check.',
-    )
-  }
 
   summaryResponse.message.usage = createAnthropicUsage({
     input_tokens: 0,
@@ -376,23 +362,6 @@ async function executeAutoCompact(
       })
     } catch {
       // best-effort only
-    }
-  }
-
-  if (
-    process.env.NODE_ENV !== 'test' &&
-    toolUseContext?.options?.persistSession !== false
-  ) {
-    try {
-      recordProjectLearningFromCompaction({
-        cwd: getOriginalCwd(),
-        summary,
-        leafUuid: summaryResponse.uuid,
-        sessionId: getEffectiveSessionId(),
-        hasSupportingToolEvidence: hasSupportingToolEvidence(messages),
-      })
-    } catch {
-      // A learning persistence failure must not discard a valid compaction.
     }
   }
 

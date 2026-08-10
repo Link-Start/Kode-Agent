@@ -1,27 +1,27 @@
 import { statSync } from 'fs'
 import { createRequire } from 'node:module'
-import { extname, join } from 'path'
+import { dirname, extname, join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 
 type TypeScriptModule = typeof import('typescript')
 
-let cachedTypeScript: { cwd: string; module: TypeScriptModule | null } | null =
-  null
+const cachedTypeScript = new Map<string, TypeScriptModule | null>()
 
 export function tryLoadTypeScriptModule(
   projectCwd: string,
 ): TypeScriptModule | null {
-  if (cachedTypeScript?.cwd === projectCwd) return cachedTypeScript.module
+  const cwd = resolve(projectCwd)
+  if (cachedTypeScript.has(cwd)) return cachedTypeScript.get(cwd) ?? null
 
   try {
     const requireFromCwd = createRequire(
-      pathToFileURL(join(projectCwd, '__kode_lsp__.js')),
+      pathToFileURL(join(cwd, '__kode_lsp__.js')),
     )
     const mod = requireFromCwd('typescript') as TypeScriptModule
-    cachedTypeScript = { cwd: projectCwd, module: mod }
+    cachedTypeScript.set(cwd, mod)
     return mod
   } catch {
-    cachedTypeScript = { cwd: projectCwd, module: null }
+    cachedTypeScript.set(cwd, null)
     return null
   }
 }
@@ -35,16 +35,50 @@ type TsProjectState = {
   versions: Map<string, string>
 }
 
+const MAX_CACHED_PROJECTS = 16
 const projectCache = new Map<string, TsProjectState>()
+
+function cacheProject(key: string, project: TsProjectState): void {
+  if (!projectCache.has(key) && projectCache.size >= MAX_CACHED_PROJECTS) {
+    const oldestKey = projectCache.keys().next().value
+    if (oldestKey) {
+      const oldest = projectCache.get(oldestKey)
+      oldest?.languageService.dispose?.()
+      projectCache.delete(oldestKey)
+    }
+  }
+  projectCache.set(key, project)
+}
 
 export function getOrCreateTsProject(
   projectCwd: string,
+  entryFile?: string,
 ): TsProjectState | null {
   const ts = tryLoadTypeScriptModule(projectCwd)
   if (!ts) return null
 
-  const existing = projectCache.get(projectCwd)
-  if (existing) return existing
+  const resolvedEntryFile = entryFile ? resolve(entryFile) : null
+  const configPath = ts.findConfigFile(
+    resolvedEntryFile ? dirname(resolvedEntryFile) : projectCwd,
+    ts.sys.fileExists,
+    'tsconfig.json',
+  )
+  const projectRoot = configPath
+    ? dirname(configPath)
+    : resolvedEntryFile
+      ? dirname(resolvedEntryFile)
+      : resolve(projectCwd)
+  const cacheKey = configPath
+    ? `config:${resolve(configPath)}`
+    : `file:${projectRoot}`
+
+  const existing = projectCache.get(cacheKey)
+  if (existing) {
+    if (resolvedEntryFile) existing.rootFiles.add(resolvedEntryFile)
+    projectCache.delete(cacheKey)
+    projectCache.set(cacheKey, existing)
+    return existing
+  }
 
   let compilerOptions: any = {
     allowJs: true,
@@ -57,18 +91,13 @@ export function getOrCreateTsProject(
 
   let rootFileNames: string[] = []
   try {
-    const configPath = ts.findConfigFile(
-      projectCwd,
-      ts.sys.fileExists,
-      'tsconfig.json',
-    )
     if (configPath) {
       const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
       if (!configFile.error) {
         const parsed = ts.parseJsonConfigFileContent(
           configFile.config,
           ts.sys,
-          projectCwd,
+          projectRoot,
         )
         compilerOptions = { ...compilerOptions, ...parsed.options }
         rootFileNames = parsed.fileNames
@@ -79,6 +108,7 @@ export function getOrCreateTsProject(
   }
 
   const rootFiles = new Set(rootFileNames)
+  if (resolvedEntryFile) rootFiles.add(resolvedEntryFile)
   const versions = new Map<string, string>()
 
   const host: any = {
@@ -106,7 +136,7 @@ export function getOrCreateTsProject(
         return undefined
       }
     },
-    getCurrentDirectory: () => projectCwd,
+    getCurrentDirectory: () => projectRoot,
     getDefaultLibFileName: (options: any) => ts.getDefaultLibFilePath(options),
     fileExists: ts.sys.fileExists,
     readFile: ts.sys.readFile,
@@ -126,13 +156,13 @@ export function getOrCreateTsProject(
 
   const state: TsProjectState = {
     ts,
-    cwd: projectCwd,
+    cwd: projectRoot,
     rootFiles,
     compilerOptions,
     languageService,
     versions,
   }
-  projectCache.set(projectCwd, state)
+  cacheProject(cacheKey, state)
   return state
 }
 

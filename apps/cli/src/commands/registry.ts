@@ -24,7 +24,6 @@ import login from './builtin/login'
 import logout from './builtin/logout'
 import lsp from './builtin/lsp'
 import loop from './builtin/loop'
-import learning from './builtin/learning'
 import memory from './builtin/memory'
 import migrate from './builtin/migrate'
 import mcp from './mcp/mcp'
@@ -102,7 +101,6 @@ const COMMANDS = memoize((): Command[] => [
   init,
   lsp,
   loop,
-  learning,
   memory,
   migrate,
   outputStyle,

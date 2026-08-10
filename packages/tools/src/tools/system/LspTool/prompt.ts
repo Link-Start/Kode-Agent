@@ -18,6 +18,6 @@ All operations require:
 - line: The line number (1-based, as shown in editors)
 - character: The character offset (1-based, as shown in editors)
 
-Note: LSP servers must be configured for the file type. If no server is available, an error will be returned.`
+Note: Configured LSP servers are preferred. For JavaScript and TypeScript files, Kode can fall back to the workspace's local TypeScript installation when no matching server is configured. Other file types require a configured LSP server.`
 
 export const DESCRIPTION = PROMPT
