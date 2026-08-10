@@ -197,7 +197,7 @@ describe('Agent Skills compatibility (discovery + prompt)', () => {
     )
   })
 
-  test('discovers skills from ancestor .claude/skills when cwd is a subdirectory', async () => {
+  test('discovers skills from ancestor .kode/skills when cwd is a subdirectory', async () => {
     await withEnv(
       {
         HOME: homeDir,
@@ -205,20 +205,20 @@ describe('Agent Skills compatibility (discovery + prompt)', () => {
         KODE_SKILLS_STRICT: undefined,
       },
       async () => {
-        const legacySkillDir = join(
+        const projectSkillDir = join(
           projectDir,
-          '.claude',
+          '.kode',
           'skills',
           'legacy-skill',
         )
-        mkdirSync(legacySkillDir, { recursive: true })
-        const legacySkillFile = join(legacySkillDir, 'SKILL.md')
+        mkdirSync(projectSkillDir, { recursive: true })
+        const projectSkillFile = join(projectSkillDir, 'SKILL.md')
         writeFileSync(
-          legacySkillFile,
+          projectSkillFile,
           [
             '---',
             'name: legacy-skill',
-            'description: Legacy skill from ancestor .claude/skills',
+            'description: Project skill from ancestor .kode/skills',
             '---',
             '',
             '# Legacy',
@@ -234,7 +234,7 @@ describe('Agent Skills compatibility (discovery + prompt)', () => {
         const cmds = await loadCustomCommands()
         const skill = cmds.find(c => c.isSkill && c.name === 'legacy-skill')
         expect(skill).toBeTruthy()
-        expect(skill?.filePath).toBe(legacySkillFile)
+        expect(skill?.filePath).toBe(projectSkillFile)
       },
     )
   })
@@ -290,7 +290,7 @@ describe('Agent Skills compatibility (discovery + prompt)', () => {
     )
   })
 
-  test('discovers nested .claude/skills directories in ancestor traversal', async () => {
+  test('discovers nested .kode/skills directories in ancestor traversal', async () => {
     await withEnv(
       {
         HOME: homeDir,
@@ -301,7 +301,7 @@ describe('Agent Skills compatibility (discovery + prompt)', () => {
         const subproject = join(projectDir, 'packages', 'subproj')
         const nestedSkillDir = join(
           subproject,
-          '.claude',
+          '.kode',
           'skills',
           'nested-skill',
         )
@@ -312,7 +312,7 @@ describe('Agent Skills compatibility (discovery + prompt)', () => {
           [
             '---',
             'name: nested-skill',
-            'description: Nested legacy skill',
+            'description: Nested project skill',
             '---',
             '',
             '# Nested',

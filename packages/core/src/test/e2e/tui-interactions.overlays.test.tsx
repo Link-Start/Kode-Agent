@@ -209,6 +209,9 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
   test('ModelPickerScreen: typing filters and applies the matching model', async () => {
     const originalConfig = JSON.parse(JSON.stringify(getGlobalConfig()))
+    const apiKeyEnv = 'KODE_TEST_CUSTOM_OPENAI_API_KEY'
+    const originalApiKey = process.env[apiKeyEnv]
+    process.env[apiKeyEnv] = 'test-key'
     saveGlobalConfig({
       ...getGlobalConfig(),
       modelProfiles: [
@@ -216,7 +219,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
           name: 'Code Model',
           provider: 'custom-openai',
           modelName: 'code-model',
-          apiKey: 'test-key',
+          apiKey: '',
+          apiKeyEnv,
           maxTokens: 1024,
           contextLength: 128_000,
           isActive: true,
@@ -227,7 +231,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
           name: 'Other Model',
           provider: 'custom-openai',
           modelName: 'other-model',
-          apiKey: 'test-key',
+          apiKey: '',
+          apiKeyEnv,
           maxTokens: 1024,
           contextLength: 128_000,
           isActive: true,
@@ -277,6 +282,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
     } finally {
       saveGlobalConfig(originalConfig)
       reloadModelManager()
+      if (originalApiKey === undefined) delete process.env[apiKeyEnv]
+      else process.env[apiKeyEnv] = originalApiKey
     }
   })
 
