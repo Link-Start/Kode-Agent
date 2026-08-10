@@ -210,6 +210,9 @@ temp_code/
 # Local generated repository wiki
 .qoder/
 
+# Python bytecode caches from bundled-skill tests
+__pycache__/
+
 # Local evidence snapshots (do not commit)
 docs/research/claude-code/
 docs/research/reference/changelog.lines.md
