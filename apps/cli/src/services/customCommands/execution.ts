@@ -65,7 +65,10 @@ export async function resolveFileReferences(content: string): Promise<string> {
       const fullPath = resolve(getCwd(), filePath)
       // Prevent path traversal outside the working directory
       if (!fullPath.startsWith(getCwd() + sep) && fullPath !== getCwd()) {
-        result = result.replace(fullMatch, `(access denied: ${filePath} is outside workspace)`)
+        result = result.replace(
+          fullMatch,
+          `(access denied: ${filePath} is outside workspace)`,
+        )
         continue
       }
 

@@ -1,7 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 
-import { CONTEXT_LENGTH_OPTIONS } from '../options'
 import {
   ScreenFrame,
   type ScreenExitState,
@@ -19,13 +18,8 @@ type Props = {
   resourceName: string
   ollamaBaseUrl: string
   customBaseUrl: string
-  apiKey: string
-  maxTokens: string
-  contextLength: number
-  supportsReasoningEffort: boolean
-  reasoningEffort: any
+  apiKeyEnv?: string
   validationError: string | null
-  formatApiKeyDisplay: (key: string) => string
   getProviderLabel: (provider: string, modelCount: number) => string
 }
 
@@ -41,13 +35,8 @@ export function ConfirmationScreen({
   resourceName,
   ollamaBaseUrl,
   customBaseUrl,
-  apiKey,
-  maxTokens,
-  contextLength,
-  supportsReasoningEffort,
-  reasoningEffort,
+  apiKeyEnv,
   validationError,
-  formatApiKeyDisplay,
   getProviderLabel,
 }: Props) {
   // Show model profile being created
@@ -56,9 +45,7 @@ export function ConfirmationScreen({
   const providerDisplayName = getProviderLabel(selectedProvider, 0).split(
     ' (',
   )[0]
-
-  // Determine if provider requires API key
-  const showsApiKey = selectedProvider !== 'ollama'
+  const showsCredential = selectedProvider !== 'ollama'
 
   return (
     <ScreenFrame
@@ -69,10 +56,10 @@ export function ConfirmationScreen({
       gap={containerGap}
     >
       <Box flexDirection="column" gap={containerGap}>
-        <Text bold>Confirm your model configuration:</Text>
+        <Text bold>Quick configuration / 快速配置</Text>
         {!tightLayout && (
           <Text color={theme.secondaryText}>
-            Please review your selections before saving.
+            Review the provider, model, and credential reference before saving.
           </Text>
         )}
 
@@ -117,50 +104,29 @@ export function ConfirmationScreen({
             <Text color={theme.suggestion}>{selectedModel}</Text>
           </Text>
 
-          {showsApiKey && (
+          {showsCredential && (
             <Text>
-              <Text bold>API Key: </Text>
+              <Text bold>Credential: </Text>
               <Text color={theme.suggestion}>
-                {apiKey
-                  ? tightLayout
-                    ? '(set)'
-                    : formatApiKeyDisplay(apiKey)
-                  : '(none)'}
+                {apiKeyEnv
+                  ? `environment variable ${apiKeyEnv}`
+                  : '(environment variable required)'}
               </Text>
             </Text>
           )}
 
-          {!tightLayout && maxTokens && (
-            <Text>
-              <Text bold>Max Tokens: </Text>
-              <Text color={theme.suggestion}>{maxTokens}</Text>
+          {!tightLayout && (
+            <Text color={theme.secondaryText} wrap="truncate-end">
+              Advanced controls appear only for values reported by model
+              discovery. Tool permissions are configured separately with
+              /permissions.
             </Text>
-          )}
-
-          <Text>
-            <Text bold>Context Length: </Text>
-            <Text color={theme.suggestion}>
-              {CONTEXT_LENGTH_OPTIONS.find(opt => opt.value === contextLength)
-                ?.label || `${contextLength.toLocaleString()} tokens`}
-            </Text>
-          </Text>
-
-          {!tightLayout && supportsReasoningEffort && (
-            <Text>
-              <Text bold>Reasoning Effort: </Text>
-              <Text color={theme.suggestion}>{reasoningEffort}</Text>
-            </Text>
-          )}
-
-          {compactLayout && tightLayout && maxTokens && (
-            <Text dimColor>Max Tokens: {maxTokens}</Text>
           )}
         </Box>
 
         <Box marginTop={tightLayout ? 0 : 1}>
-          <Text dimColor>
-            Press <Text color={theme.suggestion}>Esc</Text> to go back or{' '}
-            <Text color={theme.suggestion}>Enter</Text> to save configuration
+          <Text color={theme.secondaryText} wrap="truncate-end">
+            Enter save · A advanced settings · Esc back
           </Text>
         </Box>
       </Box>

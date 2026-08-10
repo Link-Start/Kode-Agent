@@ -38,13 +38,13 @@ const CONTRAST_FIELD_GROUPS = [
       'planMode',
       'suggestion',
     ],
-    minRatio: 3.6,
-    maxRatio: 6.4,
+    minRatio: 4.5,
+    maxRatio: 9,
   },
   {
     fields: ['noting', 'secondaryText', 'secondary'],
-    minRatio: 3,
-    maxRatio: 4.2,
+    minRatio: 4.5,
+    maxRatio: 7,
   },
   {
     fields: ['inputBorder'],
@@ -98,9 +98,9 @@ describe('theme contrast adaptation', () => {
     expect(theme.noting).not.toBe(base.noting)
     expect(theme.diff).toEqual(base.diff)
     expectContrastAtLeast(theme.text, '#000000', 4.5)
-    expectContrastBetween(theme.kode, '#000000', 3.6, 6.4)
-    expectContrastBetween(theme.secondaryText, '#000000', 3, 4.2)
-    expectContrastBetween(theme.noting, '#000000', 3, 4.2)
+    expectContrastBetween(theme.kode, '#000000', 4.5, 9)
+    expectContrastBetween(theme.secondaryText, '#000000', 4.5, 7)
+    expectContrastBetween(theme.noting, '#000000', 4.5, 7)
     expectContrastBetween(theme.secondaryBorder, '#000000', 2, 3.2)
   })
 
@@ -111,8 +111,8 @@ describe('theme contrast adaptation', () => {
     expect(theme.text).not.toBe(base.text)
     expect(theme.kode).not.toBe(base.kode)
     expectContrastAtLeast(theme.text, '#ffffff', 4.5)
-    expectContrastBetween(theme.kode, '#ffffff', 3.6, 6.4)
-    expectContrastBetween(theme.secondaryText, '#ffffff', 3, 4.2)
+    expectContrastBetween(theme.kode, '#ffffff', 4.5, 9)
+    expectContrastBetween(theme.secondaryText, '#ffffff', 4.5, 7)
     expectContrastAtLeast(theme.inputBorder, '#ffffff', 3)
   })
 
@@ -123,7 +123,7 @@ describe('theme contrast adaptation', () => {
 
     expect(getThemeContrastBackgroundColor()).toBe('#ffffff')
     expectContrastAtLeast(theme.text, '#ffffff', 4.5)
-    expectContrastBetween(theme.secondaryText, '#ffffff', 3, 4.2)
+    expectContrastBetween(theme.secondaryText, '#ffffff', 4.5, 7)
 
     setThemeContrastBackgroundColor(undefined)
     expect(getTheme('dark').secondaryText).toBe('#606060')
@@ -176,6 +176,23 @@ describe('theme contrast adaptation', () => {
           )
         }
       }
+    }
+  })
+
+  it('includes explicit high-contrast light and dark fallbacks', () => {
+    expect(getAvailableThemes()).toEqual(
+      expect.arrayContaining(['high-contrast-light', 'high-contrast-dark']),
+    )
+
+    for (const [themeName, background] of [
+      ['high-contrast-light', '#ffffff'],
+      ['high-contrast-dark', '#000000'],
+    ] as const) {
+      const theme = createContrastAwareTheme(getTheme(themeName), background)
+      expectContrastAtLeast(theme.text, background, 4.5)
+      expectContrastAtLeast(theme.secondaryText, background, 4.5)
+      expectContrastAtLeast(theme.kode, background, 4.5)
+      expectContrastAtLeast(theme.error, background, 4.5)
     }
   })
 })

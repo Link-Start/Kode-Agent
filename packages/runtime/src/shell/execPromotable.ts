@@ -121,12 +121,12 @@ export function execPromotable(
   const onAbort = () => {
     if (status === 'backgrounded') return
     wasAborted = true
-    try {
-      internalAbortController.abort()
-    } catch {}
+    internalAbortController.abort()
     try {
       spawnedProcess.kill()
-    } catch {}
+    } catch {
+      // The process may already have exited.
+    }
     if (backgroundProcess) backgroundProcess.interrupted = true
   }
 
@@ -185,10 +185,10 @@ export function execPromotable(
     timedOut = true
     try {
       spawnedProcess.kill()
-    } catch {}
-    try {
-      internalAbortController.abort()
-    } catch {}
+    } catch {
+      // The process may already have exited.
+    }
+    internalAbortController.abort()
   }, commandTimeout)
 
   const background = (bashId?: string): { bashId: string } | null => {
@@ -244,10 +244,10 @@ export function execPromotable(
     status = 'killed'
     try {
       spawnedProcess.kill()
-    } catch {}
-    try {
-      internalAbortController.abort()
-    } catch {}
+    } catch {
+      // The process may already have exited.
+    }
+    internalAbortController.abort()
 
     if (backgroundProcess) {
       backgroundProcess.interrupted = true

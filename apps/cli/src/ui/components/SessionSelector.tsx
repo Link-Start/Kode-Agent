@@ -162,12 +162,12 @@ function PopulatedSessionSelector({
       gap={layout.gap}
     >
       <Box flexDirection="column" gap={layout.gap}>
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {introText}
         </Text>
 
         <Box flexDirection="column" width="100%">
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {topIndicator}
           </Text>
           {visibleSessions.map((session, idx) => {
@@ -186,7 +186,7 @@ function PopulatedSessionSelector({
                 <Text color={isSelected ? theme.kode : theme.secondaryText}>
                   {isSelected ? figures.pointer : ' '}
                 </Text>
-                <Text dimColor wrap="truncate-end">
+                <Text color={theme.secondaryText} wrap="truncate-end">
                   {modifiedLabel}
                 </Text>
                 {tag ? (
@@ -204,14 +204,14 @@ function PopulatedSessionSelector({
               </Box>
             )
           })}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {bottomIndicator}
           </Text>
         </Box>
 
         {selectedTitle ? (
           <Box paddingLeft={2} flexDirection="column">
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               {selectedSummary ?? ''}
             </Text>
           </Box>
@@ -223,7 +223,7 @@ function PopulatedSessionSelector({
           </Text>
         ) : null}
 
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           ↑/↓ or j/k · PgUp/PgDn · Home/End · Enter {enterLabel} · Esc{' '}
           {escLabel}
         </Text>

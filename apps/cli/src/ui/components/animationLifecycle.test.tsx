@@ -235,7 +235,7 @@ describe('animation lifecycle', () => {
     const initialOutput = harness.getOutput()
     const initialRenderCount = harness.getRenderCount()
 
-    expect(initialOutput).toContain('Prefilling')
+    expect(initialOutput).toContain('Preparing response')
     expect(setIntervalSpy).not.toHaveBeenCalled()
     await harness.wait(220)
     expect(harness.getRenderCount()).toBe(initialRenderCount)

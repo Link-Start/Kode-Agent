@@ -7,7 +7,7 @@ import { TasksScreen } from '#ui-ink/screens/overlays/TasksScreen'
 const tasks = {
   type: 'local-jsx',
   name: 'tasks',
-  description: 'Manage background tasks',
+  description: 'Inspect local background tasks (agents and shells)',
   isEnabled: true,
   isHidden: false,
   ui: { displayMode: 'fullscreen' },

@@ -319,7 +319,7 @@ export function REPLView({
           : showingCostDialog
             ? 'Cost notice - expand terminal'
             : isLoading
-              ? 'Working... Esc to interrupt'
+              ? 'Working… Esc cancel'
               : null
   const hasStaticOutput = staticItems.length > 0
   const shouldMountStaticOutputNormally =

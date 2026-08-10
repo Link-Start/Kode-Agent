@@ -97,7 +97,7 @@ export function Spinner(): React.ReactNode {
       </Box>
       <Text color={getTheme().kode}>{message.current}… </Text>
       <Text color={getTheme().secondaryText}>
-        ({elapsedTime}s · <Text bold>esc</Text> to interrupt)
+        ({elapsedTime}s · <Text bold>Esc</Text> cancel)
       </Text>
       <Text color={getTheme().secondaryText}>
         · {getSessionState('currentError')}
@@ -153,7 +153,7 @@ export function BashSpinner(): React.ReactNode {
       </Text>
       <Text color={theme.secondaryText}>
         {' '}
-        :: {elapsedTime}s (<Text bold>esc</Text>)
+        :: {elapsedTime}s (<Text bold>Esc</Text> cancel)
       </Text>
     </Box>
   )

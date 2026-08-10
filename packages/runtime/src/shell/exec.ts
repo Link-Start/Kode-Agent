@@ -41,12 +41,12 @@ export async function exec(
   let wasAborted = false
   const onAbort = () => {
     wasAborted = true
-    try {
-      state.abortController?.abort()
-    } catch {}
+    state.abortController?.abort()
     try {
       state.currentProcess?.kill()
-    } catch {}
+    } catch {
+      // The process may already have exited.
+    }
   }
 
   // Link external abort signal
@@ -111,14 +111,12 @@ export async function exec(
       // Actually kill the process
       try {
         processRef.kill()
-      } catch {}
-      try {
-        state.abortController?.abort()
-      } catch {}
+      } catch {
+        // The process may already have exited.
+      }
+      state.abortController?.abort()
 
-      try {
-        await exitPromise
-      } catch {}
+      await exitPromise
 
       // Ensure we don't hang reading stdout/stderr if a background child keeps fds open.
       await Promise.race([

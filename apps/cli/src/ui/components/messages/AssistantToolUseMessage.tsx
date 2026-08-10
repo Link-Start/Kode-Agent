@@ -149,10 +149,7 @@ export function AssistantToolUseMessage({
                 children={String(userFacingToolName || '')}
               />
               {taskStatusLabel && (
-                <Text color={paramColor} dimColor>
-                  {' '}
-                  [{taskStatusLabel}]
-                </Text>
+                <Text color={paramColor}> [{taskStatusLabel}]</Text>
               )}
             </>
           ) : (

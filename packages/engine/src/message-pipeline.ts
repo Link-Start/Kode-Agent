@@ -760,24 +760,19 @@ async function* messagePipelineCore(
 
     // Recursive query after tools: reset per-turn recovery counters so a
     // previous stop-hook or thinking-only streak cannot leak into the next turn.
-    try {
-      yield* await messagePipelineCore(
-        [...messages, assistantMessage, ...toolMessagesForNextTurn],
-        systemPrompt,
-        context,
-        canUseTool,
-        toolUseContext,
-        getBinaryFeedbackResponse,
-        {
-          stopHookActive: false,
-          stopHookAttempts: 0,
-          thinkingOnlyAttempts: 0,
-        },
-      )
-    } catch (error) {
-      // Re-throw the error to maintain the original behavior
-      throw error
-    }
+    yield* await messagePipelineCore(
+      [...messages, assistantMessage, ...toolMessagesForNextTurn],
+      systemPrompt,
+      context,
+      canUseTool,
+      toolUseContext,
+      getBinaryFeedbackResponse,
+      {
+        stopHookActive: false,
+        stopHookAttempts: 0,
+        thinkingOnlyAttempts: 0,
+      },
+    )
   } finally {
     setRequestStatus({ kind: 'idle' })
   }

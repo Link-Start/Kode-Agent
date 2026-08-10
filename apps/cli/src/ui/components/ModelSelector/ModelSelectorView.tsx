@@ -191,11 +191,8 @@ export function ModelSelectorView(
           handleApiKeyChange={props.handleApiKeyChange}
           handleApiKeySubmit={props.handleApiKeySubmit}
           handleCursorOffsetChange={props.handleCursorOffsetChange}
-          apiKeyCleanedNotification={props.apiKeyCleanedNotification}
           isLoadingModels={props.isLoadingModels}
-          providerBaseUrl={props.providerBaseUrl}
           modelLoadError={props.modelLoadError}
-          formatApiKeyDisplay={props.formatApiKeyDisplay}
           getProviderLabel={props.getProviderLabel}
         />
       )
@@ -368,13 +365,8 @@ export function ModelSelectorView(
           resourceName={props.resourceName}
           ollamaBaseUrl={props.ollamaBaseUrl}
           customBaseUrl={props.customBaseUrl}
-          apiKey={props.apiKey}
-          maxTokens={props.maxTokens}
-          contextLength={props.contextLength}
-          supportsReasoningEffort={props.supportsReasoningEffort}
-          reasoningEffort={props.reasoningEffort}
+          apiKeyEnv={props.apiKeyEnv}
           validationError={props.validationError}
-          formatApiKeyDisplay={props.formatApiKeyDisplay}
           getProviderLabel={props.getProviderLabel}
         />
       )

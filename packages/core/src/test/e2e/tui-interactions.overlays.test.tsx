@@ -209,6 +209,9 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
   test('ModelPickerScreen: typing filters and applies the matching model', async () => {
     const originalConfig = JSON.parse(JSON.stringify(getGlobalConfig()))
+    const apiKeyEnv = 'KODE_TEST_CUSTOM_OPENAI_API_KEY'
+    const originalApiKey = process.env[apiKeyEnv]
+    process.env[apiKeyEnv] = 'test-key'
     saveGlobalConfig({
       ...getGlobalConfig(),
       modelProfiles: [
@@ -216,7 +219,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
           name: 'Code Model',
           provider: 'custom-openai',
           modelName: 'code-model',
-          apiKey: 'test-key',
+          apiKey: '',
+          apiKeyEnv,
           maxTokens: 1024,
           contextLength: 128_000,
           isActive: true,
@@ -227,7 +231,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
           name: 'Other Model',
           provider: 'custom-openai',
           modelName: 'other-model',
-          apiKey: 'test-key',
+          apiKey: '',
+          apiKeyEnv,
           maxTokens: 1024,
           contextLength: 128_000,
           isActive: true,
@@ -277,6 +282,8 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
     } finally {
       saveGlobalConfig(originalConfig)
       reloadModelManager()
+      if (originalApiKey === undefined) delete process.env[apiKeyEnv]
+      else process.env[apiKeyEnv] = originalApiKey
     }
   })
 
@@ -328,6 +335,37 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
 
       expect(result).toBe('Theme set to nord')
       expect(getGlobalConfig().theme).toBe('nord')
+    } finally {
+      saveGlobalConfig(originalConfig)
+    }
+  })
+
+  test('ThemePickerScreen: exposes the high-contrast fallback themes', async () => {
+    const originalConfig = JSON.parse(JSON.stringify(getGlobalConfig()))
+    saveGlobalConfig({ ...getGlobalConfig(), theme: 'dark' })
+
+    try {
+      let result = ''
+      const h = createInkTestHarness(
+        <KeypressProvider>
+          <ThemePickerScreen onDone={value => (result = value ?? '')} />
+        </KeypressProvider>,
+      )
+      harnessManager.track(h)
+
+      await waitForOutput(h, 'Current: Dark')
+      await typeFilter(h, 'high-contrast-dark')
+
+      expect(h.getOutput()).toContain('High Contrast Dark')
+      expect(h.getOutput()).toContain(
+        '1 match · Enter applies the highlighted theme',
+      )
+
+      h.stdin.write('\r')
+      await h.wait(25)
+
+      expect(result).toBe('Theme set to high-contrast-dark')
+      expect(getGlobalConfig().theme).toBe('high-contrast-dark')
     } finally {
       saveGlobalConfig(originalConfig)
     }
@@ -405,6 +443,11 @@ describe('TUI E2E regression (Ink render): Overlays', () => {
       harnessManager.track(h)
 
       await h.wait(25)
+      expect(h.getOutput()).toContain('Quick start')
+      expect(h.getOutput()).toContain('Keys are never shown here.')
+      h.clearOutput()
+      h.stdin.write('\t')
+      await waitForOutput(h, 'Advanced preferences')
       const outputLines = h.getOutput().split(/\r?\n/)
       const streamLineIndex = outputLines.findIndex(line =>
         line.includes('Stream responses'),

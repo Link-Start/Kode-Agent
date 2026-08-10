@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, copyFileSync, statSync, readFileSync, renameSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  copyFileSync,
+  statSync,
+  readFileSync,
+  renameSync,
+} from 'fs'
 import { join, relative } from 'path'
 import type { Command } from '../types'
 import { PRODUCT_NAME } from '#core/constants/product'
@@ -12,7 +20,11 @@ interface MigrateResult {
   errors: string[]
 }
 
-function copyDirRecursive(src: string, dest: string, result: MigrateResult): void {
+function copyDirRecursive(
+  src: string,
+  dest: string,
+  result: MigrateResult,
+): void {
   if (!existsSync(src)) return
 
   mkdirSync(dest, { recursive: true })
@@ -32,7 +44,9 @@ function copyDirRecursive(src: string, dest: string, result: MigrateResult): voi
           copyFileSync(srcPath, destPath)
           result.migrated.push(`${srcPath} → ${destPath}`)
         } catch (e) {
-          result.errors.push(`Failed to copy ${srcPath}: ${e instanceof Error ? e.message : String(e)}`)
+          result.errors.push(
+            `Failed to copy ${srcPath}: ${e instanceof Error ? e.message : String(e)}`,
+          )
         }
       }
     }
@@ -68,7 +82,9 @@ function migrateProjectLevel(cwd: string, result: MigrateResult): void {
             copyFileSync(src, dest)
             result.migrated.push(`${src} → ${dest}`)
           } catch (e) {
-            result.errors.push(`Failed to copy ${src}: ${e instanceof Error ? e.message : String(e)}`)
+            result.errors.push(
+              `Failed to copy ${src}: ${e instanceof Error ? e.message : String(e)}`,
+            )
           }
         }
       }
@@ -85,19 +101,25 @@ function migrateProjectLevel(cwd: string, result: MigrateResult): void {
         const claudeContent = readFileSync(claudeMd, 'utf-8')
         const agentsContent = readFileSync(agentsMd, 'utf-8')
         if (!agentsContent.includes(claudeContent.trim())) {
-          result.skipped.push(`CLAUDE.md → AGENTS.md (AGENTS.md already exists, manual merge recommended)`)
+          result.skipped.push(
+            `CLAUDE.md → AGENTS.md (AGENTS.md already exists, manual merge recommended)`,
+          )
         } else {
           result.skipped.push(`CLAUDE.md content already present in AGENTS.md`)
         }
       } catch (e) {
-        result.errors.push(`Failed to read CLAUDE.md/AGENTS.md: ${e instanceof Error ? e.message : String(e)}`)
+        result.errors.push(
+          `Failed to read CLAUDE.md/AGENTS.md: ${e instanceof Error ? e.message : String(e)}`,
+        )
       }
     } else {
       try {
         copyFileSync(claudeMd, agentsMd)
         result.migrated.push(`CLAUDE.md → AGENTS.md`)
       } catch (e) {
-        result.errors.push(`Failed to migrate CLAUDE.md: ${e instanceof Error ? e.message : String(e)}`)
+        result.errors.push(
+          `Failed to migrate CLAUDE.md: ${e instanceof Error ? e.message : String(e)}`,
+        )
       }
     }
   }
@@ -131,7 +153,9 @@ function migrateUserLevel(result: MigrateResult): void {
           copyFileSync(src, dest)
           result.migrated.push(`${src} → ${dest}`)
         } catch (e) {
-          result.errors.push(`Failed to copy ${src}: ${e instanceof Error ? e.message : String(e)}`)
+          result.errors.push(
+            `Failed to copy ${src}: ${e instanceof Error ? e.message : String(e)}`,
+          )
         }
       }
     }
@@ -153,7 +177,8 @@ const migrate = {
     const result: MigrateResult = { migrated: [], skipped: [], errors: [] }
 
     const trimmedArgs = args.trim()
-    const doProject = !trimmedArgs || trimmedArgs === '--project' || trimmedArgs === '--all'
+    const doProject =
+      !trimmedArgs || trimmedArgs === '--project' || trimmedArgs === '--all'
     const doUser = trimmedArgs === '--user' || trimmedArgs === '--all'
 
     if (doProject) {
@@ -168,11 +193,19 @@ const migrate = {
     const lines: string[] = [`${PRODUCT_NAME} Migration Report`]
     lines.push('═'.repeat(40))
 
-    if (result.migrated.length === 0 && result.skipped.length === 0 && result.errors.length === 0) {
+    if (
+      result.migrated.length === 0 &&
+      result.skipped.length === 0 &&
+      result.errors.length === 0
+    ) {
       lines.push('')
-      lines.push('Nothing to migrate. No .claude configuration or CLAUDE.md found.')
+      lines.push(
+        'Nothing to migrate. No .claude configuration or CLAUDE.md found.',
+      )
       lines.push('')
-      lines.push(`${PRODUCT_NAME} already uses .kode/ and AGENTS.md by default.`)
+      lines.push(
+        `${PRODUCT_NAME} already uses .kode/ and AGENTS.md by default.`,
+      )
       return lines.join('\n')
     }
 
@@ -202,8 +235,12 @@ const migrate = {
 
     lines.push('')
     lines.push('─'.repeat(40))
-    lines.push(`${PRODUCT_NAME} no longer reads from .claude/ or CLAUDE.md by default.`)
-    lines.push('You can safely remove the old .claude/ directory and CLAUDE.md after verifying the migration.')
+    lines.push(
+      `${PRODUCT_NAME} no longer reads from .claude/ or CLAUDE.md by default.`,
+    )
+    lines.push(
+      'You can safely remove the old .claude/ directory and CLAUDE.md after verifying the migration.',
+    )
 
     return lines.join('\n')
   },

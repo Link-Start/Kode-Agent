@@ -4,11 +4,13 @@ export type ThemeNames =
   // Light themes
   | 'light'
   | 'light-daltonized'
+  | 'high-contrast-light'
   | 'solarized-light'
   | 'github-light'
   // Dark themes
   | 'dark'
   | 'dark-daltonized'
+  | 'high-contrast-dark'
   | 'dracula'
   | 'nord'
   | 'monokai'
@@ -177,7 +179,13 @@ export type ModelProfile = {
   provider: ProviderType
   modelName: string
   baseURL?: string
+  /**
+   * @deprecated Legacy plaintext value. It is never used for requests; new
+   * profiles persist apiKeyEnv instead.
+   */
   apiKey: string
+  /** Environment variable name used to resolve the key at runtime. */
+  apiKeyEnv?: string
   maxTokens: number
   contextLength: number
   reasoningEffort?: 'low' | 'medium' | 'high' | 'minimal' | string

@@ -109,7 +109,8 @@ export function execInBackground(
   const appendBuffer = (target: 'stdout' | 'stderr', chunk: string): void => {
     const key = target
     if (backgroundProcess[key].length + chunk.length > MAX_BUFFERED_BYTES) {
-      const excess = backgroundProcess[key].length + chunk.length - MAX_BUFFERED_BYTES
+      const excess =
+        backgroundProcess[key].length + chunk.length - MAX_BUFFERED_BYTES
       backgroundProcess[key] = backgroundProcess[key].slice(excess)
     }
     backgroundProcess[key] += chunk

@@ -65,7 +65,9 @@ export async function getLatestVersion(): Promise<string | null> {
       clearTimeout(timer)
     }
   } catch (e) {
-    logError(`npm CLI version check failed: ${e instanceof Error ? e.message : String(e)}`)
+    logError(
+      `npm CLI version check failed: ${e instanceof Error ? e.message : String(e)}`,
+    )
   }
 
   // Fallback: query npm registry directly
@@ -89,7 +91,9 @@ export async function getLatestVersion(): Promise<string | null> {
     const latest = json && json['dist-tags'] && json['dist-tags'].latest
     return typeof latest === 'string' ? latest : null
   } catch (e) {
-    logError(`npm registry version check failed: ${e instanceof Error ? e.message : String(e)}`)
+    logError(
+      `npm registry version check failed: ${e instanceof Error ? e.message : String(e)}`,
+    )
     return null
   }
 }
@@ -116,7 +120,9 @@ export async function getUpdateBannerInfo(): Promise<UpdateBannerInfo> {
       return { version: latest, commands }
     }
   } catch (e) {
-    logError(`Update check failed: ${e instanceof Error ? e.message : String(e)}`)
+    logError(
+      `Update check failed: ${e instanceof Error ? e.message : String(e)}`,
+    )
   } finally {
     logStartupProfileDuration('update_check', Date.now() - startedAt)
   }

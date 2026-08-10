@@ -77,8 +77,11 @@ export class MCPClientManager {
         if (activeNames.has(name)) continue
         this.clients.delete(name)
         void closeWrappedClient(entry.wrapped).catch(err =>
-                  debug.warn('MCP_MANAGER_CLOSE_FAILED', { server: name, error: String(err) }),
-                )
+          debug.warn('MCP_MANAGER_CLOSE_FAILED', {
+            server: name,
+            error: String(err),
+          }),
+        )
       }
     }
 
@@ -119,7 +122,10 @@ export class MCPClientManager {
   clear(): void {
     for (const [name, entry] of this.clients.entries()) {
       void closeWrappedClient(entry.wrapped).catch(err =>
-        debug.warn('MCP_MANAGER_CLOSE_FAILED', { server: name, error: String(err) }),
+        debug.warn('MCP_MANAGER_CLOSE_FAILED', {
+          server: name,
+          error: String(err),
+        }),
       )
     }
     this.clients.clear()
@@ -137,7 +143,10 @@ export class MCPClientManager {
     if (existing && existing.configKey !== configKey) {
       this.clients.delete(name)
       void closeWrappedClient(existing.wrapped).catch(err =>
-        debug.warn('MCP_MANAGER_CLOSE_FAILED', { server: name, error: String(err) }),
+        debug.warn('MCP_MANAGER_CLOSE_FAILED', {
+          server: name,
+          error: String(err),
+        }),
       )
     } else if (existing) {
       if (existing.wrapped.type === 'connected') {
@@ -157,7 +166,10 @@ export class MCPClientManager {
         })
         this.clients.delete(name)
         void closeWrappedClient(existing.wrapped).catch(err =>
-          debug.warn('MCP_MANAGER_CLOSE_FAILED', { server: name, error: String(err) }),
+          debug.warn('MCP_MANAGER_CLOSE_FAILED', {
+            server: name,
+            error: String(err),
+          }),
         )
       } else if (
         now - existing.lastConnectAttemptAt <

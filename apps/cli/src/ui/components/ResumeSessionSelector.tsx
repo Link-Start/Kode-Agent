@@ -81,7 +81,7 @@ const ResumeSessionList = React.memo(function ResumeSessionList({
 
   return (
     <Box flexDirection="column" width="100%" minHeight={visibleRows + 2}>
-      <Text dimColor wrap="truncate-end">
+      <Text color={theme.secondaryText} wrap="truncate-end">
         {topIndicator}
       </Text>
       {visibleRowsList.length > 0 ? (
@@ -120,8 +120,8 @@ const ResumeSessionList = React.memo(function ResumeSessionList({
               <Text color={isSelected ? theme.kode : theme.secondaryText}>
                 {isSelected ? figures.pointer : ' '}
               </Text>
-              <Text dimColor>{groupIndicator}</Text>
-              <Text dimColor wrap="truncate-end">
+              <Text color={theme.secondaryText}>{groupIndicator}</Text>
+              <Text color={theme.secondaryText} wrap="truncate-end">
                 {modifiedLabel}
               </Text>
               {projectLabel ? (
@@ -142,14 +142,13 @@ const ResumeSessionList = React.memo(function ResumeSessionList({
               <Text
                 bold={isSelected}
                 color={isSelected ? theme.text : theme.secondaryText}
-                dimColor={!isSelected && row.indexInGroup > 0}
                 wrap="truncate-end"
               >
                 {namePrefix}
                 {name}
               </Text>
               {groupCountLabel ? (
-                <Text dimColor wrap="truncate-end">
+                <Text color={theme.secondaryText} wrap="truncate-end">
                   {groupCountLabel}
                 </Text>
               ) : null}
@@ -157,14 +156,14 @@ const ResumeSessionList = React.memo(function ResumeSessionList({
           )
         })
       ) : (
-        <Text dimColor>(empty)</Text>
+        <Text color={theme.secondaryText}>(empty)</Text>
       )}
       {visibleListRowCount < visibleRows
         ? Array.from({
             length: Math.max(0, visibleRows - visibleListRowCount),
           }).map((_, idx) => <Text key={`empty-row-${idx}`}> </Text>)
         : null}
-      <Text dimColor wrap="truncate-end">
+      <Text color={theme.secondaryText} wrap="truncate-end">
         {bottomIndicator}
       </Text>
     </Box>
@@ -208,13 +207,14 @@ const ResumeSearchInput = React.memo(function ResumeSearchInput({
     <Box
       flexShrink={0}
       borderStyle="round"
-      borderColor={isFocused ? theme.suggestion : undefined}
-      borderDimColor={!isFocused}
+      borderColor={isFocused ? theme.suggestion : theme.secondaryBorder}
       paddingX={1}
       width="100%"
     >
       <Box flexDirection="row" gap={1}>
-        <Text dimColor={!isFocused}>{prefix}</Text>
+        <Text color={isFocused ? theme.suggestion : theme.secondaryText}>
+          {prefix}
+        </Text>
         <TextInput
           value={query}
           placeholder="Search…"
@@ -1485,7 +1485,7 @@ export function ResumeSessionSelector(props: {
       >
         <Box flexDirection="column" gap={frameGap}>
           <Text bold>No sessions found</Text>
-          <Text dimColor>Press Esc to close.</Text>
+          <Text color={theme.secondaryText}>Press Esc to close.</Text>
         </Box>
       </ScreenFrame>
     )
@@ -1507,7 +1507,7 @@ export function ResumeSessionSelector(props: {
         gap={frameGap}
       >
         <Box flexDirection="column" gap={frameGap}>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {getSessionDisplayName(selectedSession)}
           </Text>
           <Box flexDirection="column">
@@ -1517,7 +1517,7 @@ export function ResumeSessionSelector(props: {
               </Text>
             ))}
           </Box>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             ↑/↓ scroll · PgUp/PgDn · Home/End · Esc close
           </Text>
         </Box>
@@ -1537,25 +1537,25 @@ export function ResumeSessionSelector(props: {
         <Box flexDirection="column" gap={frameGap}>
           <Text bold>This conversation is from a different directory.</Text>
           {crossProjectTitle ? (
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               {crossProjectTitle}
             </Text>
           ) : null}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {crossProjectCwd}
           </Text>
-          <Text dimColor>To resume, run:</Text>
+          <Text color={theme.secondaryText}>To resume, run:</Text>
           <Text wrap="wrap">{crossProjectCommand}</Text>
           {crossProjectCopyStatus ? (
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               {crossProjectCopyStatus}
             </Text>
           ) : (
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               (Command copied to clipboard.)
             </Text>
           )}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             Esc back
           </Text>
         </Box>
@@ -1573,7 +1573,7 @@ export function ResumeSessionSelector(props: {
         gap={frameGap}
       >
         <Box flexDirection="column" gap={frameGap}>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {selectedSession.sessionId}
           </Text>
           <TextInput
@@ -1595,7 +1595,7 @@ export function ResumeSessionSelector(props: {
             focus={true}
           />
           {submitError ? <Text color={theme.error}>{submitError}</Text> : null}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             Enter save · Esc cancel
           </Text>
         </Box>
@@ -1677,30 +1677,30 @@ export function ResumeSessionSelector(props: {
     agenticSearch.status === 'searching' ? (
       <Box flexDirection="row" gap={1} paddingLeft={2}>
         <SimpleSpinner />
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           Searching…
         </Text>
       </Box>
     ) : agenticSearch.status === 'results' ? (
       agenticSearch.results.length > 0 ? (
-        <Text dimColor italic wrap="truncate-end">
+        <Text color={theme.secondaryText} italic wrap="truncate-end">
           Model found these results:
         </Text>
       ) : (
-        <Text dimColor italic wrap="truncate-end">
+        <Text color={theme.secondaryText} italic wrap="truncate-end">
           No matching sessions found.
         </Text>
       )
     ) : agenticSearch.status === 'error' ? (
-      <Text dimColor italic wrap="truncate-end">
+      <Text color={theme.secondaryText} italic wrap="truncate-end">
         Semantic search failed: {agenticSearch.message}
       </Text>
     ) : query.trim() && filteredSessions.length === 0 ? (
-      <Text dimColor italic wrap="truncate-end">
+      <Text color={theme.secondaryText} italic wrap="truncate-end">
         No matching sessions found.
       </Text>
     ) : (
-      <Text dimColor wrap="truncate-end">
+      <Text color={theme.secondaryText} wrap="truncate-end">
         &nbsp;
       </Text>
     )
@@ -1716,7 +1716,9 @@ export function ResumeSessionSelector(props: {
       <Box flexDirection="column" gap={frameGap}>
         {showTagTabs ? (
           <Box flexDirection="row" gap={1}>
-            {hasHiddenLeft ? <Text dimColor>{figures.ellipsis}</Text> : null}
+            {hasHiddenLeft ? (
+              <Text color={theme.secondaryText}>{figures.ellipsis}</Text>
+            ) : null}
             {tabSlice.map((tag, idx) => {
               const absoluteIndex = tabStart + idx
               const isSelected = absoluteIndex === tagFilterIndex
@@ -1732,15 +1734,17 @@ export function ResumeSessionSelector(props: {
                 </Text>
               )
             })}
-            {hasHiddenRight ? <Text dimColor>{figures.ellipsis}</Text> : null}
+            {hasHiddenRight ? (
+              <Text color={theme.secondaryText}>{figures.ellipsis}</Text>
+            ) : null}
           </Box>
         ) : (
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             &nbsp;
           </Text>
         )}
 
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {shortcutLine}
         </Text>
 
@@ -1765,11 +1769,11 @@ export function ResumeSessionSelector(props: {
         )}
 
         {infoBits.length > 0 ? (
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {infoBits.join(' · ')}
           </Text>
         ) : (
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             &nbsp;
           </Text>
         )}
@@ -1788,7 +1792,7 @@ export function ResumeSessionSelector(props: {
         />
 
         <Box paddingLeft={2} flexDirection="column">
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {selectedSession
               ? ((selectedSession.summary ?? '').split('\n')[0] ?? '')
               : ' '}

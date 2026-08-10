@@ -163,7 +163,9 @@ describe('normalizeStatusLineOutput', () => {
 
     try {
       await new Promise(resolve =>
-        setTimeout(resolve, process.platform === 'win32' ? 2800 : 1800),
+        // The command itself takes 1.3 seconds. Leave enough headroom for the
+        // shell startup and Ink effect scheduling on slower CI runners.
+        setTimeout(resolve, process.platform === 'win32' ? 3500 : 3000),
       )
       const output = stripAnsi(rawOutput)
 

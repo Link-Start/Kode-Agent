@@ -9,7 +9,7 @@ import {
 } from './flow/options'
 import type { ModelInfo } from './flow/types'
 import * as modelFetchers from './flow/modelFetchers'
-import { logError } from '#core/utils/log'
+import { readApiKeyFromEnvironment } from '#core/utils/config'
 import { fetchOllamaModels } from './fetchOllamaModels'
 import type { ModelSelectorState } from './useModelSelectorState'
 import type { ModelParamsField } from './viewTypes'
@@ -25,9 +25,16 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
   }
 
   async function fetchModels(): Promise<ModelInfo[]> {
+    const apiKey = readApiKeyFromEnvironment(state.apiKeyEnv) ?? ''
+    if (!apiKey && state.selectedProvider !== 'ollama') {
+      throw new Error(
+        `Environment variable '${state.apiKeyEnv || 'API_KEY'}' is not set in this shell. Set it, or press Enter to enter a model ID manually.`,
+      )
+    }
+
     return await fetchModelsForProvider({
       selectedProvider: state.selectedProvider,
-      apiKey: state.apiKey,
+      apiKey,
       providerBaseUrl: state.providerBaseUrl,
       customBaseUrl: state.customBaseUrl,
       modelFetchers,
@@ -76,40 +83,25 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     const errorMessage = summarizeErrorMessage(lastError?.message || '')
 
     state.setModelLoadError(
-      `Failed to validate API key after ${MAX_RETRIES} attempts: ${errorMessage}`,
+      `Model discovery could not use the credential reference after ${MAX_RETRIES} attempts: ${errorMessage}`,
     )
-    throw new Error(`API key validation failed: ${errorMessage}`)
+    throw new Error(`Model discovery failed: ${errorMessage}`)
   }
 
   async function handleApiKeySubmit(key: string) {
-    const cleanedKey = key.replace(/\s+/g, '').trim()
-    state.setApiKey(cleanedKey)
+    const reference = key.trim()
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(reference)) {
+      state.setModelLoadError(
+        'Use letters, digits, and underscores; the name cannot start with a digit.',
+      )
+      return
+    }
+
+    state.setApiKeyEnv(reference)
     state.setModelLoadError(null)
-
-    if (state.selectedProvider === 'azure') {
-      state.navigateTo('resourceName')
-      return
-    }
-
-    if (
-      state.selectedProvider === 'minimax' ||
-      state.selectedProvider === 'minimax-coding'
-    ) {
-      state.navigateTo('modelInput')
-      return
-    }
-
-    try {
-      state.setIsLoadingModels(true)
-      const models = await fetchModelsWithRetry()
-      if (models.length === 0) {
-        state.navigateTo('modelInput')
-      }
-    } catch (error) {
-      logError(error)
-    } finally {
-      state.setIsLoadingModels(false)
-    }
+    state.navigateTo(
+      state.selectedProvider === 'azure' ? 'resourceName' : 'modelInput',
+    )
   }
 
   function handleResourceNameSubmit(name: string) {
@@ -149,6 +141,8 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     state.setCustomModelName(model)
     state.setSelectedModel(model)
     state.setSupportsReasoningEffort(false)
+    state.setSupportsMaxTokens(false)
+    state.setSupportsContextLength(false)
     state.setReasoningEffort(null)
 
     state.setMaxTokensMode('preset')
@@ -156,8 +150,7 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     state.setMaxTokens(DEFAULT_MAX_TOKENS.toString())
     state.setMaxTokensCursorOffset(DEFAULT_MAX_TOKENS.toString().length)
 
-    state.navigateTo('modelParams')
-    state.setActiveFieldIndex(0)
+    state.navigateTo('confirmation')
   }
 
   function handleModelSelection(model: string) {
@@ -172,23 +165,39 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
       state.setReasoningEffort(null)
     }
 
-    state.setContextLength(modelInfo?.context_length ?? DEFAULT_CONTEXT_LENGTH)
+    const modelContextLength = modelInfo?.context_length
+    const hasReportedContextLength =
+      typeof modelContextLength === 'number' &&
+      Number.isFinite(modelContextLength) &&
+      modelContextLength > 0
+    state.setSupportsContextLength(hasReportedContextLength)
+    state.setContextLength(
+      hasReportedContextLength
+        ? (modelContextLength as number)
+        : DEFAULT_CONTEXT_LENGTH,
+    )
 
     const modelMaxTokens = modelInfo?.max_tokens
-    if (typeof modelMaxTokens === 'number' && Number.isFinite(modelMaxTokens)) {
+    const hasReportedMaxTokens =
+      typeof modelMaxTokens === 'number' &&
+      Number.isFinite(modelMaxTokens) &&
+      modelMaxTokens > 0
+    state.setSupportsMaxTokens(hasReportedMaxTokens)
+    if (hasReportedMaxTokens) {
+      const reportedMaxTokens = modelMaxTokens as number
       const matchingPreset = MAX_TOKENS_OPTIONS.find(
-        option => option.value === modelMaxTokens,
+        option => option.value === reportedMaxTokens,
       )
 
       if (matchingPreset) {
         state.setMaxTokensMode('preset')
-        state.setSelectedMaxTokensPreset(modelMaxTokens)
-        state.setMaxTokens(modelMaxTokens.toString())
+        state.setSelectedMaxTokensPreset(reportedMaxTokens)
+        state.setMaxTokens(reportedMaxTokens.toString())
       } else {
         state.setMaxTokensMode('custom')
-        state.setMaxTokens(modelMaxTokens.toString())
+        state.setMaxTokens(reportedMaxTokens.toString())
       }
-      state.setMaxTokensCursorOffset(modelMaxTokens.toString().length)
+      state.setMaxTokensCursorOffset(reportedMaxTokens.toString().length)
     } else {
       state.setMaxTokensMode('preset')
       state.setSelectedMaxTokensPreset(DEFAULT_MAX_TOKENS)
@@ -196,28 +205,32 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
       state.setMaxTokensCursorOffset(DEFAULT_MAX_TOKENS.toString().length)
     }
 
-    state.navigateTo('modelParams')
-    state.setActiveFieldIndex(0)
+    state.navigateTo('confirmation')
   }
 
   const handleModelParamsSubmit = () => {
-    state.navigateTo('contextLength')
+    state.navigateTo(
+      state.supportsContextLength ? 'contextLength' : 'confirmation',
+    )
   }
 
   const getFormFieldsForModelParams = (): ModelParamsField[] => {
-    const fields: ModelParamsField[] = [
-      {
+    const fields: ModelParamsField[] = []
+
+    if (state.supportsMaxTokens) {
+      fields.push({
         name: 'maxTokens',
-        label: 'Maximum Tokens',
-        description: 'Select the maximum number of tokens to generate.',
+        label: 'Maximum output (tokens)',
+        description:
+          'Upper limit for one response. The provider can enforce a lower limit.',
         component: 'select',
         options: MAX_TOKENS_OPTIONS.map(option => ({
           label: option.label,
           value: option.value.toString(),
         })),
         defaultValue: state.maxTokens,
-      },
-    ]
+      })
+    }
 
     if (state.supportsReasoningEffort) {
       fields.push({
@@ -228,22 +241,11 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
       })
     }
 
-    if (state.selectedModel.toLowerCase().includes('claude')) {
-      fields.push({
-        name: 'requestStrategy',
-        label: 'Request Strategy',
-        description:
-          'Choose how Kode should try compatibility request profiles if a provider blocks third-party clients.',
-        component: 'select',
-        options: REQUEST_STRATEGY_OPTIONS.map(option => ({
-          label: option.label,
-          value: option.value,
-        })),
-        defaultValue: state.requestStrategy,
-      })
-    }
-
-    fields.push({ name: 'submit', label: 'Continue →', component: 'button' })
+    fields.push({
+      name: 'submit',
+      label: 'Review setup →',
+      component: 'button',
+    })
     return fields
   }
 

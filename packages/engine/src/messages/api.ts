@@ -151,10 +151,7 @@ const STRIPPED_TAGS = [
 ]
 
 export function stripSystemMessages(content: string): string {
-  const regex = new RegExp(
-    `<(${STRIPPED_TAGS.join('|')})>.*?</\\1>\n?`,
-    'gs',
-  )
+  const regex = new RegExp(`<(${STRIPPED_TAGS.join('|')})>.*?</\\1>\n?`, 'gs')
   return content.replace(regex, '').trim()
 }
 

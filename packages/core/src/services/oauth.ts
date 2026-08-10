@@ -287,58 +287,58 @@ export class OAuthService {
 export async function createAndStoreApiKey(
   accessToken: string,
 ): Promise<string | null> {
+  // Call create_api_key endpoint
+  const createApiKeyResp = await fetch(OAUTH_CONFIG.API_KEY_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+
+  let apiKeyData
+  let errorText = ''
+
   try {
-    // Call create_api_key endpoint
-    const createApiKeyResp = await fetch(OAUTH_CONFIG.API_KEY_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-
-    let apiKeyData
-    let errorText = ''
-
-    try {
-      apiKeyData = await createApiKeyResp.json()
-    } catch (_e) {
-      // If response is not valid JSON, get as text for error logging
-      errorText = await createApiKeyResp.text()
-    }
-
-    if (createApiKeyResp.ok && apiKeyData && apiKeyData.raw_key) {
-      const apiKey = apiKeyData.raw_key
-
-      // Store in global config
-      const config = getGlobalConfig()
-
-      // Note: API key is now managed per model profile
-
-      // Add to approved list
-      if (!config.customApiKeyResponses) {
-        config.customApiKeyResponses = { approved: [], rejected: [] }
-      }
-      if (!config.customApiKeyResponses.approved) {
-        config.customApiKeyResponses.approved = []
-      }
-
-      const normalizedKey = normalizeApiKeyForConfig(apiKey)
-      if (!config.customApiKeyResponses.approved.includes(normalizedKey)) {
-        config.customApiKeyResponses.approved.push(normalizedKey)
-      }
-
-      // Save config
-      saveGlobalConfig(config)
-
-      // Reset the Anthropic client to force creation with new API key
-      try {
-        const { resetAnthropicClient } = await import('#core/ai/llm')
-        resetAnthropicClient()
-      } catch {}
-
-      return apiKey
-    }
-
-    return null
-  } catch (error) {
-    throw error
+    apiKeyData = await createApiKeyResp.json()
+  } catch (_e) {
+    // If response is not valid JSON, get as text for error logging
+    errorText = await createApiKeyResp.text()
   }
+
+  if (createApiKeyResp.ok && apiKeyData && apiKeyData.raw_key) {
+    const apiKey = apiKeyData.raw_key
+
+    // Store in global config
+    const config = getGlobalConfig()
+
+    // Note: API key is now managed per model profile
+
+    // Add to approved list
+    if (!config.customApiKeyResponses) {
+      config.customApiKeyResponses = { approved: [], rejected: [] }
+    }
+    if (!config.customApiKeyResponses.approved) {
+      config.customApiKeyResponses.approved = []
+    }
+
+    const normalizedKey = normalizeApiKeyForConfig(apiKey)
+    if (!config.customApiKeyResponses.approved.includes(normalizedKey)) {
+      config.customApiKeyResponses.approved.push(normalizedKey)
+    }
+
+    // Save config
+    saveGlobalConfig(config)
+
+    // Reset the Anthropic client to force creation with new API key
+    try {
+      const { resetAnthropicClient } = await import('#core/ai/llm')
+      resetAnthropicClient()
+    } catch {
+      logError(
+        'OAuth API key created, but the Anthropic client cache could not be reset.',
+      )
+    }
+
+    return apiKey
+  }
+
+  return null
 }

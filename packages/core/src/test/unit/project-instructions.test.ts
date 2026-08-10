@@ -84,8 +84,8 @@ describe('projectInstructions (AGENTS.md discovery)', () => {
   })
 })
 
-describe('projectDocs (legacy CLAUDE.md fallback)', () => {
-  test('getProjectDocs includes legacy CLAUDE.md when present', async () => {
+describe('projectDocs (AGENTS.md only)', () => {
+  test('getProjectDocs ignores legacy CLAUDE.md content', async () => {
     const root = mkdtempSync(join(tmpdir(), 'kode-claude-legacy-test-'))
     writeFileSync(join(root, 'AGENTS.md'), 'agents\n', 'utf8')
     writeFileSync(join(root, 'CLAUDE.md'), 'legacy\n', 'utf8')
@@ -93,7 +93,7 @@ describe('projectDocs (legacy CLAUDE.md fallback)', () => {
     const docs = await getProjectDocsForCwd(root)
     expect(docs).not.toBeNull()
     expect(docs ?? '').toContain('agents')
-    expect(docs ?? '').toContain('Legacy instructions (CLAUDE.md')
-    expect(docs ?? '').toContain('legacy')
+    expect(docs ?? '').not.toContain('Legacy instructions (CLAUDE.md')
+    expect(docs ?? '').not.toContain('legacy')
   })
 })

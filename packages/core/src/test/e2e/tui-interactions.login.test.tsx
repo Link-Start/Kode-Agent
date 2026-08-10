@@ -88,10 +88,10 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     h.stdin.write('\u001B[B')
     await waitForOutput(h, 'Configure an OpenAI model profile')
     h.stdin.write('\r')
-    await waitForOutput(h, 'API Key Setup')
+    await waitForOutput(h, 'Credential Source / 凭据来源')
 
     const output = h.getOutput()
-    expect(output).toContain('API Key Setup')
-    expect(output).toContain('Enter your OpenAI API key')
+    expect(output).toContain('Credential Source / 凭据来源')
+    expect(output).toContain('Enter the variable name, not its secret value.')
   })
 })
