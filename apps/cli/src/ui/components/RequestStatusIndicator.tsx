@@ -12,9 +12,9 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
 function getLabel(status: RequestStatus): string {
   switch (status.kind) {
     case 'thinking':
-      return 'Prefilling'
+      return 'Preparing response'
     case 'streaming':
-      return 'Decoding'
+      return 'Generating response'
     default:
       return ''
   }
@@ -116,7 +116,7 @@ export function RequestStatusIndicator({
       </Text>
       <Text color={theme.secondaryText}>
         {' '}
-        :: {formatDuration(elapsedTime)} (Esc to interrupt)
+        :: {formatDuration(elapsedTime)} (Esc cancel)
         {getTokenDisplay(status)}
       </Text>
     </Box>

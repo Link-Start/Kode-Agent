@@ -26,6 +26,8 @@ const VIEWPORT_SAFE_MARGIN_ROWS = 1
 const INDICATOR_ROWS = 2
 const REFRESH_INTERVAL_MS = 1000
 
+type TaskFilter = 'all' | 'active' | 'finished'
+
 type TreeNode =
   | {
       kind: 'group'
@@ -142,6 +144,34 @@ function isShellTaskSnapshot(
   task: BackgroundTaskSnapshot,
 ): task is BackgroundShellTaskSnapshot {
   return task.taskType === 'local_bash'
+}
+
+export function __filterTaskSnapshotsForTests(
+  tasks: readonly BackgroundTaskSnapshot[],
+  filter: TaskFilter,
+): BackgroundTaskSnapshot[] {
+  if (filter === 'all') return [...tasks]
+  if (filter === 'active') {
+    return tasks.filter(
+      task => task.status === 'running' || task.status === 'pending',
+    )
+  }
+  return tasks.filter(
+    task =>
+      task.status === 'completed' ||
+      task.status === 'failed' ||
+      task.status === 'killed',
+  )
+}
+
+export function __nextTaskFilterForTests(filter: TaskFilter): TaskFilter {
+  if (filter === 'all') return 'active'
+  if (filter === 'active') return 'finished'
+  return 'all'
+}
+
+function taskFilterLabel(filter: TaskFilter): string {
+  return filter
 }
 
 function buildAgentTree(tasks: BackgroundAgentTaskSnapshot[]): TreeNode | null {
@@ -401,6 +431,7 @@ export function TasksScreen({
   const [status, setStatus] = useState<string | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>('all')
   const userMovedSelectionRef = useRef(false)
 
   const [tick, setTick] = useState(0)
@@ -414,13 +445,23 @@ export function TasksScreen({
     setStatus('Refreshed')
   }, [])
 
+  const cycleTaskFilter = useCallback(() => {
+    setTaskFilter(current => __nextTaskFilterForTests(current))
+    setScrollTop(0)
+    setStatus(null)
+  }, [])
+
+  const allTasks = useMemo(() => listBackgroundTaskSnapshots(), [tick])
+  const tasks = useMemo(
+    () => __filterTaskSnapshotsForTests(allTasks, taskFilter),
+    [allTasks, taskFilter],
+  )
   const { agentTasks, shellTasks } = useMemo(() => {
-    const tasks = listBackgroundTaskSnapshots()
     return {
       agentTasks: tasks.filter(isAgentTaskSnapshot),
       shellTasks: tasks.filter(isShellTaskSnapshot),
     }
-  }, [tick])
+  }, [tasks])
 
   const nodes = useMemo(
     () =>
@@ -659,6 +700,11 @@ export function TasksScreen({
         return true
       }
 
+      if (input === 'f') {
+        cycleTaskFilter()
+        return true
+      }
+
       if (input === 'k') {
         killSelected()
         return true
@@ -697,7 +743,7 @@ export function TasksScreen({
   )
 
   const shortcutLine =
-    '↑/↓ select · ←/→ collapse · Enter view · k kill · o open output · l open log · esc close'
+    '↑/↓ select · ←/→ collapse · Enter view · f filter · k kill · o output · l log · Esc close'
 
   const detailLines: string[] = []
   if (!selected) {
@@ -721,19 +767,17 @@ export function TasksScreen({
     }
   }
 
-  const totalTasks = agentTasks.length + shellTasks.length
-  const runningTasks =
-    agentTasks.filter(t => t.status === 'running').length +
-    shellTasks.filter(t => t.status === 'running').length
+  const totalTasks = tasks.length
+  const runningTasks = allTasks.filter(t => t.status === 'running').length
 
   const statusLine =
     status ??
     (totalTasks > 0
-      ? `Tasks: ${runningTasks} running · ${totalTasks} total`
-      : 'No background tasks')
+      ? `Local tasks: ${taskFilterLabel(taskFilter)} · ${runningTasks} running · ${totalTasks} shown`
+      : `No ${taskFilterLabel(taskFilter)} local tasks`)
 
   const tipLine =
-    'Tip: background task output is saved per task ID (no overwrites)'
+    'Local task snapshots end with this Kode process. Use /runs status for durable-run records.'
 
   if (detailTarget) {
     const outputFile =
@@ -788,15 +832,15 @@ export function TasksScreen({
             borderColor={theme.secondaryBorder}
             paddingX={1}
           >
-            <Text wrap="truncate-end">
+            <Text color={theme.text} wrap="truncate-end">
               <Text bold>Status</Text>: {detailTask?.status ?? '(unknown)'}
             </Text>
             {runtime ? (
-              <Text wrap="truncate-end">
+              <Text color={theme.text} wrap="truncate-end">
                 <Text bold>Runtime</Text>: {runtime}
               </Text>
             ) : null}
-            <Text wrap="truncate-end">
+            <Text color={theme.text} wrap="truncate-end">
               <Text bold>
                 {detailTarget.kind === 'shell' ? 'Command' : 'Task'}
               </Text>
@@ -804,7 +848,9 @@ export function TasksScreen({
             </Text>
 
             <Box flexDirection="column" marginTop={1}>
-              <Text bold>Output:</Text>
+              <Text bold color={theme.text}>
+                Output:
+              </Text>
               {detailOutputLines.length > 0 ? (
                 <Box
                   flexDirection="column"
@@ -815,16 +861,16 @@ export function TasksScreen({
                   width="100%"
                 >
                   {detailOutputLines.map((line, index) => (
-                    <Text key={index} wrap="truncate-end">
+                    <Text key={index} color={theme.text} wrap="truncate-end">
                       {line}
                     </Text>
                   ))}
                 </Box>
               ) : (
-                <Text dimColor>No output available</Text>
+                <Text color={theme.secondaryText}>No output available</Text>
               )}
               {showingLine ? (
-                <Text dimColor italic wrap="truncate-end">
+                <Text color={theme.secondaryText} italic wrap="truncate-end">
                   {showingLine}
                 </Text>
               ) : null}
@@ -832,7 +878,7 @@ export function TasksScreen({
           </Box>
 
           <Box marginLeft={2} marginTop={layout.gap}>
-            <Text dimColor wrap="truncate-end">
+            <Text color={theme.secondaryText} wrap="truncate-end">
               {footerActions}
             </Text>
           </Box>
@@ -843,22 +889,23 @@ export function TasksScreen({
 
   return (
     <ScreenFrame
-      title="Tasks"
+      title="Local Tasks"
       exitState={exitState}
       paddingX={layout.paddingX}
       paddingY={layout.paddingY}
       gap={layout.gap}
     >
       <Box flexDirection="column">
-        <Text dimColor wrap="truncate-end">
-          Manage background tasks (agents + shells) and jump to their artifacts
+        <Text color={theme.secondaryText} wrap="truncate-end">
+          Inspect local background agents and shells; finished status is local,
+          not remote success.
         </Text>
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {shortcutLine}
         </Text>
 
         <Box flexDirection="column" marginTop={layout.gap}>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {topIndicator}
           </Text>
           {visible.length > 0 ? (
@@ -881,27 +928,27 @@ export function TasksScreen({
             ))
           ) : (
             <Text color={theme.secondaryText} wrap="truncate-end">
-              (No background tasks)
+              (No matching local tasks)
             </Text>
           )}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {bottomIndicator}
           </Text>
         </Box>
 
         <Box flexDirection="column" marginTop={layout.gap}>
           {detailLines.slice(0, detailRows).map((line, idx) => (
-            <Text key={idx} dimColor wrap="truncate-end">
+            <Text key={idx} color={theme.secondaryText} wrap="truncate-end">
               {line}
             </Text>
           ))}
         </Box>
 
         <Box flexDirection="column" marginTop={layout.gap}>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {statusLine}
           </Text>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {tipLine}
           </Text>
         </Box>

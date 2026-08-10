@@ -24,12 +24,14 @@ export function SearchBox({
     <Box
       flexShrink={0}
       borderStyle="round"
-      borderColor={isFocused ? theme.suggestion : undefined}
-      borderDimColor={!isFocused}
+      borderColor={isFocused ? theme.suggestion : theme.secondaryBorder}
       paddingX={1}
       width={width ?? '100%'}
     >
-      <Text dimColor={!isFocused} wrap="truncate-end">
+      <Text
+        color={isFocused ? theme.text : theme.secondaryText}
+        wrap="truncate-end"
+      >
         {prefix}{' '}
         {isFocused ? (
           query ? (
@@ -40,10 +42,12 @@ export function SearchBox({
           ) : isTerminalFocused ? (
             <>
               <Text inverse>{safePlaceholder.charAt(0)}</Text>
-              <Text dimColor>{safePlaceholder.slice(1)}</Text>
+              <Text color={theme.secondaryText}>
+                {safePlaceholder.slice(1)}
+              </Text>
             </>
           ) : (
-            <Text dimColor>{safePlaceholder}</Text>
+            <Text color={theme.secondaryText}>{safePlaceholder}</Text>
           )
         ) : query ? (
           <Text>{query}</Text>

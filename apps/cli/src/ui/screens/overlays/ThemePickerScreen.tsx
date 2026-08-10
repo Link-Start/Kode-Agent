@@ -22,11 +22,13 @@ const THEME_LABELS: Record<ThemeNames, string> = {
   // Light themes
   light: 'Light',
   'light-daltonized': 'Light (Colorblind)',
+  'high-contrast-light': 'High Contrast Light',
   'solarized-light': 'Solarized Light',
   'github-light': 'GitHub Light',
   // Dark themes
   dark: 'Dark',
   'dark-daltonized': 'Dark (Colorblind)',
+  'high-contrast-dark': 'High Contrast Dark',
   dracula: 'Dracula',
   nord: 'Nord',
   monokai: 'Monokai',
@@ -42,11 +44,13 @@ const THEME_OPTIONS: ThemeNames[] = [
   // Light
   'light',
   'light-daltonized',
+  'high-contrast-light',
   'solarized-light',
   'github-light',
   // Dark
   'dark',
   'dark-daltonized',
+  'high-contrast-dark',
   'dracula',
   'nord',
   'monokai',
@@ -244,7 +248,7 @@ export function ThemePickerScreen({ onDone }: Props): React.ReactNode {
       gap={layout.gap}
     >
       <Box flexDirection="column" gap={layout.gap}>
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           {shortcutLine}
         </Text>
 
@@ -275,7 +279,7 @@ export function ThemePickerScreen({ onDone }: Props): React.ReactNode {
         ) : null}
 
         <Box flexDirection="column" width="100%">
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {topIndicator}
           </Text>
           {visibleThemes.length > 0 ? (
@@ -314,7 +318,7 @@ export function ThemePickerScreen({ onDone }: Props): React.ReactNode {
               No matching themes. Esc clears the filter.
             </Text>
           )}
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {bottomIndicator}
           </Text>
         </Box>

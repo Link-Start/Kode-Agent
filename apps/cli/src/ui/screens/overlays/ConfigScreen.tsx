@@ -20,10 +20,12 @@ import { PressableRow } from '#ui-ink/primitives/list/PressableRow'
 const THEME_OPTIONS: ThemeNames[] = [
   'light',
   'light-daltonized',
+  'high-contrast-light',
   'solarized-light',
   'github-light',
   'dark',
   'dark-daltonized',
+  'high-contrast-dark',
   'dracula',
   'nord',
   'monokai',
@@ -77,6 +79,7 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
   const [globalConfig, setGlobalConfig] = useState(getGlobalConfig())
   const initialConfig = React.useRef(getGlobalConfig())
   const exitState = { pending: false, keyName: null as null } as const
+  const [view, setView] = useState<'quick-start' | 'advanced'>('quick-start')
   const [editingString, setEditingString] = useState(false)
   const [currentInput, setCurrentInput] = useState('')
   const [inputError, setInputError] = useState<string | null>(null)
@@ -292,6 +295,23 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
         return undefined
       }
 
+      if (view === 'quick-start') {
+        if (key.tab || key.rightArrow || inputChar === 'a') {
+          setView('advanced')
+          return true
+        }
+        if (key.escape || (key.ctrl && inputChar === 'c')) {
+          safeOnClose()
+          return true
+        }
+        return undefined
+      }
+
+      if (key.tab || key.leftArrow) {
+        setView('quick-start')
+        return true
+      }
+
       if (key.upArrow) {
         setSelectedIndex(prev => Math.max(0, prev - 1))
       } else if (key.downArrow) {
@@ -376,75 +396,108 @@ export function ConfigScreen({ onClose }: Props): React.ReactNode {
       gap={gap}
     >
       <Box flexDirection="column" gap={gap}>
-        <Box flexDirection="column" gap={gap}>
-          <Text bold color={theme.success}>
-            Models
-          </Text>
-          <Box paddingLeft={1}>{modelSummary}</Box>
-        </Box>
-
-        <Box flexDirection="column" gap={0}>
-          <Text bold>Settings</Text>
-          {settings.map((setting, index) => {
-            const isSelected = index === selectedIndex
-            return (
-              <PressableRow
-                key={setting.id}
-                flexDirection="column"
-                isActive={!editingString}
-                onPress={() => activateSetting(index)}
-              >
-                <Box flexDirection="row" gap={1}>
-                  <Text
-                    color={
-                      isSelected
-                        ? theme.kode
-                        : setting.disabled
-                          ? theme.secondaryText
-                          : theme.text
-                    }
-                    wrap="truncate-end"
+        {view === 'quick-start' ? (
+          <Box flexDirection="column" gap={gap}>
+            <Text bold color={theme.success}>
+              Quick start
+            </Text>
+            <Text color={theme.secondaryText} wrap="truncate-end">
+              1. <Text color={theme.suggestion}>/onboarding</Text> guides
+              provider and model setup.
+            </Text>
+            <Text color={theme.secondaryText} wrap="truncate-end">
+              2. <Text color={theme.suggestion}>/model</Text> manages providers,
+              models, and key validation. Keys are never shown here.
+            </Text>
+            <Text color={theme.secondaryText} wrap="truncate-end">
+              3. <Text color={theme.suggestion}>/permissions</Text> and{' '}
+              <Text color={theme.suggestion}>/mcp</Text> manage tool access and
+              integrations.
+            </Text>
+            <Box marginTop={gap} flexDirection="column" gap={0}>
+              <Text bold color={theme.text}>
+                Current model setup
+              </Text>
+              <Box paddingLeft={1}>{modelSummary}</Box>
+            </Box>
+          </Box>
+        ) : (
+          <Box flexDirection="column" gap={gap}>
+            <Box flexDirection="column" gap={0}>
+              <Text bold color={theme.text}>
+                Advanced preferences
+              </Text>
+              <Text color={theme.secondaryText} wrap="truncate-end">
+                Appearance, editor behavior, streaming, and terminal rendering.
+              </Text>
+            </Box>
+            <Box flexDirection="column" gap={0}>
+              {settings.map((setting, index) => {
+                const isSelected = index === selectedIndex
+                return (
+                  <PressableRow
+                    key={setting.id}
+                    flexDirection="column"
+                    isActive={!editingString}
+                    onPress={() => activateSetting(index)}
                   >
-                    {isSelected ? figures.pointer : ' '} {setting.label}
-                  </Text>
-                  <Text
-                    color={
-                      setting.disabled ? theme.secondaryText : theme.suggestion
-                    }
-                    wrap="truncate-end"
-                  >
-                    {setting.type === 'boolean'
-                      ? setting.value
-                        ? 'enabled'
-                        : 'disabled'
-                      : setting.type === 'enum'
-                        ? setting.value
-                        : String(setting.value)}
-                  </Text>
-                </Box>
-
-                {isSelected && editingString ? (
-                  <Box flexDirection="column" paddingLeft={2}>
-                    <Text color={theme.suggestion} wrap="truncate-end">
-                      Enter new value: {currentInput}
-                    </Text>
-                    {inputError ? (
-                      <Text color={theme.error} wrap="truncate-end">
-                        {inputError}
+                    <Box flexDirection="row" gap={1}>
+                      <Text
+                        color={
+                          isSelected
+                            ? theme.kode
+                            : setting.disabled
+                              ? theme.secondaryText
+                              : theme.text
+                        }
+                        wrap="truncate-end"
+                      >
+                        {isSelected ? figures.pointer : ' '} {setting.label}
                       </Text>
+                      <Text
+                        color={
+                          setting.disabled
+                            ? theme.secondaryText
+                            : theme.suggestion
+                        }
+                        wrap="truncate-end"
+                      >
+                        {setting.type === 'boolean'
+                          ? setting.value
+                            ? 'enabled'
+                            : 'disabled'
+                          : setting.type === 'enum'
+                            ? setting.value
+                            : String(setting.value)}
+                      </Text>
+                    </Box>
+
+                    {isSelected && editingString ? (
+                      <Box flexDirection="column" paddingLeft={2}>
+                        <Text color={theme.suggestion} wrap="truncate-end">
+                          Enter new value: {currentInput}
+                        </Text>
+                        {inputError ? (
+                          <Text color={theme.error} wrap="truncate-end">
+                            {inputError}
+                          </Text>
+                        ) : null}
+                      </Box>
                     ) : null}
-                  </Box>
-                ) : null}
-              </PressableRow>
-            )
-          })}
-        </Box>
+                  </PressableRow>
+                )
+              })}
+            </Box>
+          </Box>
+        )}
 
         <Box marginTop={tightLayout ? 0 : 1}>
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {editingString
               ? 'Enter to save · Esc to cancel'
-              : '↑/↓ or j/k · Home/End · Enter toggle · Esc close · /model'}
+              : view === 'quick-start'
+                ? 'Tab/a advanced preferences · Esc close'
+                : '↑/↓ or j/k · Home/End · Enter change · Tab back · Esc close'}
           </Text>
         </Box>
       </Box>

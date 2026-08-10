@@ -42,8 +42,13 @@ type ContrastRange = {
 
 const PRIMARY_TEXT_CONTRAST: ContrastRange = { min: 4.5, max: 10 }
 const STATUS_TEXT_CONTRAST: ContrastRange = { min: 4.5, max: 9 }
-const ACCENT_TEXT_CONTRAST: ContrastRange = { min: 3.6, max: 6.4 }
-const MUTED_TEXT_CONTRAST: ContrastRange = { min: 3, max: 4.2 }
+// These roles are used for short labels, selection indicators, and keyboard
+// instructions. They are normal-sized terminal text, not decorative chrome,
+// so keep them at the same AA floor as primary text. A bounded maximum keeps
+// the visual hierarchy without relying on ANSI dim/faint, which is especially
+// unreliable over translucent terminal backgrounds.
+const ACCENT_TEXT_CONTRAST: ContrastRange = { min: 4.5, max: 9 }
+const MUTED_TEXT_CONTRAST: ContrastRange = { min: 4.5, max: 7 }
 const CONTROL_BORDER_CONTRAST: ContrastRange = { min: 3, max: 5.5 }
 const SUBTLE_BORDER_CONTRAST: ContrastRange = { min: 2, max: 3.2 }
 
@@ -363,6 +368,32 @@ const solarizedDarkTheme: Theme = {
   },
 }
 
+const highContrastDarkTheme: Theme = {
+  bashBorder: '#ff7777',
+  kode: '#71d7ff',
+  noting: '#000000',
+  notingBorder: '#68f5a3',
+  permission: '#ffe070',
+  autoAccept: '#e1b5ff',
+  planMode: '#71d7ff',
+  secondaryBorder: '#b0b0b0',
+  inputBorder: '#71d7ff',
+  text: '#ffffff',
+  secondaryText: '#e6e6e6',
+  suggestion: '#71d7ff',
+  success: '#68f5a3',
+  error: '#ff7777',
+  warning: '#ffe070',
+  primary: '#ffffff',
+  secondary: '#e6e6e6',
+  diff: {
+    added: '#123b22',
+    removed: '#4a1717',
+    addedDimmed: '#0d2d19',
+    removedDimmed: '#351111',
+  },
+}
+
 // ============================================================================
 // LIGHT THEMES
 // ============================================================================
@@ -418,6 +449,35 @@ const lightDaltonizedTheme: Theme = {
     removed: '#ffcccc',
     addedDimmed: '#d1e7fd',
     removedDimmed: '#ffe9e9',
+  },
+}
+
+// High-contrast themes are intentionally plain. They give users a predictable
+// fallback when an image, acrylic effect, or OS contrast mode makes a
+// decorative palette hard to read.
+const highContrastLightTheme: Theme = {
+  bashBorder: '#a61b1b',
+  kode: '#004fc4',
+  noting: '#ffffff',
+  notingBorder: '#006b2f',
+  permission: '#7a4900',
+  autoAccept: '#5c1d9c',
+  planMode: '#005b72',
+  secondaryBorder: '#4d4d4d',
+  inputBorder: '#004fc4',
+  text: '#000000',
+  secondaryText: '#303030',
+  suggestion: '#004fc4',
+  success: '#006b2f',
+  error: '#a61b1b',
+  warning: '#7a4900',
+  primary: '#000000',
+  secondary: '#303030',
+  diff: {
+    added: '#dff7e7',
+    removed: '#ffe5e5',
+    addedDimmed: '#c5ebd0',
+    removedDimmed: '#f7c8c8',
   },
 }
 
@@ -483,11 +543,13 @@ const themes: Record<ThemeNames, Theme> = {
   // Light themes
   light: lightTheme,
   'light-daltonized': lightDaltonizedTheme,
+  'high-contrast-light': highContrastLightTheme,
   'solarized-light': solarizedLightTheme,
   'github-light': githubLightTheme,
   // Dark themes
   dark: darkTheme,
   'dark-daltonized': darkDaltonizedTheme,
+  'high-contrast-dark': highContrastDarkTheme,
   dracula: draculaTheme,
   nord: nordTheme,
   monokai: monokaiTheme,

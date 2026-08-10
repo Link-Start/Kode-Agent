@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
 import { Divider } from '../components/Divider'
 import { computeFrameHeight } from './viewportRows'
+import { getTheme } from '#core/utils/theme'
 
 export type ScreenExitState = { pending: boolean; keyName: string | null }
 
@@ -28,6 +29,7 @@ export function ScreenFrame({
   children: React.ReactNode
 }): React.ReactNode {
   const { columns, rows } = useTerminalSize()
+  const theme = getTheme()
   const dividerWidth = Math.max(1, columns - paddingX * 2)
   const frameHeight = computeFrameHeight(rows, VIEWPORT_SAFE_MARGIN_ROWS)
 
@@ -43,11 +45,11 @@ export function ScreenFrame({
       flexShrink={0}
     >
       <Box flexDirection="column" flexShrink={0}>
-        <Text bold color={titleColor}>
+        <Text bold color={titleColor ?? theme.text}>
           {title}
         </Text>
         {exitState?.pending ? (
-          <Text dimColor wrap="truncate-end">
+          <Text color={theme.secondaryText} wrap="truncate-end">
             {`(press ${exitState.keyName} again to exit)`}
           </Text>
         ) : null}

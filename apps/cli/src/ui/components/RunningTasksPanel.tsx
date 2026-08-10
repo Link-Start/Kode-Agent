@@ -117,20 +117,22 @@ export function RunningTasksPanel({
       width="100%"
     >
       <Box justifyContent="space-between" width="100%">
-        <Text dimColor>Running Tasks</Text>
-        <Text dimColor>/tasks</Text>
+        <Text color={theme.secondaryText}>Local Tasks</Text>
+        <Text color={theme.secondaryText}>/tasks</Text>
       </Box>
       {rows.map(row => (
         <Box key={row.key} flexDirection="row" width="100%">
           <Text color={row.status === 'running' ? theme.warning : theme.text}>
             {statusGlyph(row.status)}{' '}
           </Text>
-          <Text wrap="truncate-end">{row.label}</Text>
-          <Text dimColor> · {row.elapsed}</Text>
+          <Text color={theme.text} wrap="truncate-end">
+            {row.label}
+          </Text>
+          <Text color={theme.secondaryText}> · {row.elapsed}</Text>
         </Box>
       ))}
       {hiddenCount > 0 && (
-        <Text dimColor wrap="truncate-end">
+        <Text color={theme.secondaryText} wrap="truncate-end">
           +{hiddenCount} more in /tasks
         </Text>
       )}

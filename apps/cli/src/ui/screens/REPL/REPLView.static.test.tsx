@@ -308,7 +308,7 @@ describe('REPLView Static output epoch', () => {
     )
 
     await harness.wait(480)
-    expect(harness.getOutput()).toContain('Decoding')
+    expect(harness.getOutput()).toContain('Generating response')
 
     harness.clearOutput()
     harness.resize(80, 24)
@@ -321,10 +321,10 @@ describe('REPLView Static output epoch', () => {
       }),
     )
     await harness.wait(80)
-    expect(harness.getOutput()).toContain('Decoding')
+    expect(harness.getOutput()).toContain('Generating response')
 
     await harness.wait(450)
-    expect(harness.getOutput()).toContain('Decoding')
+    expect(harness.getOutput()).toContain('Generating response')
   })
 
   test('keeps running tasks mounted while resize measurement is settling', async () => {
@@ -336,13 +336,13 @@ describe('REPLView Static output epoch', () => {
     )
 
     await harness.wait(480)
-    expect(harness.getOutput()).toContain('Running Tasks')
+    expect(harness.getOutput()).toContain('Local Tasks')
 
     harness.clearOutput()
     harness.resize(80, 24)
     await harness.wait(80)
 
-    expect(harness.getOutput()).toContain('Running Tasks')
+    expect(harness.getOutput()).toContain('Local Tasks')
   })
 
   test('keeps transient output visible when prompt text changes within the same height', async () => {

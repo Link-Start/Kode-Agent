@@ -7,7 +7,7 @@ export function Divider({
   width,
   inset = 0,
   char = '─',
-  dim = true,
+  dim = false,
   color,
 }: {
   width?: number

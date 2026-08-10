@@ -2,11 +2,34 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   __buildFlatLinesForTests,
+  __filterTaskSnapshotsForTests,
   __flattenTasksTreeForTests,
   __getPreferredSelectedIndexForTests,
+  __nextTaskFilterForTests,
 } from './TasksScreen'
 
 describe('TasksScreen helpers', () => {
+  test('filters local task snapshots without treating them as durable history', () => {
+    const tasks = [
+      { taskId: 'running', status: 'running' },
+      { taskId: 'pending', status: 'pending' },
+      { taskId: 'completed', status: 'completed' },
+      { taskId: 'failed', status: 'failed' },
+      { taskId: 'killed', status: 'killed' },
+    ] as any
+
+    expect(
+      __filterTaskSnapshotsForTests(tasks, 'active').map(task => task.taskId),
+    ).toEqual(['running', 'pending'])
+    expect(
+      __filterTaskSnapshotsForTests(tasks, 'finished').map(task => task.taskId),
+    ).toEqual(['completed', 'failed', 'killed'])
+    expect(__filterTaskSnapshotsForTests(tasks, 'all')).not.toBe(tasks)
+    expect(__nextTaskFilterForTests('all')).toBe('active')
+    expect(__nextTaskFilterForTests('active')).toBe('finished')
+    expect(__nextTaskFilterForTests('finished')).toBe('all')
+  })
+
   test('renders a nested task tree with status + error hints', () => {
     const parentTask = {
       type: 'async_agent',
