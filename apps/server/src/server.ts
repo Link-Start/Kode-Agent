@@ -174,10 +174,14 @@ export async function startKodeDaemon(args: {
       goalScheduleRunner.stop()
       try {
         sessionRegistry.cancelActiveWork('Daemon stopped')
-      } catch {}
+      } catch {
+        // Continue shutdown even if active work cannot be cancelled cleanly.
+      }
       try {
         server.stop(true)
-      } catch {}
+      } catch {
+        // stop() is idempotent from the caller's perspective.
+      }
     },
   }
 }
