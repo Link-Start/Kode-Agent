@@ -92,7 +92,7 @@ export default function TextInput({
   cursorOffset,
   onChangeCursorOffset,
 }: Props) {
-  const { onInput, renderedValue } = useTextInput({
+  const { onInput, renderedValue, getCurrentInputState } = useTextInput({
     value: originalValue,
     onChange,
     onSubmit,
@@ -137,6 +137,13 @@ export default function TextInput({
   React.useEffect(() => {
     onPasteRef.current = onPaste
   }, [onPaste])
+
+  const deliverPaste = React.useCallback(
+    (text: string) => {
+      onPasteRef.current?.(text, getCurrentInputState())
+    },
+    [getCurrentInputState],
+  )
 
   const isPasteTrusted = React.useCallback(() => {
     return (
@@ -194,9 +201,9 @@ export default function TextInput({
     if (!pastedText) return
 
     setTimeout(() => {
-      onPasteRef.current?.(pastedText)
+      deliverPaste(pastedText)
     }, 0)
-  }, [])
+  }, [deliverPaste])
 
   const shouldBlockEnter = React.useCallback(
     (key: Key): boolean => {
@@ -297,7 +304,7 @@ export default function TextInput({
         onPasteRef.current &&
         shouldTreatAsSpecialPaste(normalized, { terminalColumns: columns })
       ) {
-        setTimeout(() => onPasteRef.current?.(normalized), 0)
+        setTimeout(() => deliverPaste(normalized), 0)
         return
       }
 

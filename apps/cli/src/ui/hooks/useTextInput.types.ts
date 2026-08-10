@@ -31,4 +31,8 @@ export type UseTextInputResult = {
   onInput: (input: string, key: Key) => void
   offset: number
   setOffset: (offset: number) => void
+  getCurrentInputState: () => {
+    value: string
+    cursorOffset: number
+  }
 }

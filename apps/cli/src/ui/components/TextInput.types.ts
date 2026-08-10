@@ -1,6 +1,11 @@
 import type { Key } from '#ui-ink/hooks/useKeypress'
 import type { ClipboardImage } from '#core/utils/image/media'
 
+export type PasteInsertionState = {
+  value: string
+  cursorOffset: number
+}
+
 export type Props = {
   /**
    * Optional callback for handling history navigation on up arrow at start of input
@@ -105,7 +110,7 @@ export type Props = {
   /**
    * Optional callback when pasted text should be folded out of the live input.
    */
-  readonly onPaste?: (text: string) => void
+  readonly onPaste?: (text: string, state?: PasteInsertionState) => void
 
   /**
    * Whether the input is dimmed and non-interactive

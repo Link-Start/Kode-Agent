@@ -362,19 +362,22 @@ export function usePromptPastes(args: {
   )
 
   const onTextPaste = useCallback(
-    (rawText: string) => {
+    (rawText: string, state?: { value: string; cursorOffset: number }) => {
       const text = normalizeLineEndings(rawText)
       const newlineCount = countLineBreaks(text)
-      const currentInput = inputRef.current
-      const currentCursorOffset = cursorOffsetRef.current
+      const currentInput = state?.value ?? inputRef.current
+      const currentCursorOffset = state?.cursorOffset ?? cursorOffsetRef.current
 
       if (!shouldTreatAsSpecialPaste(text, { terminalRows, terminalColumns })) {
         const newInput =
           currentInput.slice(0, currentCursorOffset) +
           text +
           currentInput.slice(currentCursorOffset)
+        const nextCursorOffset = currentCursorOffset + text.length
+        inputRef.current = newInput
+        cursorOffsetRef.current = nextCursorOffset
         onInputChange(newInput)
-        setCursorOffset(currentCursorOffset + text.length)
+        setCursorOffset(nextCursorOffset)
         return
       }
 
@@ -389,8 +392,11 @@ export function usePromptPastes(args: {
         currentInput.slice(0, currentCursorOffset) +
         pastedPrompt +
         currentInput.slice(currentCursorOffset)
+      const nextCursorOffset = currentCursorOffset + pastedPrompt.length
+      inputRef.current = newInput
+      cursorOffsetRef.current = nextCursorOffset
       onInputChange(newInput)
-      setCursorOffset(currentCursorOffset + pastedPrompt.length)
+      setCursorOffset(nextCursorOffset)
       setPastedTexts(prev => [...prev, { placeholder: pastedPrompt, text }])
     },
     [

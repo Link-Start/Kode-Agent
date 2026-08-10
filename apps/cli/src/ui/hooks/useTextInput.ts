@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { type Key } from '#ui-ink/hooks/useKeypress'
 import { useDoublePress } from './useDoublePress'
 import { Cursor } from '#cli-utils/Cursor'
@@ -438,6 +438,14 @@ export function useTextInput({
     }
   }
 
+  const getCurrentInputState = useCallback(
+    () => ({
+      value: cursorRef.current.text,
+      cursorOffset: cursorRef.current.offset,
+    }),
+    [],
+  )
+
   return {
     onInput,
     renderedValue: cursorRef.current.render(cursorChar, mask, invert, {
@@ -445,5 +453,6 @@ export function useTextInput({
     }),
     offset,
     setOffset,
+    getCurrentInputState,
   }
 }

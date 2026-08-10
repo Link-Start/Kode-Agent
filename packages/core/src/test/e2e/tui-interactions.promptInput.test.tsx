@@ -52,6 +52,7 @@ function PromptInputHarness({
       commands={[]}
       forkNumber={0}
       messageLogName="tui"
+      initialPrompt="test harness"
       isDisabled={false}
       isLoading={isLoading}
       onQuery={async () => {}}
@@ -155,6 +156,7 @@ function PromptInputCancelHarnessInner({
         commands={[]}
         forkNumber={0}
         messageLogName="tui"
+        initialPrompt="test harness"
         isDisabled={false}
         isLoading={isLoading}
         onQuery={async () => {
@@ -325,6 +327,7 @@ function DraftPastePersistenceHarnessInner(): React.ReactNode {
           commands={[]}
           forkNumber={0}
           messageLogName="tui"
+          initialPrompt="test harness"
           isDisabled={false}
           isLoading={isLoading}
           onQuery={async newMessages => {
@@ -409,6 +412,7 @@ function PromptQueueAutoDrainHarness({
             commands={[]}
             forkNumber={0}
             messageLogName="tui"
+            initialPrompt="test harness"
             isDisabled={false}
             isLoading={isLoading}
             onQuery={async newMessages => {
