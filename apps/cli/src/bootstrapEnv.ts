@@ -22,7 +22,9 @@ export function ensurePackagedRuntimeEnv(): void {
     ) {
       process.env.KODE_PACKAGED = '1'
     }
-  } catch {}
+  } catch {
+    // Packaged-runtime detection is best effort; the default remains unmodified.
+  }
 }
 
 export function ensureYogaWasmPath(entrypointUrl: string): void {
@@ -41,5 +43,7 @@ export function ensureYogaWasmPath(entrypointUrl: string): void {
     if (resolved) {
       process.env.YOGA_WASM_PATH = resolved
     }
-  } catch {}
+  } catch {
+    // Yoga keeps its default resolution when no packaged path can be derived.
+  }
 }
