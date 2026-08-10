@@ -5,7 +5,6 @@ import { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import type { AssistantMessage, UserMessage } from '#core/query'
 import { queryLLM } from '#core/ai/llmLazy'
 import { randomUUID } from 'crypto'
-import { isIP } from 'node:net'
 import { PROMPT, TOOL_NAME_FOR_PROMPT } from './prompt'
 import { convertHtmlToMarkdown } from './htmlToMarkdown'
 import { urlCache } from './cache'
@@ -16,6 +15,7 @@ import {
   fetchWithRedirectDetection,
   formatBytes,
   isMarkdownHost,
+  isValidWebFetchUrl,
   normalizeUrl,
   readResponseTextLimited,
   truncateFetchedContent,
@@ -37,42 +37,7 @@ type Output = {
 }
 
 const FETCH_TIMEOUT_MS = 30_000
-const MAX_URL_LENGTH = 2000
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024 // 10485760
-
-function isPrivateIpv4(hostname: string): boolean {
-  if (isIP(hostname) !== 4) return false
-  const parts = hostname.split('.').map(Number)
-  if (parts.length !== 4) return false
-  if (parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return false
-  }
-  const a = parts[0]!
-  const b = parts[1]!
-  if (a === 0) return true
-  if (a === 10) return true
-  if (a === 127) return true
-  if (a === 169 && b === 254) return true
-  if (a === 172 && b >= 16 && b <= 31) return true
-  if (a === 192 && b === 168) return true
-  if (a === 100 && b >= 64 && b <= 127) return true
-  return false
-}
-
-function isValidWebFetchUrl(url: string): boolean {
-  if (url.length > MAX_URL_LENGTH) return false
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return false
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
-  if (parsed.username || parsed.password) return false
-  if (isPrivateIpv4(parsed.hostname)) return false
-  if (parsed.hostname.split('.').length < 2) return false
-  return true
-}
 
 export const WebFetchTool = {
   name: TOOL_NAME_FOR_PROMPT,
