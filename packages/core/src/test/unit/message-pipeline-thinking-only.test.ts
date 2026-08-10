@@ -248,6 +248,34 @@ describe('messagePipeline thinking-only recovery', () => {
     )
   })
 
+  test('fails closed without querying the model when an explicit project request has no tools', async () => {
+    queryLLM.mockClear()
+    queryLLMImplementation = async () =>
+      createAssistantMessage('This response must never be returned.')
+
+    const { messagePipeline } = await import('@kode/engine/message-pipeline')
+    const out: Message[] = []
+    for await (const message of messagePipeline(
+      [createUserMessage('查看项目代码')],
+      [],
+      {},
+      (async () => ({ result: true })) as any,
+      createToolUseContext(2),
+    )) {
+      out.push(message)
+    }
+
+    const assistantMessages = out.filter(
+      (message): message is AssistantMessage => message.type === 'assistant',
+    )
+    expect(queryLLM).not.toHaveBeenCalled()
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0]?.isApiErrorMessage).toBe(true)
+    expect(assistantMessages[0]?.message.content[0]?.text).toContain(
+      'No local tools are available',
+    )
+  })
+
   test('does not add a tool-use retry for a negated inspection request', async () => {
     const calls: Array<{ messages: Message[]; systemPrompt: string[] }> = []
     queryLLM.mockClear()

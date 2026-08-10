@@ -103,13 +103,17 @@ const TOOL_USE_INTENT_PATTERNS = [
 const TOOL_USE_NEGATION_PATTERN =
   /(?:不要|无需|不必|别|不用).{0,16}(?:查看|看看|检查|检视|浏览|读取|搜索|查找|分析|审查|审阅|排查|运行|执行|测试|构建|编译|打包|安装|提交|推送|部署|修复|修改|编辑)|\b(?:do not|don't|no need to|without)\b[\s\S]{0,32}\b(?:inspect|explore|search|find|read|check|review|run|execute|test|build|compile|package|install|commit|push|deploy|edit|modify|fix)\b/i
 
+function hasExplicitToolUseIntent(prompt: string | null): boolean {
+  if (!prompt?.trim()) return false
+  if (TOOL_USE_NEGATION_PATTERN.test(prompt)) return false
+  return TOOL_USE_INTENT_PATTERNS.some(pattern => pattern.test(prompt))
+}
+
 function requiresToolUseForPrompt(
   prompt: string | null,
   availableToolCount: number,
 ): boolean {
-  if (!prompt?.trim() || availableToolCount === 0) return false
-  if (TOOL_USE_NEGATION_PATTERN.test(prompt)) return false
-  return TOOL_USE_INTENT_PATTERNS.some(pattern => pattern.test(prompt))
+  return availableToolCount > 0 && hasExplicitToolUseIntent(prompt)
 }
 
 function createRequiredToolUseInstruction(): string {
@@ -521,12 +525,25 @@ async function* messagePipelineCore(
         toolUseContext.agentId,
       )
 
+    const hasExplicitToolUseIntentForTurn =
+      requiredToolUseAttempts > 0 ||
+      hasExplicitToolUseIntent(latestUserPromptText)
+    const availableToolCount = toolUseContext.options.tools.length
+
+    // Never let an explicit project action silently degrade into a text-only
+    // answer when startup/configuration failed to provide the core tool set.
+    // Retrying the model cannot repair a request that contains no tools.
+    if (hasExplicitToolUseIntentForTurn && availableToolCount === 0) {
+      toolUseContext.turnCount = turnsUsed + 1
+      yield createAssistantAPIErrorMessage(
+        'API_ERROR: No local tools are available in this session, so the requested project inspection or action was not executed. Restart Kode or run /capabilities; if this persists, check the model endpoint and tool configuration.',
+      )
+      return
+    }
+
     const requiresToolUse =
       requiredToolUseAttempts > 0 ||
-      requiresToolUseForPrompt(
-        latestUserPromptText,
-        toolUseContext.options.tools.length,
-      )
+      requiresToolUseForPrompt(latestUserPromptText, availableToolCount)
     if (requiresToolUse) {
       fullSystemPrompt.push(createRequiredToolUseInstruction())
     }
