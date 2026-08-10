@@ -1,10 +1,7 @@
 import { lookup } from 'node:dns/promises'
-import { request as requestHttp, type IncomingMessage } from 'node:http'
-import { request as requestHttps } from 'node:https'
-import { isIP } from 'node:net'
-import type { LookupFunction } from 'node:net'
-import { Readable } from 'node:stream'
+import { isIP, type LookupFunction } from 'node:net'
 import { Address4, Address6 } from 'ip-address'
+import { Agent, fetch as undiciFetch } from 'undici'
 
 const MAX_CONTENT_CHARS = 100_000
 const MAX_URL_LENGTH = 2000
@@ -120,85 +117,34 @@ export function isValidWebFetchUrl(url: string): boolean {
   return labels.length >= 2 && labels.every(label => label.length > 0)
 }
 
-export type WebFetchAddress = {
-  address: string
-  family?: number
-}
+export type WebFetchAddress = { address: string; family?: number }
 
 export type WebFetchLookup = (hostname: string) => Promise<WebFetchAddress[]>
 
 export type ResolvedWebFetchTarget = {
-  /** Normalized URL whose hostname is retained for HTTP Host and TLS SNI. */
-  url: string
   hostname: string
-  authority: string
-  servername?: string
-  addresses: ReadonlyArray<{ address: string; family: 4 | 6 }>
-  /** Socket lookup that can return only the addresses validated above. */
-  lookup: LookupFunction
+  addresses: Array<{ address: string; family: 4 | 6 }>
 }
 
 export type WebFetchRequest = (
+  url: string,
+  init: {
+    method: 'GET'
+    headers: Record<string, string>
+    signal: AbortSignal
+    redirect: 'manual'
+  },
   target: ResolvedWebFetchTarget,
-  init: RequestInit,
 ) => Promise<Response>
 
 const lookupAll: WebFetchLookup = async hostname =>
   await lookup(hostname, { all: true, verbatim: true })
 
-function canonicalHostname(hostname: string): string {
-  return unbracketHostname(hostname).replace(/\.$/u, '').toLowerCase()
-}
-
-function createLookupError(hostname: string): NodeJS.ErrnoException {
-  const error = new Error(
-    `No validated network address is available for ${hostname}`,
-  ) as NodeJS.ErrnoException
-  error.code = 'ENOTFOUND'
-  return error
-}
-
-function createPinnedLookup(
-  expectedHostname: string,
-  addresses: ReadonlyArray<{ address: string; family: 4 | 6 }>,
-): LookupFunction {
-  const expected = canonicalHostname(expectedHostname)
-
-  return (hostname, options, callback) => {
-    queueMicrotask(() => {
-      if (canonicalHostname(hostname) !== expected) {
-        callback(createLookupError(hostname), '', 0)
-        return
-      }
-
-      const requestedFamily = options.family
-      const eligible = addresses.filter(address =>
-        requestedFamily !== 4 &&
-        requestedFamily !== 6 &&
-        requestedFamily !== 'IPv4' &&
-        requestedFamily !== 'IPv6'
-          ? true
-          : requestedFamily === address.family ||
-            (requestedFamily === 'IPv4' && address.family === 4) ||
-            (requestedFamily === 'IPv6' && address.family === 6),
-      )
-      if (eligible.length === 0) {
-        callback(createLookupError(hostname), '', 0)
-        return
-      }
-
-      if (options.all) {
-        callback(
-          null,
-          eligible.map(({ address, family }) => ({ address, family })),
-        )
-        return
-      }
-
-      const selected = eligible[0]!
-      callback(null, selected.address, selected.family)
-    })
-  }
+export async function assertPublicWebFetchTarget(
+  url: string,
+  lookupHostname: WebFetchLookup = lookupAll,
+): Promise<void> {
+  await resolvePublicWebFetchTarget(url, lookupHostname)
 }
 
 export async function resolvePublicWebFetchTarget(
@@ -210,129 +156,127 @@ export async function resolvePublicWebFetchTarget(
   const parsed = new URL(url)
   const hostname = unbracketHostname(parsed.hostname)
   const literalFamily = isIP(hostname)
-  const resolvedAddresses =
-    literalFamily === 4 || literalFamily === 6
-      ? [{ address: hostname, family: literalFamily }]
-      : await lookupHostname(hostname)
-
-  const addresses: Array<{ address: string; family: 4 | 6 }> = []
-  const seen = new Set<string>()
-  for (const result of resolvedAddresses) {
-    const family = isIP(result.address)
-    if (
-      (family !== 4 && family !== 6) ||
-      (result.family !== undefined && result.family !== family) ||
-      !isPublicNetworkAddress(result.address)
-    ) {
-      throw new Error('URL resolves to a non-public network address')
+  if (literalFamily === 4 || literalFamily === 6) {
+    return {
+      hostname,
+      addresses: [{ address: hostname, family: literalFamily }],
     }
-    const key = `${family}:${result.address.toLowerCase()}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    addresses.push({ address: result.address, family })
   }
 
-  if (addresses.length === 0) {
-    throw new Error('URL did not resolve to a public network address')
+  const addresses = await lookupHostname(hostname)
+  if (
+    addresses.length === 0 ||
+    addresses.some(result => !isPublicNetworkAddress(result.address))
+  ) {
+    throw new Error('URL resolves to a non-public network address')
   }
 
-  const servername =
-    literalFamily === 0 ? canonicalHostname(hostname) : undefined
   return {
-    url: parsed.toString(),
     hostname,
-    authority: parsed.host,
-    ...(servername ? { servername } : {}),
-    addresses,
-    lookup: createPinnedLookup(hostname, addresses),
-  }
-}
-
-export async function assertPublicWebFetchTarget(
-  url: string,
-  lookupHostname: WebFetchLookup = lookupAll,
-): Promise<void> {
-  await resolvePublicWebFetchTarget(url, lookupHostname)
-}
-
-function responseHeaders(response: IncomingMessage): Headers {
-  const headers = new Headers()
-  for (let index = 0; index < response.rawHeaders.length; index += 2) {
-    const name = response.rawHeaders[index]
-    const value = response.rawHeaders[index + 1]
-    if (name && value !== undefined) headers.append(name, value)
-  }
-  return headers
-}
-
-async function requestPinnedWebFetchTarget(
-  target: ResolvedWebFetchTarget,
-  init: RequestInit,
-): Promise<Response> {
-  const parsed = new URL(target.url)
-  const method = (init.method ?? 'GET').toUpperCase()
-  if (method !== 'GET') throw new Error('WebFetch supports only GET requests')
-
-  const headers: Record<string, string> = {}
-  new Headers(init.headers).forEach((value, name) => {
-    headers[name] = value
-  })
-  // Never allow caller-provided authority to disagree with the certificate
-  // hostname and the URL that passed validation.
-  headers.host = target.authority
-
-  const requestOptions = {
-    protocol: parsed.protocol,
-    hostname: target.hostname,
-    port: parsed.port || undefined,
-    path: `${parsed.pathname}${parsed.search}`,
-    method,
-    headers,
-    lookup: target.lookup,
-    agent: false as const,
-    signal: init.signal ?? undefined,
-    ...(target.servername ? { servername: target.servername } : {}),
-  }
-
-  return await new Promise<Response>((resolve, reject) => {
-    const onResponse = (incoming: IncomingMessage) => {
-      const status = incoming.statusCode
-      if (!status) {
-        incoming.destroy()
-        reject(new Error('WebFetch received an invalid HTTP status'))
-        return
+    addresses: addresses.map(result => {
+      const family = isIP(result.address)
+      if (family !== 4 && family !== 6) {
+        throw new Error('URL resolves to an invalid network address')
       }
+      return { address: result.address, family }
+    }),
+  }
+}
 
-      const nullBody = status === 204 || status === 205 || status === 304
-      if (nullBody) incoming.resume()
-      try {
-        resolve(
-          new Response(
-            nullBody
-              ? null
-              : (Readable.toWeb(
-                  incoming,
-                ) as unknown as ReadableStream<Uint8Array>),
-            {
-              status,
-              statusText: incoming.statusMessage,
-              headers: responseHeaders(incoming),
-            },
-          ),
-        )
-      } catch (error) {
-        incoming.destroy()
-        reject(error)
-      }
+export function createPinnedLookup(
+  addresses: ResolvedWebFetchTarget['addresses'],
+): LookupFunction {
+  const pinned = addresses.map(address => ({ ...address }))
+  return (_hostname, options, callback) => {
+    const compatible =
+      options.family === 4 || options.family === 6
+        ? pinned.filter(address => address.family === options.family)
+        : pinned
+    if (compatible.length === 0) {
+      const error = Object.assign(new Error('No approved address family'), {
+        code: 'ENOTFOUND',
+      })
+      callback(error, '', 0)
+      return
     }
+    if (options.all) {
+      callback(null, compatible)
+      return
+    }
+    const selected = compatible[0]!
+    callback(null, selected.address, selected.family)
+  }
+}
 
-    const request =
-      parsed.protocol === 'https:'
-        ? requestHttps(requestOptions, onResponse)
-        : requestHttp(requestOptions, onResponse)
-    request.once('error', reject)
-    request.end()
+async function closeAgent(agent: Agent, force = false): Promise<void> {
+  try {
+    if (force) await agent.destroy()
+    else await agent.close()
+  } catch {
+    // The response transport is already closed.
+  }
+}
+
+function bindResponseToAgent(response: Response, agent: Agent): Response {
+  if (!response.body) {
+    void closeAgent(agent)
+    return response
+  }
+
+  const reader = response.body.getReader()
+  let finished = false
+  const finish = async (force = false) => {
+    if (finished) return
+    finished = true
+    await closeAgent(agent, force)
+  }
+
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          controller.close()
+          await finish()
+          return
+        }
+        if (value) controller.enqueue(value)
+      } catch (error) {
+        controller.error(error)
+        await finish(true)
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason)
+      } finally {
+        await finish(true)
+      }
+    },
   })
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
+
+const pinnedWebFetchRequest: WebFetchRequest = async (url, init, target) => {
+  const agent = new Agent({
+    autoSelectFamily: true,
+    connect: { lookup: createPinnedLookup(target.addresses) },
+  })
+  try {
+    const response = await undiciFetch(url, {
+      ...init,
+      dispatcher: agent,
+    })
+    return bindResponseToAgent(response as unknown as Response, agent)
+  } catch (error) {
+    await closeAgent(agent, true)
+    throw error
+  }
 }
 
 function normalizeHostname(hostname: string): string {
@@ -487,9 +431,6 @@ function getChromeLikeHeaders(): Record<string, string> {
     Accept:
       'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
-    // The pinned Node transport deliberately avoids an implicit decompression
-    // layer so response byte limits apply to exactly what is consumed.
-    'Accept-Encoding': 'identity',
     'Cache-Control': 'no-cache',
     Pragma: 'no-cache',
     'Upgrade-Insecure-Requests': '1',
@@ -522,19 +463,22 @@ export async function fetchWithRedirectDetection(
 > {
   let current = url
   const headers = getChromeLikeHeaders()
-  const fetchImpl: WebFetchRequest =
-    options.fetchImpl ?? requestPinnedWebFetchTarget
+  const fetchImpl = options.fetchImpl ?? pinnedWebFetchRequest
   for (let i = 0; i < MAX_REDIRECTS; i++) {
     const target = await resolvePublicWebFetchTarget(
       current,
       options.lookupHostname,
     )
-    const response = await fetchImpl(target, {
-      method: 'GET',
-      headers,
-      signal,
-      redirect: 'manual',
-    })
+    const response = await fetchImpl(
+      current,
+      {
+        method: 'GET',
+        headers,
+        signal,
+        redirect: 'manual',
+      },
+      target,
+    )
 
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location')
