@@ -255,12 +255,12 @@ notepad (Join-Path $ConfigDir "config.json")
 
 标准流程必须先预览、展示结果并等待用户确认，然后才能正式发布：
 
-| 阶段 | 发布参数 | 应用身份处理方式 |
-|---|---|---|
-| 首次预览 | `--preview --new-artifact` | 不传 `artifactId`，创建新应用 |
-| 更新预览 | `--preview` | 复用 `flashapp-artifact.json` 中的 `artifactId` |
-| 正式发布 | 不传 `--preview` 和 `--new-artifact` | 复用已通过预览的 `artifactId` |
-| 查询发布 | 使用本次发布的 `instanceId` | 仅在状态为 `PASS` 时生成成功摘要、二维码并保存身份 |
+| 阶段     | 发布参数                             | 应用身份处理方式                                   |
+| -------- | ------------------------------------ | -------------------------------------------------- |
+| 首次预览 | `--preview --new-artifact`           | 不传 `artifactId`，创建新应用                      |
+| 更新预览 | `--preview`                          | 复用 `flashapp-artifact.json` 中的 `artifactId`    |
+| 正式发布 | 不传 `--preview` 和 `--new-artifact` | 复用已通过预览的 `artifactId`                      |
+| 查询发布 | 使用本次发布的 `instanceId`          | 仅在状态为 `PASS` 时生成成功摘要、二维码并保存身份 |
 
 首次预览发布：
 
