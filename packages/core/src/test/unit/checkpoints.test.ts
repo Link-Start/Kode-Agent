@@ -105,6 +105,8 @@ describe('git checkpoints', () => {
     }
   }, 20_000)
 
+  // Windows runners can take several seconds to initialize and commit a
+  // temporary repository while the workspace test fan-out is saturated.
   test('rejects a checkpoint store nested in the target repository', () => {
     const fixture = createRepository()
     try {
@@ -119,7 +121,7 @@ describe('git checkpoints', () => {
     } finally {
       rmSync(fixture.root, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 
   test('restores the emergency checkpoint when a target patch fails after reset', () => {
     const fixture = createRepository()

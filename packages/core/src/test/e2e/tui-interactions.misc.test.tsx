@@ -389,6 +389,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       let allowed = false
       let rejected = false
       let done = false
+      let remounted = false
       const conversationKey = `plan-keepalive-${Date.now()}-${Math.random()}`
       const toolUseConfirm: any = {
         assistantMessage: createAssistantMessage(''),
@@ -425,7 +426,10 @@ describe('TUI E2E regression (Ink render): Misc', () => {
 
             setTimeout(() => {
               setShowRequest(false)
-              setTimeout(() => setShowRequest(true), 0)
+              setTimeout(() => {
+                setShowRequest(true)
+                remounted = true
+              }, 0)
             }, 0)
             return false
           },
@@ -460,9 +464,13 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       await h.wait(25)
 
       h.stdin.write('\u001B[B')
-      await h.wait(100)
+      await waitForCondition(h, () => remounted, 'exit-plan permission remount')
       h.stdin.write('\r')
-      await h.wait(25)
+      await waitForCondition(
+        h,
+        () => rejected && done,
+        'exit-plan rejection after remount',
+      )
 
       expect(allowed).toBe(false)
       expect(rejected).toBe(true)
@@ -472,7 +480,7 @@ describe('TUI E2E regression (Ink render): Misc', () => {
       else process.env.KODE_CONFIG_DIR = previousConfigDir
       rmSync(configDir, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 
   test('ModelConfig: pointer picker keeps printable filter input out of parent shortcuts', async () => {
     const originalConfig = JSON.parse(JSON.stringify(getGlobalConfig()))
