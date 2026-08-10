@@ -102,6 +102,21 @@ function assertArchiveSize(byteLength: number, maxArchiveBytes: number): void {
   }
 }
 
+function maxTarContainerBytes(limits: ArchiveExtractionLimits): number {
+  // TAR adds a 512-byte header and up to 511 bytes of padding per entry, plus
+  // end markers. Keep that metadata budget separate from extracted file bytes
+  // while still imposing a hard decompression ceiling.
+  const metadataBytes = Math.min(
+    limits.maxExtractedBytes,
+    limits.maxEntries > Math.floor(limits.maxExtractedBytes / 1024)
+      ? limits.maxExtractedBytes
+      : limits.maxEntries * 1024,
+  )
+  const remaining = Number.MAX_SAFE_INTEGER - limits.maxExtractedBytes
+  if (metadataBytes + 1024 > remaining) return Number.MAX_SAFE_INTEGER
+  return limits.maxExtractedBytes + metadataBytes + 1024
+}
+
 function readArchiveFile(path: string, maxArchiveBytes: number): Buffer {
   const size = statSync(path).size
   assertArchiveSize(size, maxArchiveBytes)
@@ -321,14 +336,15 @@ export async function extractTarGzBuffer(
 ): Promise<void> {
   const limits = resolveLimits(options)
   assertArchiveSize(tarGzData.byteLength, limits.maxArchiveBytes)
+  const maxTarBytes = maxTarContainerBytes(limits)
   let tarData: Buffer
   try {
     tarData = gunzipSync(Buffer.from(tarGzData), {
-      maxOutputLength: limits.maxExtractedBytes,
+      maxOutputLength: maxTarBytes,
     })
   } catch (error) {
     throw new Error(
-      `Failed to decompress tar.gz within ${limits.maxExtractedBytes} bytes: ${
+      `Failed to decompress tar.gz within ${maxTarBytes} bytes: ${
         error instanceof Error ? error.message : String(error)
       }`,
     )
@@ -368,7 +384,7 @@ async function extractTarBufferData(
   if (enforceArchiveInputLimit) {
     assertArchiveSize(tarData.byteLength, limits.maxArchiveBytes)
   }
-  assertArchiveSize(tarData.byteLength, limits.maxExtractedBytes)
+  assertArchiveSize(tarData.byteLength, maxTarContainerBytes(limits))
 
   const buf = Buffer.from(tarData)
   let offset = 0

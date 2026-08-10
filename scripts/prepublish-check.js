@@ -51,7 +51,16 @@ const missingFiles = requiredFiles.filter(file => !fs.existsSync(file))
 
 if (missingFiles.length > 0) {
   console.error('❌ Missing required files:', missingFiles.join(', '))
-  console.error('   Run "bun run build" first')
+  console.error('   Run "bun run build" first.')
+  if (
+    missingFiles.some(file =>
+      toPackPath(file).startsWith('dist/vendor/seccomp/'),
+    )
+  ) {
+    console.error(
+      '   Linux seccomp assets are cross-platform release artifacts; prepare both architectures with "node scripts/prepare-seccomp-assets.mjs --artifacts-dir artifacts --dest-root vendor/seccomp" before building the publish package.',
+    )
+  }
   process.exit(1)
 }
 
