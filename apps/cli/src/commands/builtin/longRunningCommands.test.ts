@@ -74,6 +74,8 @@ describe('long-running command adapters', () => {
 
     createDurableRun({ id: 'command-run', kind: 'agent', cwd: repo })
     expect(await runs.call('status')).toContain('command-run')
-    expect(await runs.call('reconcile')).toContain('requeueable')
+    const reconciled = await runs.call('reconcile')
+    expect(reconciled).toContain('command-run · interrupted')
+    expect(reconciled).toContain('not resumed automatically')
   })
 })
