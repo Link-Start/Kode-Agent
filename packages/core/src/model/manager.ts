@@ -36,6 +36,37 @@ const DEFAULT_MODEL_POINTERS: ModelPointers = {
   quick: '',
 }
 
+function normalizeModelConfig(
+  config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
+): Omit<ModelProfile, 'createdAt' | 'isActive'> {
+  const modelName = config.modelName.trim()
+  if (!modelName) {
+    throw new Error('Model name cannot be empty or whitespace only')
+  }
+
+  const name = config.name.trim()
+  if (!name) {
+    throw new Error('Model display name cannot be empty or whitespace only')
+  }
+
+  const provider = config.provider.trim()
+  if (!provider) {
+    throw new Error('Model provider cannot be empty or whitespace only')
+  }
+
+  const baseURL = config.baseURL?.trim()
+  const apiKeyEnv = config.apiKeyEnv?.trim()
+  const { baseURL: _baseURL, apiKeyEnv: _apiKeyEnv, ...rest } = config
+  return {
+    ...rest,
+    name,
+    modelName,
+    provider,
+    ...(baseURL ? { baseURL } : {}),
+    ...(apiKeyEnv ? { apiKeyEnv } : {}),
+  }
+}
+
 export class ModelManager {
   private config: GlobalConfig & { defaultModelId?: string }
   private modelProfiles: ModelProfile[]
@@ -182,6 +213,7 @@ export class ModelManager {
   async addModel(
     config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
   ): Promise<string> {
+    config = normalizeModelConfig(config)
     const existingByModelName = this.modelProfiles.find(
       p => p.modelName === config.modelName,
     )
@@ -231,6 +263,7 @@ export class ModelManager {
   async upsertModel(
     config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
   ): Promise<string> {
+    config = normalizeModelConfig(config)
     const existingIndex = this.modelProfiles.findIndex(
       p => p.modelName === config.modelName,
     )

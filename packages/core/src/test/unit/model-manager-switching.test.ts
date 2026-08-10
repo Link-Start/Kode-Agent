@@ -218,6 +218,37 @@ describe('ModelManager model switching', () => {
     expect(updated.lastValidation).toBe(3)
   })
 
+  test('upsertModel normalizes model identity before assigning pointers', async () => {
+    const config: any = { modelProfiles: [] }
+    const manager = new ModelManager(config)
+
+    const modelId = await manager.upsertModel({
+      name: ' Custom model ',
+      provider: ' custom-openai ',
+      modelName: ' mimo-v2.5-pro ',
+      baseURL: ' https://example.test/v1 ',
+      apiKey: '',
+      apiKeyEnv: ' TEST_MODEL_API_KEY ',
+      maxTokens: 8192,
+      contextLength: 128_000,
+    })
+
+    expect(modelId).toBe('mimo-v2.5-pro')
+    expect(manager.getAllConfiguredModels()[0]).toMatchObject({
+      name: 'Custom model',
+      provider: 'custom-openai',
+      modelName: 'mimo-v2.5-pro',
+      baseURL: 'https://example.test/v1',
+      apiKeyEnv: 'TEST_MODEL_API_KEY',
+    })
+    expect(config.modelPointers).toEqual({
+      main: 'mimo-v2.5-pro',
+      task: 'mimo-v2.5-pro',
+      compact: 'mimo-v2.5-pro',
+      quick: 'mimo-v2.5-pro',
+    })
+  })
+
   test('blocks a legacy plaintext-only profile and uses its env reference at runtime', () => {
     const legacyProfile = makeProfile({
       name: 'Legacy Model',
