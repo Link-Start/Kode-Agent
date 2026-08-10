@@ -1,7 +1,7 @@
 import type { GlobalConfig, ModelPointers, ModelProfile } from '../schema'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function readString(
@@ -17,52 +17,67 @@ function trimConfigString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
 /**
  * Model identifiers are sent to providers verbatim. Normalize the persisted
  * configuration boundary so accidental whitespace neither changes the model
  * identity nor causes a remote request to fail.
  */
-function normalizeModelProfile(profile: ModelProfile): ModelProfile {
-  const modelName = trimConfigString(profile.modelName)
-  const name = trimConfigString(profile.name)
-  const provider = trimConfigString(profile.provider)
-  const baseURL = profile.baseURL
-    ? trimConfigString(profile.baseURL)
-    : undefined
-  const apiKeyEnv = profile.apiKeyEnv
-    ? trimConfigString(profile.apiKeyEnv)
-    : undefined
-  const { baseURL: _baseURL, apiKeyEnv: _apiKeyEnv, ...rest } = profile
+function normalizeModelProfile(profile: Record<string, unknown>): ModelProfile {
+  const modelName = trimConfigString(profile['modelName'])
+  const name = trimConfigString(profile['name'])
+  const provider = trimConfigString(profile['provider'])
+  const baseURL = trimConfigString(profile['baseURL']) || undefined
+  const apiKeyEnv = trimConfigString(profile['apiKeyEnv']) || undefined
+  const hasRuntimeIdentity = Boolean(modelName && name && provider)
+  const hasRuntimeLimits =
+    isPositiveFiniteNumber(profile['maxTokens']) &&
+    isPositiveFiniteNumber(profile['contextLength'])
+  const isActive =
+    profile['isActive'] === true && hasRuntimeIdentity && hasRuntimeLimits
+  const {
+    id: _id,
+    baseURL: _baseURL,
+    apiKeyEnv: _apiKeyEnv,
+    isActive: _isActive,
+    ...rest
+  } = profile
 
   return {
     ...rest,
     modelName,
     name,
     provider,
+    isActive,
     ...(baseURL ? { baseURL } : {}),
     ...(apiKeyEnv ? { apiKeyEnv } : {}),
-  }
+  } as unknown as ModelProfile
 }
 
 export function migrateModelProfilesRemoveId(
   config: GlobalConfig,
 ): GlobalConfig {
-  if (!config.modelProfiles || config.modelProfiles.length === 0) return config
+  const profilesRaw: unknown = config.modelProfiles
+  if (profilesRaw === undefined) return config
+  if (!Array.isArray(profilesRaw)) return { ...config, modelProfiles: [] }
+  if (profilesRaw.length === 0) return config
 
   const idToModelNameMap = new Map<string, string>()
-  const migratedProfiles: ModelProfile[] = config.modelProfiles.map(profile => {
+  const migratedProfiles: ModelProfile[] = profilesRaw.flatMap(profile => {
     const raw: unknown = profile
-    if (!isRecord(raw)) return profile
+    if (!isRecord(raw)) return []
 
-    const normalizedProfile = normalizeModelProfile(profile)
+    const normalizedProfile = normalizeModelProfile(raw)
 
     const maybeId = raw['id']
     if (typeof maybeId === 'string' && normalizedProfile.modelName) {
       idToModelNameMap.set(maybeId, normalizedProfile.modelName)
     }
 
-    const { id: _ignored, ...rest } = raw
-    return { ...rest, ...normalizedProfile } as ModelProfile
+    return [normalizedProfile]
   })
 
   const migratedPointers: ModelPointers = {
