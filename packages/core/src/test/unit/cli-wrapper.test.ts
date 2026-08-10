@@ -71,6 +71,11 @@ describe('cli.js wrapper (native binary optionalDependencies + Node fallback)', 
       expect(res.status).toBe(0)
       expect(res.stdout).toContain('Usage: kode')
       expect(res.stdout).toContain('--help')
+      expect(res.stdout).toContain('--headless')
+      expect(res.stdout).toContain('--cwd <cwd>')
+      expect(res.stdout).toContain('-r, --resume')
+      expect(res.stdout).toContain('-c, --continue')
+      expect(res.stdout).not.toContain('-c, --cwd')
     } finally {
       rmSync(emptyPath, { recursive: true, force: true })
       pkg.cleanup()

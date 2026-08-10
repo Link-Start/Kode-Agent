@@ -22,7 +22,9 @@ function tryResolveNativeBinaryFromOptionalDeps() {
       if (typeof binPath === 'string' && fs.existsSync(binPath)) {
         return binPath
       }
-    } catch {}
+    } catch {
+      // An optional native package may not be installed.
+    }
   }
 
   return null
@@ -59,7 +61,10 @@ function printHelpLite() {
       `  -h, --help           Show full help\n` +
       `  -v, --version        Show version\n` +
       `  -p, --print          Print response and exit (non-interactive)\n` +
-      `  -c, --cwd <cwd>      Set working directory\n`,
+      `  --headless           Run without the TUI (alias for --print)\n` +
+      `  --cwd <cwd>          Set working directory\n` +
+      `  -r, --resume [q]     Resume by session ID/name, or open picker with optional search\n` +
+      `  -c, --continue       Continue the most recent conversation\n`,
   )
 }
 
