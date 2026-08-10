@@ -214,6 +214,7 @@
         "@kode/config": "workspace:*",
         "@kode/core": "workspace:*",
         "@kode/hooks": "workspace:*",
+        "@kode/permissions": "workspace:*",
         "@kode/protocol": "workspace:*",
         "@kode/runtime": "workspace:*",
         "@kode/tool-interface": "workspace:*",
