@@ -104,7 +104,7 @@ describe('messagePipeline thinking-only recovery', () => {
     }
 
     const { messagePipeline } = await import('@kode/engine/message-pipeline')
-    const toolUseContext = createToolUseContext(1)
+    const toolUseContext = createToolUseContext(4)
     const out: Message[] = []
     for await (const message of messagePipeline(
       [createUserMessage('How is the weather today?')],
@@ -137,7 +137,7 @@ describe('messagePipeline thinking-only recovery', () => {
     expect(JSON.stringify(recoveryMessage.message.content)).toContain(
       '<thinking-only-recovery>',
     )
-    expect(toolUseContext.turnCount).toBe(1)
+    expect(toolUseContext.turnCount).toBe(4)
   })
 
   test('returns an explicit error after bounded recovery is exhausted', async () => {
@@ -146,7 +146,7 @@ describe('messagePipeline thinking-only recovery', () => {
       createThinkingOnlyMessage('Reasoning without a final response')
 
     const { messagePipeline } = await import('@kode/engine/message-pipeline')
-    const toolUseContext = createToolUseContext(1)
+    const toolUseContext = createToolUseContext(4)
     const out: Message[] = []
     for await (const message of messagePipeline(
       [createUserMessage('Complete this task.')],
@@ -169,7 +169,7 @@ describe('messagePipeline thinking-only recovery', () => {
     expect(lastMessage?.message.content[0]?.text).toContain(
       '4 consecutive attempts',
     )
-    expect(toolUseContext.turnCount).toBe(1)
+    expect(toolUseContext.turnCount).toBe(4)
   })
 
   test('continues after a completed legacy OpenAI reasoning-only stream', async () => {
@@ -190,7 +190,7 @@ describe('messagePipeline thinking-only recovery', () => {
       [],
       {},
       (async () => ({ result: true })) as any,
-      createToolUseContext(1),
+      createToolUseContext(2),
     )) {
       out.push(message)
     }

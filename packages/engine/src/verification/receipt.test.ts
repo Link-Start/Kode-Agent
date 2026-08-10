@@ -38,6 +38,15 @@ describe('verification command classification', () => {
     ['go build ./...', 'build'],
     ['cargo check --workspace', 'typecheck'],
     ['./gradlew check', 'check'],
+    ['cd packages/engine && bun test', 'test'],
+    ['cd "apps/web client" && pnpm run typecheck:ci', 'typecheck'],
+    ['python -m pytest tests/unit', 'test'],
+    ['uv run ruff check .', 'lint'],
+    ['npx tsc --noEmit', 'typecheck'],
+    ['make -C backend test', 'test'],
+    ['git diff --check', 'check'],
+    ['dotnet test', 'test'],
+    ['swift build', 'build'],
   ] as const)('classifies a direct %s command as %s', (command, kind) => {
     expect(classifyVerificationCommand(command)).toBe(kind)
   })
@@ -49,6 +58,8 @@ describe('verification command classification', () => {
     'bun test; git status',
     'bun test\nmake deploy',
     'bun test $(whoami)',
+    'cd packages/engine && bun test && make deploy',
+    'cd $(pwd) && bun test',
     'bun test --help',
     'tsc --version',
   ])('rejects composite or merely quoted evidence: %s', command => {

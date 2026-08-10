@@ -10,7 +10,7 @@ describe('getReasoningEffort', () => {
     expect(result).toBe('low')
   })
 
-  test('caps effort by profile max and scales with thinking tokens', async () => {
+  test('honors the explicit profile independently of thinking-token budgets', async () => {
     await expect(
       getReasoningEffort({ reasoningEffort: 'medium' }, [], {
         thinkingTokens: 40_000,
@@ -18,8 +18,19 @@ describe('getReasoningEffort', () => {
     ).resolves.toBe('medium')
     await expect(
       getReasoningEffort({ reasoningEffort: 'high' }, [], {
-        thinkingTokens: 40_000,
+        thinkingTokens: 0,
       }),
     ).resolves.toBe('high')
   })
+
+  test.each(['none', 'xhigh', 'max'] as const)(
+    'supports the current OpenAI %s effort',
+    async effort => {
+      await expect(
+        getReasoningEffort({ reasoningEffort: effort }, [], {
+          thinkingTokens: 0,
+        }),
+      ).resolves.toBe(effort)
+    },
+  )
 })

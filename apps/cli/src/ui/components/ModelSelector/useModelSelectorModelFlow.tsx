@@ -4,7 +4,7 @@ import {
   DEFAULT_CONTEXT_LENGTH,
   DEFAULT_MAX_TOKENS,
   MAX_TOKENS_OPTIONS,
-  REASONING_EFFORT_OPTIONS,
+  getReasoningEffortOptions,
   REQUEST_STRATEGY_OPTIONS,
 } from './flow/options'
 import type { ModelInfo } from './flow/types'
@@ -312,7 +312,7 @@ export function useModelSelectorModelFlow(state: ModelSelectorState) {
     return fields
   }
 
-  const reasoningEffortOptions = REASONING_EFFORT_OPTIONS
+  const reasoningEffortOptions = getReasoningEffortOptions(state.selectedModel)
   const requestStrategyOptions = REQUEST_STRATEGY_OPTIONS
   const handleContextLengthSubmit = () =>
     state.navigateTo(state.isEditing ? 'confirmation' : 'connectionTest')

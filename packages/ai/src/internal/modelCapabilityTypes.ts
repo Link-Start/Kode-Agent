@@ -38,7 +38,7 @@ export interface ModelCapabilities {
 
 export interface ReasoningConfig {
   enable: boolean
-  effort: 'low' | 'medium' | 'high' | 'none' | 'minimal'
+  effort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   summary: 'auto' | 'concise' | 'detailed' | 'none'
 }
 
@@ -70,7 +70,8 @@ export interface UnifiedRequestParams {
   maxTokens: number
   stream?: boolean
   previousResponseId?: string
-  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  reasoningEffort?:
+    'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   reasoning?: ReasoningConfig // Full reasoning config
   verbosity?: 'low' | 'medium' | 'high'
   temperature?: number

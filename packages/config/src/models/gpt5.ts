@@ -2,6 +2,22 @@ import { debug as debugLogger } from '../debugLogger'
 
 import type { ModelProfile, ProviderType } from '../schema'
 
+const LEGACY_GPT5_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high']
+const GPT56_REASONING_EFFORTS = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
+
+function getSupportedReasoningEfforts(modelName: string): string[] {
+  return modelName.toLowerCase().includes('gpt-5.6')
+    ? GPT56_REASONING_EFFORTS
+    : LEGACY_GPT5_REASONING_EFFORTS
+}
+
 export function isGPT5ModelName(modelName: string): boolean {
   if (!modelName || typeof modelName !== 'string') return false
   const lowerName = modelName.toLowerCase()
@@ -23,7 +39,9 @@ export function validateAndRepairGPT5Profile(
   }
 
   if (isGPT5) {
-    const validReasoningEfforts = ['minimal', 'low', 'medium', 'high']
+    const validReasoningEfforts = getSupportedReasoningEfforts(
+      profile.modelName,
+    )
     if (
       !profile.reasoningEffort ||
       !validReasoningEfforts.includes(profile.reasoningEffort)
@@ -106,7 +124,10 @@ export function getGPT5ConfigRecommendations(
     isGPT5: true,
   }
 
-  if (modelName.includes('gpt-5-mini')) {
+  if (modelName.toLowerCase().includes('gpt-5.6')) {
+    recommendations.contextLength = 1050000
+    recommendations.maxTokens = 128000
+  } else if (modelName.includes('gpt-5-mini')) {
     recommendations.maxTokens = 4096
     recommendations.reasoningEffort = 'low'
   } else if (modelName.includes('gpt-5-nano')) {

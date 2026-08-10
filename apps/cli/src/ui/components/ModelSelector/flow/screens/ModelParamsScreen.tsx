@@ -8,18 +8,13 @@ import {
 } from '#ui-ink/primitives/layout/ScreenFrame'
 
 import {
+  isReasoningEffortOption,
   type ReasoningEffortOption,
   type RequestStrategyOption,
   MAX_TOKENS_OPTIONS,
 } from '../options'
 
 const VIEWPORT_SAFE_MARGIN_ROWS = 1
-
-function isReasoningEffortOption(
-  value: string,
-): value is ReasoningEffortOption {
-  return value === 'low' || value === 'medium' || value === 'high'
-}
 
 type Field = {
   name: string

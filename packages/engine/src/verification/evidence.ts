@@ -37,6 +37,20 @@ type ToolUseInfo = {
   messageIndex: number
 }
 
+export type TurnVerificationState = {
+  turnStartMessageIndex: number
+  latestMutationMessageIndex: number
+  hasMutation: boolean
+  evidence: GoalVerificationEvidence[]
+  hasTerminalEvidence: boolean
+}
+
+const ENGINE_RECOVERY_PREFIXES = [
+  '<thinking-only-recovery>',
+  '<tool_use_recovery>',
+  '<verification-recovery>',
+]
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
@@ -140,14 +154,44 @@ function hasMatchingToolResult(message: Message, toolUseId: string): boolean {
   })
 }
 
-/**
- * Produces bounded goal-completion evidence from engine-owned tool results.
- * Evidence before the latest detected write is deliberately discarded: a
- * passing command never automatically applies to later source changes.
- */
-export function collectGoalVerificationEvidence(
+function isEngineRecoveryText(text: string): boolean {
+  const trimmed = text.trimStart()
+  return ENGINE_RECOVERY_PREFIXES.some(prefix => trimmed.startsWith(prefix))
+}
+
+function isUserTurnBoundary(message: Message): boolean {
+  if (message.type !== 'user') return false
+  const content = message.message.content
+  if (typeof content === 'string') return !isEngineRecoveryText(content)
+  if (!Array.isArray(content)) return false
+
+  let text = ''
+  let hasHumanContent = false
+  for (const block of content) {
+    const record = asRecord(block)
+    if (record?.type === 'tool_result') return false
+    hasHumanContent = true
+    if (record?.type === 'text' && typeof record.text === 'string') {
+      text += record.text
+    }
+  }
+  return hasHumanContent && !isEngineRecoveryText(text)
+}
+
+function findTurnStartMessageIndex(messages: Message[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isUserTurnBoundary(messages[index]!)) return index
+  }
+  return -1
+}
+
+function scanVerificationEvidence(
   messages: Message[],
-): GoalVerificationEvidence[] {
+  startMessageIndex: number,
+): {
+  latestMutationMessageIndex: number
+  evidence: GoalVerificationEvidence[]
+} {
   const toolUses = new Map<string, ToolUseInfo>()
   const evidence: Array<{
     receipt: GoalVerificationEvidence
@@ -155,9 +199,17 @@ export function collectGoalVerificationEvidence(
   }> = []
   let latestMutationMessageIndex = -1
 
-  for (const [messageIndex, message] of messages.entries()) {
+  for (
+    let messageIndex = startMessageIndex;
+    messageIndex < messages.length;
+    messageIndex += 1
+  ) {
+    const message = messages[messageIndex]!
     for (const toolUse of getToolUses(message)) {
-      toolUses.set(toolUse.id, { name: toolUse.name, messageIndex })
+      toolUses.set(toolUse.id, {
+        name: toolUse.name,
+        messageIndex,
+      })
       if (isMutatingToolUse(toolUse)) {
         latestMutationMessageIndex = messageIndex
       }
@@ -176,8 +228,44 @@ export function collectGoalVerificationEvidence(
     evidence.push({ receipt, toolUseMessageIndex: toolUse.messageIndex })
   }
 
-  return evidence
-    .filter(item => item.toolUseMessageIndex > latestMutationMessageIndex)
-    .slice(-MAX_GOAL_VERIFICATION_EVIDENCE)
-    .map(item => item.receipt)
+  return {
+    latestMutationMessageIndex,
+    evidence: evidence
+      .filter(item => item.toolUseMessageIndex > latestMutationMessageIndex)
+      .slice(-MAX_GOAL_VERIFICATION_EVIDENCE)
+      .map(item => item.receipt),
+  }
+}
+
+/**
+ * Produces bounded goal-completion evidence from engine-owned tool results.
+ * Evidence before the latest detected write is deliberately discarded: a
+ * passing command never automatically applies to later source changes.
+ */
+export function collectGoalVerificationEvidence(
+  messages: Message[],
+): GoalVerificationEvidence[] {
+  return scanVerificationEvidence(messages, 0).evidence
+}
+
+/**
+ * Reports verification state for only the active human turn. Engine-generated
+ * recovery prompts do not reset the boundary, while writes from older turns do
+ * not force unrelated follow-up questions through the completion gate.
+ */
+export function getTurnVerificationState(
+  messages: Message[],
+): TurnVerificationState {
+  const turnStartMessageIndex = findTurnStartMessageIndex(messages)
+  const { latestMutationMessageIndex, evidence } = scanVerificationEvidence(
+    messages,
+    Math.max(0, turnStartMessageIndex + 1),
+  )
+  return {
+    turnStartMessageIndex,
+    latestMutationMessageIndex,
+    hasMutation: latestMutationMessageIndex >= 0,
+    evidence,
+    hasTerminalEvidence: evidence.some(receipt => receipt.status !== 'started'),
+  }
 }

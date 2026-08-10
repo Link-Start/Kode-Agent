@@ -27,6 +27,8 @@ type BashOutput = {
 const CONTROL_OPERATOR_RE = /[;&|`$()<>\r\n]/
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=[^\s]+$/
 const INFORMATION_ONLY_FLAGS = new Set(['--help', '-h', '--version', '-v'])
+const SIMPLE_CD_PREFIX_RE =
+  /^cd\s+(?:"[^"$`\r\n]*"|'[^'\r\n]*'|[^\s;&|`$()<>\r\n]+)\s+&&\s+/
 
 function digest(value: string): string {
   return createHash('sha256').update(value).digest('hex').slice(0, 16)
@@ -34,7 +36,14 @@ function digest(value: string): string {
 
 function normalizeCommand(command: string): string | null {
   const trimmed = command.trim()
-  if (!trimmed || CONTROL_OPERATOR_RE.test(trimmed)) return null
+  if (!trimmed) return null
+  const cdPrefix = trimmed.match(SIMPLE_CD_PREFIX_RE)?.[0]
+  if (cdPrefix) {
+    const nested = trimmed.slice(cdPrefix.length)
+    if (!nested || CONTROL_OPERATOR_RE.test(nested)) return null
+    return `${cdPrefix.trim()} ${nested.trim().replace(/\s+/g, ' ')}`
+  }
+  if (CONTROL_OPERATOR_RE.test(trimmed)) return null
   return trimmed.replace(/\s+/g, ' ')
 }
 
@@ -42,41 +51,51 @@ function classifyScriptName(
   value: string | undefined,
 ): VerificationKind | null {
   if (!value) return null
-  if (value === 'check') return 'check'
-  if (value === 'typecheck') return 'typecheck'
-  if (value === 'lint') return 'lint'
-  if (value === 'build') return 'build'
+  if (value === 'check' || value.startsWith('check:')) return 'check'
+  if (value === 'typecheck' || value.startsWith('typecheck:')) {
+    return 'typecheck'
+  }
+  if (value === 'lint' || value.startsWith('lint:')) return 'lint'
+  if (value === 'build' || value.startsWith('build:')) return 'build'
   if (value === 'test' || value.startsWith('test:')) return 'test'
   return null
 }
 
-export function classifyVerificationCommand(
-  command: string,
+function classifyExecutable(
+  executable: string,
+  args: string[],
 ): VerificationKind | null {
-  const normalized = normalizeCommand(command)
-  if (!normalized) return null
-
-  const parts = normalized.split(' ')
-  let index = 0
-  if (parts[index] === 'env') index += 1
-  while (index < parts.length && ENV_ASSIGNMENT_RE.test(parts[index]!)) {
-    index += 1
-  }
-
-  const executable = parts[index]
-  const args = parts.slice(index + 1)
-  if (!executable) return null
-  if (args.some(argument => INFORMATION_ONLY_FLAGS.has(argument))) return null
-
   if (executable === 'bun' || executable === 'npm' || executable === 'pnpm') {
     if (args[0] === 'test') return 'test'
     if (args[0] === 'run') return classifyScriptName(args[1])
+    if ((executable === 'bun' && args[0] === 'x') || args[0] === 'exec') {
+      const nestedExecutable = args[1]
+      return nestedExecutable
+        ? classifyExecutable(nestedExecutable, args.slice(2))
+        : null
+    }
     return null
   }
 
   if (executable === 'yarn') {
     if (args[0] === 'test') return 'test'
+    if (args[0] === 'run') return classifyScriptName(args[1])
     return classifyScriptName(args[0])
+  }
+
+  if (executable === 'npx' || executable === 'bunx') {
+    const nestedExecutable = args.find(argument => !argument.startsWith('-'))
+    if (!nestedExecutable) return null
+    const nestedIndex = args.indexOf(nestedExecutable)
+    return classifyExecutable(nestedExecutable, args.slice(nestedIndex + 1))
+  }
+
+  if (
+    (executable === 'uv' || executable === 'poetry') &&
+    args[0] === 'run' &&
+    args[1]
+  ) {
+    return classifyExecutable(args[1], args.slice(2))
   }
 
   if (
@@ -87,6 +106,13 @@ export function classifyVerificationCommand(
     executable === 'ava'
   ) {
     return 'test'
+  }
+
+  if (executable === 'python' || executable === 'python3') {
+    if (args[0] === '-m' && args[1]) {
+      return classifyExecutable(args[1], args.slice(2))
+    }
+    return null
   }
 
   if (
@@ -101,6 +127,13 @@ export function classifyVerificationCommand(
   if (executable === 'biome' && args[0] === 'check') return 'lint'
   if (executable === 'ruff' && args[0] === 'check') return 'lint'
 
+  if (executable === 'deno') {
+    if (args[0] === 'test') return 'test'
+    if (args[0] === 'check') return 'typecheck'
+    if (args[0] === 'lint') return 'lint'
+    return null
+  }
+
   if (executable === 'go') {
     if (args[0] === 'test') return 'test'
     if (args[0] === 'vet') return 'typecheck'
@@ -111,6 +144,7 @@ export function classifyVerificationCommand(
   if (executable === 'cargo') {
     if (args[0] === 'test') return 'test'
     if (args[0] === 'check') return 'typecheck'
+    if (args[0] === 'clippy') return 'lint'
     if (args[0] === 'build') return 'build'
     return null
   }
@@ -129,7 +163,58 @@ export function classifyVerificationCommand(
     return null
   }
 
+  if (executable === 'dotnet') {
+    if (args[0] === 'test') return 'test'
+    if (args[0] === 'build') return 'build'
+    return null
+  }
+
+  if (executable === 'swift') {
+    if (args[0] === 'test') return 'test'
+    if (args[0] === 'build') return 'build'
+    return null
+  }
+
+  if (executable === 'make' || executable === 'gmake') {
+    for (const argument of args) {
+      const kind = classifyScriptName(argument)
+      if (kind) return kind
+    }
+    return null
+  }
+
+  if (executable === 'just' || executable === 'task') {
+    return classifyScriptName(args.find(argument => !argument.startsWith('-')))
+  }
+
+  if (executable === 'git' && args[0] === 'diff' && args.includes('--check')) {
+    return 'check'
+  }
+
   return null
+}
+
+export function classifyVerificationCommand(
+  command: string,
+): VerificationKind | null {
+  const normalized = normalizeCommand(command)
+  if (!normalized) return null
+
+  const commandWithoutCwd = normalized.match(SIMPLE_CD_PREFIX_RE)
+    ? normalized.replace(SIMPLE_CD_PREFIX_RE, '')
+    : normalized
+  const parts = commandWithoutCwd.split(' ')
+  let index = 0
+  if (parts[index] === 'env') index += 1
+  while (index < parts.length && ENV_ASSIGNMENT_RE.test(parts[index]!)) {
+    index += 1
+  }
+
+  const executable = parts[index]
+  const args = parts.slice(index + 1)
+  if (!executable) return null
+  if (args.some(argument => INFORMATION_ONLY_FLAGS.has(argument))) return null
+  return classifyExecutable(executable, args)
 }
 
 function readString(value: unknown): string {
