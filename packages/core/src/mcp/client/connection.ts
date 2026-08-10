@@ -223,7 +223,11 @@ async function runShellCommandCaptureOutput(args: {
   if (timeoutId) clearTimeout(timeoutId)
   // Ensure child process is fully reaped and streams are closed
   if (!proc.killed) {
-    try { proc.kill() } catch { /* already exited */ }
+    try {
+      proc.kill()
+    } catch {
+      /* already exited */
+    }
   }
   proc.stdout?.destroy()
   proc.stderr?.destroy()

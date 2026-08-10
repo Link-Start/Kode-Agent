@@ -13,9 +13,9 @@ export function handleHashCommand(interpreted: string): void {
     const timezone = timezoneMatch
       ? timezoneMatch[1]
       : now
-            .toLocaleTimeString('en-us', { timeZoneName: 'short' })
-            .split(' ')
-            .pop()
+          .toLocaleTimeString('en-us', { timeZoneName: 'short' })
+          .split(' ')
+          .pop()
 
     const timestamp = interpreted.includes(now.getFullYear().toString())
       ? ''

@@ -142,7 +142,9 @@ export class AcpSessionManager<T extends ManagedAcpSession> {
     const closePromises = Array.from(this.sessions.values()).map(entry => {
       entry.session.activeAbortController?.abort()
       return closeSessionOwnedMcpClients(entry.session).catch(err => {
-        logError(`ACP sessionManager clear: failed to close MCP clients: ${err instanceof Error ? err.message : String(err)}`)
+        logError(
+          `ACP sessionManager clear: failed to close MCP clients: ${err instanceof Error ? err.message : String(err)}`,
+        )
       })
     })
     await Promise.allSettled(closePromises)

@@ -31,9 +31,7 @@ export async function getInstructionFilesNote(): Promise<string | null> {
     const fileTypes = new Set<string>()
     for (const f of instructionFiles) fileTypes.add(f.filename)
 
-    const allFiles = [
-      ...instructionFiles.map(f => f.absolutePath),
-    ]
+    const allFiles = [...instructionFiles.map(f => f.absolutePath)]
 
     return `NOTE: Additional project instruction files (${Array.from(fileTypes).join(', ')}) were found. When working in these directories, make sure to read and follow the instructions in the corresponding files:\n${allFiles
       .map(_ => `- ${_}`)
