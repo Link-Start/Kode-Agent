@@ -207,6 +207,9 @@ source-maps/
 # Local scratch
 temp_code/
 
+# Local generated repository wiki
+.qoder/
+
 # Local evidence snapshots (do not commit)
 docs/research/claude-code/
 docs/research/reference/changelog.lines.md
