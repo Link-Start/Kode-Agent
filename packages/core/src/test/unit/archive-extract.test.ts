@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { strToU8, zipSync } from 'fflate'
 import {
+  extractTarBuffer,
   extractTarGzBuffer,
   extractZipBuffer,
 } from '#core/utils/archive/extract'
@@ -38,6 +39,10 @@ function tarHeader(options: {
   header.write(options.typeflag, 156, 1, 'ascii')
   header.write('ustar\0', 257, 6, 'ascii')
   header.write('00', 263, 2, 'ascii')
+
+  let checksum = 0
+  for (const byte of header) checksum += byte
+  header.write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8, 'ascii')
 
   return header
 }
@@ -135,6 +140,141 @@ describe('archive extraction (zip + tar.gz)', () => {
       expect(existsSync(join(outDir2, '..', 'evil.txt'))).toBe(false)
     } finally {
       rmSync(outDir2, { recursive: true, force: true })
+    }
+  })
+
+  test('rejects ZIP expansion limits before writing any files', async () => {
+    const zip = zipSync({
+      'root/ok.txt': strToU8('ok'),
+      'root/large.txt': strToU8('x'.repeat(64)),
+    })
+    const outDir = makeTempDir('kode-zip-limits-')
+    try {
+      await expect(
+        extractZipBuffer(zip, outDir, {
+          stripComponents: 1,
+          limits: { maxEntryBytes: 16 },
+        }),
+      ).rejects.toThrow('exceeds limit 16 bytes')
+      expect(existsSync(join(outDir, 'ok.txt'))).toBe(false)
+      expect(existsSync(join(outDir, 'large.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('rejects duplicate normalized ZIP output paths', async () => {
+    const zip = zipSync({
+      'root/a/file.txt': strToU8('first'),
+      'root/a\\file.txt': strToU8('second'),
+    })
+    const outDir = makeTempDir('kode-zip-duplicate-')
+    try {
+      await expect(
+        extractZipBuffer(zip, outDir, { stripComponents: 1 }),
+      ).rejects.toThrow('Duplicate archive output path')
+      expect(existsSync(join(outDir, 'a', 'file.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('rejects ZIP file/directory hierarchy conflicts before writing', async () => {
+    const zip = zipSync({
+      'root/a/child.txt': strToU8('child'),
+      'root/a': strToU8('file'),
+    })
+    const outDir = makeTempDir('kode-zip-hierarchy-')
+    try {
+      await expect(
+        extractZipBuffer(zip, outDir, { stripComponents: 1 }),
+      ).rejects.toThrow('conflicts with an existing directory path')
+      expect(existsSync(join(outDir, 'a'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('rejects tar limits and corrupt headers before writing any files', async () => {
+    const tar = buildTar([
+      { path: 'root/ok.txt', type: 'file', data: Buffer.from('ok') },
+      {
+        path: 'root/large.txt',
+        type: 'file',
+        data: Buffer.from('x'.repeat(64)),
+      },
+    ])
+    const outDir = makeTempDir('kode-tar-limits-')
+    try {
+      await expect(
+        extractTarGzBuffer(new Uint8Array(gzipSync(tar)), outDir, {
+          stripComponents: 1,
+          limits: { maxEntryBytes: 16 },
+        }),
+      ).rejects.toThrow('exceeds limit 16 bytes')
+      expect(existsSync(join(outDir, 'ok.txt'))).toBe(false)
+
+      const corrupt = Buffer.from(tar)
+      corrupt[0] = corrupt[0]! ^ 1
+      await expect(
+        extractTarGzBuffer(new Uint8Array(gzipSync(corrupt)), outDir, {
+          stripComponents: 1,
+        }),
+      ).rejects.toThrow('Invalid tar header checksum')
+      expect(existsSync(join(outDir, 'ok.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('caps tar.gz decompression output', async () => {
+    const tar = buildTar([
+      {
+        path: 'root/large.txt',
+        type: 'file',
+        data: Buffer.from('x'.repeat(2048)),
+      },
+    ])
+    const outDir = makeTempDir('kode-tgz-output-limit-')
+    try {
+      await expect(
+        extractTarGzBuffer(new Uint8Array(gzipSync(tar)), outDir, {
+          limits: { maxExtractedBytes: 1024 },
+        }),
+      ).rejects.toThrow('Failed to decompress tar.gz within 1024 bytes')
+      expect(existsSync(join(outDir, 'root', 'large.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('applies archive input limits to raw tar buffers', async () => {
+    const tar = buildTar([
+      { path: 'root/file.txt', type: 'file', data: Buffer.from('hello') },
+    ])
+    const outDir = makeTempDir('kode-tar-input-limit-')
+    try {
+      await expect(
+        extractTarBuffer(new Uint8Array(tar), outDir, {
+          limits: { maxArchiveBytes: 512 },
+        }),
+      ).rejects.toThrow('exceeds limit 512 bytes')
+      expect(existsSync(join(outDir, 'root', 'file.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
+  test('rejects invalid extraction limits', async () => {
+    const zip = zipSync({ 'file.txt': strToU8('hello') })
+    const outDir = makeTempDir('kode-archive-invalid-limit-')
+    try {
+      await expect(
+        extractZipBuffer(zip, outDir, { limits: { maxEntries: 0 } }),
+      ).rejects.toThrow('maxEntries must be a positive integer')
+      expect(existsSync(join(outDir, 'file.txt'))).toBe(false)
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
     }
   })
 })

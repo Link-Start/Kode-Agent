@@ -1,11 +1,114 @@
 import { unzipSync } from 'fflate'
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, isAbsolute, resolve, sep } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 
 export type ExtractArchiveOptions = {
   stripComponents?: number
   filter?: (entryPath: string) => boolean
+  limits?: Partial<ArchiveExtractionLimits>
+}
+
+export type ArchiveExtractionLimits = {
+  maxArchiveBytes: number
+  maxEntries: number
+  maxEntryBytes: number
+  maxExtractedBytes: number
+}
+
+export const DEFAULT_ARCHIVE_EXTRACTION_LIMITS: ArchiveExtractionLimits = {
+  maxArchiveBytes: 128 * 1024 * 1024,
+  maxEntries: 10_000,
+  maxEntryBytes: 256 * 1024 * 1024,
+  maxExtractedBytes: 512 * 1024 * 1024,
+}
+
+function positiveLimit(
+  name: keyof ArchiveExtractionLimits,
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (value === undefined) return fallback
+  if (Number.isSafeInteger(value) && value > 0) return value
+  throw new Error(`Archive extraction limit ${name} must be a positive integer`)
+}
+
+function resolveLimits(
+  options: ExtractArchiveOptions,
+): ArchiveExtractionLimits {
+  return {
+    maxArchiveBytes: positiveLimit(
+      'maxArchiveBytes',
+      options.limits?.maxArchiveBytes,
+      DEFAULT_ARCHIVE_EXTRACTION_LIMITS.maxArchiveBytes,
+    ),
+    maxEntries: positiveLimit(
+      'maxEntries',
+      options.limits?.maxEntries,
+      DEFAULT_ARCHIVE_EXTRACTION_LIMITS.maxEntries,
+    ),
+    maxEntryBytes: positiveLimit(
+      'maxEntryBytes',
+      options.limits?.maxEntryBytes,
+      DEFAULT_ARCHIVE_EXTRACTION_LIMITS.maxEntryBytes,
+    ),
+    maxExtractedBytes: positiveLimit(
+      'maxExtractedBytes',
+      options.limits?.maxExtractedBytes,
+      DEFAULT_ARCHIVE_EXTRACTION_LIMITS.maxExtractedBytes,
+    ),
+  }
+}
+
+function validateOutputPathHierarchy(
+  outputPath: string,
+  isDirectory: boolean,
+  fileOutputPaths: Set<string>,
+  requiredDirectories: Set<string>,
+): void {
+  const parts = outputPath.split('/')
+  let parent = ''
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    parent = parent ? `${parent}/${parts[index]}` : parts[index]!
+    if (fileOutputPaths.has(parent)) {
+      throw new Error(
+        `Archive output path conflicts with file ancestor: ${outputPath}`,
+      )
+    }
+    requiredDirectories.add(parent)
+  }
+
+  if (!isDirectory && requiredDirectories.has(outputPath)) {
+    throw new Error(
+      `Archive file conflicts with an existing directory path: ${outputPath}`,
+    )
+  }
+
+  if (isDirectory) requiredDirectories.add(outputPath)
+  else fileOutputPaths.add(outputPath)
+}
+
+function assertArchiveSize(byteLength: number, maxArchiveBytes: number): void {
+  if (byteLength > maxArchiveBytes) {
+    throw new Error(
+      `Archive size ${byteLength} exceeds limit ${maxArchiveBytes} bytes`,
+    )
+  }
+}
+
+function readArchiveFile(path: string, maxArchiveBytes: number): Buffer {
+  const size = statSync(path).size
+  assertArchiveSize(size, maxArchiveBytes)
+  const data = readFileSync(path)
+  // Re-check in case the file changed between stat and read.
+  assertArchiveSize(data.byteLength, maxArchiveBytes)
+  return data
 }
 
 function normalizeArchivePath(rawPath: string): string {
@@ -57,20 +160,76 @@ export async function extractZipBuffer(
 ): Promise<void> {
   const stripComponents = options.stripComponents ?? 0
   const filter = options.filter
+  const limits = resolveLimits(options)
+  assertArchiveSize(zipData.byteLength, limits.maxArchiveBytes)
+
+  let entryCount = 0
+  let extractedBytes = 0
+  const selectedEntries = new Map<
+    string,
+    { outputPath: string; isDirectory: boolean }
+  >()
+  const selectedOutputPaths = new Set<string>()
+  const fileOutputPaths = new Set<string>()
+  const requiredDirectories = new Set<string>()
+
+  const entries = unzipSync(zipData, {
+    filter: entry => {
+      entryCount += 1
+      if (entryCount > limits.maxEntries) {
+        throw new Error(
+          `Archive entry count exceeds limit ${limits.maxEntries}`,
+        )
+      }
+
+      const normalized = normalizeArchivePath(entry.name)
+      const stripped = stripLeadingComponents(normalized, stripComponents)
+      if (!stripped || (filter && !filter(stripped))) return false
+
+      const isDirectory = entry.name.endsWith('/') || stripped.endsWith('/')
+      const entryBytes = entry.originalSize
+      if (!Number.isSafeInteger(entryBytes) || entryBytes < 0) {
+        throw new Error(`Invalid archive entry size: ${entry.name}`)
+      }
+      if (!isDirectory && entryBytes > limits.maxEntryBytes) {
+        throw new Error(
+          `Archive entry ${entry.name} exceeds limit ${limits.maxEntryBytes} bytes`,
+        )
+      }
+      if (!isDirectory) {
+        extractedBytes += entryBytes
+        if (extractedBytes > limits.maxExtractedBytes) {
+          throw new Error(
+            `Archive extracted data exceeds limit ${limits.maxExtractedBytes} bytes`,
+          )
+        }
+      }
+      if (selectedOutputPaths.has(stripped)) {
+        throw new Error(`Duplicate archive output path: ${stripped}`)
+      }
+      validateOutputPathHierarchy(
+        stripped,
+        isDirectory,
+        fileOutputPaths,
+        requiredDirectories,
+      )
+      selectedOutputPaths.add(stripped)
+      selectedEntries.set(entry.name, {
+        outputPath: stripped,
+        isDirectory,
+      })
+      return true
+    },
+  })
 
   mkdirSync(destDir, { recursive: true })
 
-  const entries = unzipSync(zipData)
   for (const [rawName, contents] of Object.entries(entries)) {
-    const normalized = normalizeArchivePath(rawName)
-    const stripped = stripLeadingComponents(normalized, stripComponents)
-    if (!stripped) continue
-    if (filter && !filter(stripped)) continue
+    const selected = selectedEntries.get(rawName)
+    if (!selected) continue
+    const outputPath = safeDestinationPath(destDir, selected.outputPath)
 
-    const isDir = rawName.endsWith('/') || stripped.endsWith('/')
-    const outputPath = safeDestinationPath(destDir, stripped)
-
-    if (isDir) {
+    if (selected.isDirectory) {
       mkdirSync(outputPath, { recursive: true })
       continue
     }
@@ -85,7 +244,7 @@ export async function extractZipFile(
   destDir: string,
   options: ExtractArchiveOptions = {},
 ): Promise<void> {
-  const data = readFileSync(zipPath)
+  const data = readArchiveFile(zipPath, resolveLimits(options).maxArchiveBytes)
   await extractZipBuffer(new Uint8Array(data), destDir, options)
 }
 
@@ -101,9 +260,23 @@ function decodeTarString(buf: Buffer, start: number, end: number): string {
 function parseTarOctal(buf: Buffer, start: number, end: number): number {
   const raw = decodeTarString(buf, start, end)
   if (!raw) return 0
+  if (!/^[0-7]+$/.test(raw)) {
+    throw new Error(`Invalid tar numeric field: ${raw}`)
+  }
   const parsed = Number.parseInt(raw, 8)
-  if (!Number.isFinite(parsed)) return 0
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`Invalid tar numeric field: ${raw}`)
+  }
   return parsed
+}
+
+function assertTarHeaderChecksum(header: Buffer): void {
+  const expected = parseTarOctal(header, 148, 156)
+  let actual = 0
+  for (let index = 0; index < header.length; index += 1) {
+    actual += index >= 148 && index < 156 ? 0x20 : header[index]!
+  }
+  if (expected !== actual) throw new Error('Invalid tar header checksum')
 }
 
 function isAllZero(block: Buffer): boolean {
@@ -146,8 +319,21 @@ export async function extractTarGzBuffer(
   destDir: string,
   options: ExtractArchiveOptions = {},
 ): Promise<void> {
-  const tarData = gunzipSync(Buffer.from(tarGzData))
-  await extractTarBuffer(new Uint8Array(tarData), destDir, options)
+  const limits = resolveLimits(options)
+  assertArchiveSize(tarGzData.byteLength, limits.maxArchiveBytes)
+  let tarData: Buffer
+  try {
+    tarData = gunzipSync(Buffer.from(tarGzData), {
+      maxOutputLength: limits.maxExtractedBytes,
+    })
+  } catch (error) {
+    throw new Error(
+      `Failed to decompress tar.gz within ${limits.maxExtractedBytes} bytes: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  }
+  await extractTarBufferData(new Uint8Array(tarData), destDir, options, false)
 }
 
 export async function extractTarGzFile(
@@ -155,7 +341,10 @@ export async function extractTarGzFile(
   destDir: string,
   options: ExtractArchiveOptions = {},
 ): Promise<void> {
-  const data = readFileSync(tarGzPath)
+  const data = readArchiveFile(
+    tarGzPath,
+    resolveLimits(options).maxArchiveBytes,
+  )
   await extractTarGzBuffer(new Uint8Array(data), destDir, options)
 }
 
@@ -164,16 +353,39 @@ export async function extractTarBuffer(
   destDir: string,
   options: ExtractArchiveOptions = {},
 ): Promise<void> {
+  await extractTarBufferData(tarData, destDir, options, true)
+}
+
+async function extractTarBufferData(
+  tarData: Uint8Array,
+  destDir: string,
+  options: ExtractArchiveOptions,
+  enforceArchiveInputLimit: boolean,
+): Promise<void> {
   const stripComponents = options.stripComponents ?? 0
   const filter = options.filter
-
-  mkdirSync(destDir, { recursive: true })
+  const limits = resolveLimits(options)
+  if (enforceArchiveInputLimit) {
+    assertArchiveSize(tarData.byteLength, limits.maxArchiveBytes)
+  }
+  assertArchiveSize(tarData.byteLength, limits.maxExtractedBytes)
 
   const buf = Buffer.from(tarData)
   let offset = 0
+  let entryCount = 0
+  let extractedBytes = 0
 
   let pendingLongPath: string | null = null
   let pendingPax: Record<string, string> | null = null
+  const entries: Array<{
+    outputPath: string
+    type: 'directory' | 'file'
+    mode: number
+    content: Buffer
+  }> = []
+  const outputPaths = new Set<string>()
+  const fileOutputPaths = new Set<string>()
+  const requiredDirectories = new Set<string>()
 
   while (offset + 512 <= buf.length) {
     const header = buf.subarray(offset, offset + 512)
@@ -181,6 +393,11 @@ export async function extractTarBuffer(
 
     if (isAllZero(header)) {
       break
+    }
+    assertTarHeaderChecksum(header)
+    entryCount += 1
+    if (entryCount > limits.maxEntries) {
+      throw new Error(`Archive entry count exceeds limit ${limits.maxEntries}`)
     }
 
     const name = decodeTarString(header, 0, 100)
@@ -195,6 +412,11 @@ export async function extractTarBuffer(
     const contentEnd = offset + size
     if (contentEnd > buf.length) {
       throw new Error('Truncated tar archive')
+    }
+    if (size > limits.maxEntryBytes) {
+      throw new Error(
+        `Archive entry ${rawPathFromHeader} exceeds limit ${limits.maxEntryBytes} bytes`,
+      )
     }
 
     const content = buf.subarray(contentStart, contentEnd)
@@ -223,22 +445,56 @@ export async function extractTarBuffer(
     if (!stripped) continue
     if (filter && !filter(stripped)) continue
 
-    const outputPath = safeDestinationPath(destDir, stripped)
-    if (typeflag === '5') {
+    const isDirectory = typeflag === '5'
+    const isFile = typeflag === '0' || typeflag === '\0'
+    if (!isDirectory && !isFile) continue
+
+    if (outputPaths.has(stripped)) {
+      throw new Error(`Duplicate archive output path: ${stripped}`)
+    }
+    validateOutputPathHierarchy(
+      stripped,
+      isDirectory,
+      fileOutputPaths,
+      requiredDirectories,
+    )
+    outputPaths.add(stripped)
+
+    if (isDirectory) {
+      entries.push({
+        outputPath: stripped,
+        type: 'directory',
+        mode,
+        content: Buffer.alloc(0),
+      })
+      continue
+    }
+
+    extractedBytes += size
+    if (extractedBytes > limits.maxExtractedBytes) {
+      throw new Error(
+        `Archive extracted data exceeds limit ${limits.maxExtractedBytes} bytes`,
+      )
+    }
+    entries.push({ outputPath: stripped, type: 'file', mode, content })
+  }
+
+  mkdirSync(destDir, { recursive: true })
+  for (const entry of entries) {
+    const outputPath = safeDestinationPath(destDir, entry.outputPath)
+    if (entry.type === 'directory') {
       mkdirSync(outputPath, { recursive: true })
       continue
     }
 
-    if (typeflag !== '0' && typeflag !== '\0') {
-      continue
-    }
-
     mkdirSync(dirname(outputPath), { recursive: true })
-    writeFileSync(outputPath, content)
-    if (mode && process.platform !== 'win32') {
+    writeFileSync(outputPath, entry.content)
+    if (entry.mode && process.platform !== 'win32') {
       try {
-        chmodSync(outputPath, mode & 0o777)
-      } catch {}
+        chmodSync(outputPath, entry.mode & 0o777)
+      } catch {
+        // Extraction succeeded; mode preservation is best-effort across filesystems.
+      }
     }
   }
 }

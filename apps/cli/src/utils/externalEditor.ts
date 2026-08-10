@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { parse } from 'shell-quote'
 import {
   disableLineWrapping,
   enableLineWrapping,
@@ -58,6 +59,68 @@ export function __setExternalEditorDependencyLoaderForTests(
 }
 
 const isWindows = process.platform === 'win32'
+
+function parseWindowsCommandLine(commandLine: string): string[] | null {
+  const tokens: string[] = []
+  let current = ''
+  let quote: '"' | "'" | null = null
+
+  for (const character of commandLine.trim()) {
+    if (quote) {
+      if (character === quote) quote = null
+      else current += character
+      continue
+    }
+    if (character === '"' || character === "'") {
+      quote = character
+      continue
+    }
+    if (/\s/u.test(character)) {
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
+      continue
+    }
+    current += character
+  }
+
+  if (quote) return null
+  if (current) tokens.push(current)
+  return tokens
+}
+
+export function parseExternalEditorCommand(
+  commandLine: string,
+  platform: NodeJS.Platform = process.platform,
+): EditorCommand | null {
+  const rawTokens =
+    platform === 'win32'
+      ? parseWindowsCommandLine(commandLine)
+      : parse(commandLine, variableName => `$${variableName}`)
+  if (
+    !rawTokens?.length ||
+    rawTokens.some(token => typeof token !== 'string')
+  ) {
+    return null
+  }
+
+  const [command, ...args] = rawTokens as string[]
+  if (!command) return null
+  return {
+    command,
+    args,
+    displayName: commandLine.trim(),
+  }
+}
+
+function assertSafeShellFilePath(filePath: string): void {
+  if (/[\r\n&|<>()^%!"]/u.test(filePath)) {
+    throw new Error(
+      'The selected file path contains characters that are unsafe for this Windows editor launcher.',
+    )
+  }
+}
 
 function showTerminalCursor(dependencies: ExternalEditorDependencies): void {
   if (!process.stdout?.isTTY) return
@@ -118,12 +181,7 @@ function resolveEditorCommand(
 ): EditorCommand | null {
   const envEditor = process.env.VISUAL || process.env.EDITOR
   if (envEditor?.trim()) {
-    return {
-      command: envEditor.trim(),
-      args: [],
-      displayName: envEditor.trim(),
-      shell: true, // Allow quoted paths or extra flags
-    }
+    return parseExternalEditorCommand(envEditor)
   }
 
   const candidates: EditorCommand[] = []
@@ -172,7 +230,6 @@ function resolveEditorCommand(
       command: 'notepad.exe',
       args: [],
       displayName: 'notepad',
-      shell: true,
     }
   }
 
@@ -219,7 +276,7 @@ export async function launchExternalEditor(
 
   const dir = mkdtempSync(join(tmpdir(), 'kode-edit-'))
   const filePath = join(dir, 'message.txt')
-  writeFileSync(filePath, initialText, 'utf-8')
+  writeFileSync(filePath, initialText, { encoding: 'utf-8', mode: 0o600 })
 
   const wasRaw = Boolean(process.stdin.isTTY && process.stdin.isRaw)
   if (process.stdin.isTTY) {
@@ -232,6 +289,7 @@ export async function launchExternalEditor(
   try {
     await withSuspendedInk(dependencies, async () => {
       await new Promise<void>((resolve, reject) => {
+        if (editorCommand.shell) assertSafeShellFilePath(filePath)
         const child = dependencies.spawn(
           editorCommand.command,
           [...editorCommand.args, filePath],
@@ -310,6 +368,7 @@ export async function launchExternalEditorForFilePath(
   try {
     await withSuspendedInk(dependencies, async () => {
       await new Promise<void>((resolve, reject) => {
+        if (editorCommand.shell) assertSafeShellFilePath(filePath)
         const child = dependencies.spawn(
           editorCommand.command,
           [...editorCommand.args, filePath],
