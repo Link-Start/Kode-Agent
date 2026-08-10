@@ -71,7 +71,10 @@ export function FileEditToolUpdatedMessage({
     columns,
     reservedColumns: 12,
   })
-  const patches = Array.isArray(structuredPatch) ? structuredPatch : []
+  const patches = React.useMemo(
+    () => (Array.isArray(structuredPatch) ? structuredPatch : []),
+    [structuredPatch],
+  )
   const numAdditions = patches.reduce(
     (count, hunk) => count + hunk.lines.filter(_ => _.startsWith('+')).length,
     0,

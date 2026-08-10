@@ -583,7 +583,7 @@ export function ResumeSessionSelector(props: {
   })
   const resetSelection = useCallback(() => {
     setSelectedIndex(prev => (prev === 0 ? prev : 0))
-  }, [])
+  }, [setSelectedIndex])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(),
@@ -710,7 +710,6 @@ export function ResumeSessionSelector(props: {
     allProjectsSessions,
     allWorktreeSessions,
     localSessions,
-    sessionList,
     showAllProjects,
     showAllWorktrees,
   ])
@@ -728,11 +727,21 @@ export function ResumeSessionSelector(props: {
     )
   }, [availableTags.length])
 
-  const sourceSessions = showAllProjects
-    ? (allProjectsSessions ?? [])
-    : showAllWorktrees
-      ? (allWorktreeSessions ?? [])
-      : localSessions
+  const sourceSessions = useMemo(
+    () =>
+      showAllProjects
+        ? (allProjectsSessions ?? [])
+        : showAllWorktrees
+          ? (allWorktreeSessions ?? [])
+          : localSessions,
+    [
+      allProjectsSessions,
+      allWorktreeSessions,
+      localSessions,
+      showAllProjects,
+      showAllWorktrees,
+    ],
+  )
   const normalizedQuery = useMemo(() => normalizeQuery(query), [query])
   const deferredQuery = useDeferredValue(normalizedQuery)
 
@@ -878,7 +887,7 @@ export function ResumeSessionSelector(props: {
 
   useEffect(() => {
     setSelectedIndex(prev => clamp(prev, 0, Math.max(0, rows.length - 1)))
-  }, [rows.length])
+  }, [rows.length, setSelectedIndex])
 
   const selectedRow = rows[clampedSelection] ?? null
   const selectedSession = selectedRow?.session ?? null

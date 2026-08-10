@@ -256,6 +256,8 @@ export function PromptInput({
   }, [messages])
 
   const modelInfo = useMemo(() => {
+    void submitCount
+    void uiRefreshCounter
     const current = getModelManager().getModel('main')
     return current
       ? {
@@ -273,6 +275,8 @@ export function PromptInput({
   )
 
   const statusLineInput = useMemo(() => {
+    void submitCount
+    void uiRefreshCounter
     const profile = getModelManager().getModel('main')
     const outputStyleName = getCurrentOutputStyle()
     const transcriptPath = getMessagesPath(messageLogName, forkNumber, 0)
@@ -911,7 +915,6 @@ export function PromptInput({
       handleExternalEdit,
       handleQuickModelSwitch,
       isEditingExternally,
-      isLoading,
       mode,
       modeCycleShortcut,
       onInputChange,
@@ -1146,6 +1149,7 @@ export function PromptInput({
     isLoading,
     messageLogName,
     onQuery,
+    onShowMessageSelector,
     onSubmitCountChange,
     pendingPrompts,
     queuedPrompts,
@@ -1160,6 +1164,7 @@ export function PromptInput({
     toolPermissionContext,
     tools,
     verbose,
+    exit,
   ])
 
   useKeypress(

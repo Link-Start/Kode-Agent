@@ -105,6 +105,7 @@ export function ModelConfig({ onClose }: Props): React.ReactNode {
   }, [onClose])
 
   const models = useMemo(() => {
+    void refreshKey
     const all = modelManager.getAvailableModels()
     return [...all].sort((a, b) => (b.lastUsed ?? 0) - (a.lastUsed ?? 0))
   }, [modelManager, refreshKey])

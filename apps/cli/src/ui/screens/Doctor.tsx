@@ -256,7 +256,7 @@ export function Doctor({
     theme.kode,
     theme.secondaryText,
     theme.text,
-    unreachableRules.length,
+    unreachableRules,
   ])
 
   const wrappedLines = useMemo(() => {

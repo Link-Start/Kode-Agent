@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useRef } from 'react'
 import { hasPermissionsToUseTool } from '#core/permissions'
 import type { CanUseToolFn } from '#core/permissions/canUseTool'
 import { BashTool, inputSchema } from '#tools/tools/system/BashTool/BashTool'
@@ -24,11 +24,12 @@ function useCanUseTool(
     ) => void
   },
 ): CanUseToolFn {
+  const onPermissionRuleWarningsRef = useRef(options?.onPermissionRuleWarnings)
+  onPermissionRuleWarningsRef.current = options?.onPermissionRuleWarnings
+
   return useCallback<CanUseToolFn>(
     async (tool, input, toolUseContext, assistantMessage) => {
       return new Promise(resolve => {
-        function logCancelledEvent() {}
-
         function resolveWithCancelledAndAbortAllToolCalls(message?: string) {
           resolve({
             result: false,
@@ -43,7 +44,6 @@ function useCanUseTool(
         }
 
         if (toolUseContext.abortController.signal.aborted) {
-          logCancelledEvent()
           resolveWithCancelledAndAbortAllToolCalls()
           return undefined
         }
@@ -82,7 +82,6 @@ function useCanUseTool(
             ])
 
             if (toolUseContext.abortController.signal.aborted) {
-              logCancelledEvent()
               resolveWithCancelledAndAbortAllToolCalls()
               return
             }
@@ -109,7 +108,6 @@ function useCanUseTool(
                   ? deniedResult.riskScore
                   : null,
               onAbort() {
-                logCancelledEvent()
                 resolveWithCancelledAndAbortAllToolCalls()
               },
               onAllow(type, allowOptions) {
@@ -118,7 +116,7 @@ function useCanUseTool(
                   if (ctx) {
                     const warnings = findUnreachablePermissionRules(ctx)
                     if (warnings.length > 0) {
-                      options?.onPermissionRuleWarnings?.(warnings)
+                      onPermissionRuleWarningsRef.current?.(warnings)
                     }
                   }
                 }
@@ -139,10 +137,15 @@ function useCanUseTool(
           })
           .catch(error => {
             if (error instanceof AbortError) {
-              logCancelledEvent()
               resolveWithCancelledAndAbortAllToolCalls()
             } else {
               logError(error)
+              resolve({
+                result: false,
+                message:
+                  'Tool use was denied because the permission check failed.',
+              })
+              toolUseContext.abortController.abort()
             }
           })
       })

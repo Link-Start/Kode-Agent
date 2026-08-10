@@ -451,7 +451,10 @@ export function TasksScreen({
     setStatus(null)
   }, [])
 
-  const allTasks = useMemo(() => listBackgroundTaskSnapshots(), [tick])
+  const allTasks = useMemo(() => {
+    void tick
+    return listBackgroundTaskSnapshots()
+  }, [tick])
   const tasks = useMemo(
     () => __filterTaskSnapshotsForTests(allTasks, taskFilter),
     [allTasks, taskFilter],
@@ -503,7 +506,7 @@ export function TasksScreen({
 
   useEffect(() => {
     setSelectedIndex(prev => clamp(prev, 0, Math.max(0, flatItems.length - 1)))
-  }, [flatItems.length])
+  }, [flatItems.length, setSelectedIndex])
 
   useEffect(() => {
     setSelectedIndex(prev => {
@@ -514,7 +517,7 @@ export function TasksScreen({
       })
       return clamp(preferred, 0, Math.max(0, flatItems.length - 1))
     })
-  }, [flatItems])
+  }, [flatItems, setSelectedIndex])
 
   useEffect(() => {
     setScrollTop(prev => {
@@ -548,6 +551,7 @@ export function TasksScreen({
   }, [agentTasks, detailTarget, shellTasks])
 
   const detailOutputLines = useMemo(() => {
+    void tick
     if (!detailTarget) return []
     return readBackgroundTaskOutputTailLines(detailTarget.id, 10)
   }, [detailTarget, tick])

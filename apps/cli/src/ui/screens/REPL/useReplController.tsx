@@ -95,6 +95,8 @@ import type {
 } from '#ui-ink/types/conversationReset'
 import type { ToolKeypressHandler } from '@kode/tool-interface/Tool'
 
+const EMPTY_MCP_CLIENTS = [] as NonNullable<REPLProps['mcpClients']>
+
 const batchedUpdates: ((fn: () => void) => void) | null =
   typeof (ReactReconciler as any)?.batchedUpdates === 'function'
     ? ((ReactReconciler as any).batchedUpdates as (fn: () => void) => void)
@@ -120,7 +122,7 @@ export function useReplController(props: REPLProps) {
   const debug = props.debug ?? false
   const disableSlashCommands = props.disableSlashCommands ?? false
   const safeMode = Boolean(props.safeMode)
-  const mcpClients = props.mcpClients ?? []
+  const mcpClients = props.mcpClients ?? EMPTY_MCP_CLIENTS
   const isDefaultModel = props.isDefaultModel ?? true
   const { rows: terminalRows, columns: terminalColumns } = useTerminalSize()
   const assistantStreamStoreRef = useRef<AssistantStreamStore | null>(null)
@@ -912,7 +914,9 @@ export function useReplController(props: REPLProps) {
                 if (action === 'model') {
                   try {
                     abortController?.abort?.()
-                  } catch {}
+                  } catch {
+                    // Continue opening model settings if cancellation raced.
+                  }
                   setIsLoading(false)
 
                   openToolView({
@@ -1549,6 +1553,7 @@ export function useReplController(props: REPLProps) {
       props.messageLogName,
       props.tools,
       restorePastes,
+      setAbortController,
       setForkConvoWithMessagesOnTheNextRender,
       setToolJSXWithClear,
       submitCount,

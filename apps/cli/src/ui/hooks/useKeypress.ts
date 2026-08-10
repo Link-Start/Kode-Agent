@@ -10,7 +10,8 @@ export function useKeypress(
 ): void {
   const { subscribe, unsubscribe } = useKeypressContext()
   const active = isActive !== false
-
+  const priorityRef = useRef(priority)
+  priorityRef.current = priority
   const handlerRef = useRef(onKeypress)
   handlerRef.current = onKeypress
 
@@ -20,7 +21,7 @@ export function useKeypress(
 
   useEffect(() => {
     if (!active) return undefined
-    subscribe(stableHandler, { priority })
+    subscribe(stableHandler, { priority: priorityRef.current })
     return () => {
       unsubscribe(stableHandler)
     }

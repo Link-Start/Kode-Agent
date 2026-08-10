@@ -411,7 +411,7 @@ export function usePromptPastes(args: {
   const clearPastes = useCallback(() => {
     setPastedImages([])
     setPastedTexts([])
-  }, [])
+  }, [setPastedImages, setPastedTexts])
 
   useEffect(() => {
     if (pastedTexts.length === 0 && pastedImages.length === 0) return

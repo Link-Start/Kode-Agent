@@ -62,7 +62,10 @@ export function useTextInput({
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
-      maybeClearImagePasteErrorTimeout({ hideMessage: false })
+      if (imagePasteErrorTimeoutRef.current) {
+        clearTimeout(imagePasteErrorTimeoutRef.current)
+        imagePasteErrorTimeoutRef.current = null
+      }
     }
   }, [])
 

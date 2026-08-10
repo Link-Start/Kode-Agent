@@ -471,6 +471,9 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   const paddingX = tightLayout || compactLayout ? 1 : 2
 
   const [route, setRoute] = useState<Route>({ kind: 'list' })
+  const routeKind = route.kind
+  const routeServerName = route.kind === 'list' ? null : route.serverName
+  const routeTool = route.kind === 'tool' ? route.tool : null
   const [servers, setServers] = useState<McpUiServer[]>([])
   const [loadingServers, setLoadingServers] = useState(true)
   const [serversError, setServersError] = useState<string | null>(null)
@@ -530,13 +533,12 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
 
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
-  const clientCapabilityLine = useMemo(
-    () =>
-      formatMcpClientCapabilitySummary(getMcpClientCapabilitySummary()).join(
-        ' | ',
-      ),
-    [mcpListChangedTick],
-  )
+  const clientCapabilityLine = useMemo(() => {
+    void mcpListChangedTick
+    return formatMcpClientCapabilitySummary(
+      getMcpClientCapabilitySummary(),
+    ).join(' | ')
+  }, [mcpListChangedTick])
 
   const closeScreen = useCallback(() => {
     authAbortControllerRef.current?.abort()
@@ -931,7 +933,7 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
   })
 
   useEffect(() => {
-    if (route.kind !== 'server') return undefined
+    if (routeKind !== 'server') return undefined
     if (activeServerName === null) return undefined
 
     let didCancel = false
@@ -990,15 +992,15 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
       didCancel = true
     }
   }, [
-    route.kind,
-    route.kind === 'server' ? route.serverName : null,
+    routeKind,
+    routeServerName,
     activeServerName,
     activeServerStatus,
     mcpListChangedTick,
   ])
 
   useEffect(() => {
-    if (route.kind !== 'tools') return undefined
+    if (routeKind !== 'tools') return undefined
     if (activeServerName === null) return undefined
 
     let didCancel = false
@@ -1025,15 +1027,10 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
     return () => {
       didCancel = true
     }
-  }, [
-    route.kind,
-    route.kind === 'tools' ? route.serverName : null,
-    activeServerName,
-    mcpListChangedTick,
-  ])
+  }, [routeKind, routeServerName, activeServerName, mcpListChangedTick])
 
   useEffect(() => {
-    if (route.kind !== 'prompts') return undefined
+    if (routeKind !== 'prompts') return undefined
     if (activeServerName === null) return undefined
 
     let didCancel = false
@@ -1060,15 +1057,10 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
     return () => {
       didCancel = true
     }
-  }, [
-    route.kind,
-    route.kind === 'prompts' ? route.serverName : null,
-    activeServerName,
-    mcpListChangedTick,
-  ])
+  }, [routeKind, routeServerName, activeServerName, mcpListChangedTick])
 
   useEffect(() => {
-    if (route.kind !== 'resources') return undefined
+    if (routeKind !== 'resources') return undefined
     if (activeServerName === null) return undefined
 
     let didCancel = false
@@ -1095,15 +1087,10 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
     return () => {
       didCancel = true
     }
-  }, [
-    route.kind,
-    route.kind === 'resources' ? route.serverName : null,
-    activeServerName,
-    mcpListChangedTick,
-  ])
+  }, [routeKind, routeServerName, activeServerName, mcpListChangedTick])
 
   useEffect(() => {
-    if (route.kind !== 'resourceTemplates') return undefined
+    if (routeKind !== 'resourceTemplates') return undefined
     if (activeServerName === null) return undefined
 
     let didCancel = false
@@ -1132,23 +1119,18 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
     return () => {
       didCancel = true
     }
-  }, [
-    route.kind,
-    route.kind === 'resourceTemplates' ? route.serverName : null,
-    activeServerName,
-    mcpListChangedTick,
-  ])
+  }, [routeKind, routeServerName, activeServerName, mcpListChangedTick])
 
   useEffect(() => {
-    if (route.kind !== 'tool') return undefined
+    if (!routeTool) return undefined
     let didCancel = false
     setToolDetailDescription(null)
     ;(async () => {
       try {
         const desc =
-          typeof route.tool.description === 'function'
-            ? await route.tool.description()
-            : (route.tool.cachedDescription ?? '')
+          typeof routeTool.description === 'function'
+            ? await routeTool.description()
+            : (routeTool.cachedDescription ?? '')
         if (didCancel) return
         setToolDetailDescription(desc)
       } catch {
@@ -1160,7 +1142,7 @@ export function McpServersScreen(props: { onDone(result?: string): void }) {
     return () => {
       didCancel = true
     }
-  }, [route.kind, route.kind === 'tool' ? route.tool.name : null])
+  }, [routeTool])
 
   const toggleDisabled = useCallback(
     async (server: McpUiServer) => {

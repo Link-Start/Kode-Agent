@@ -80,7 +80,9 @@ export function __getCompletionContextForTests(args: {
 
 export function __computeCompletionRefreshForTests(args: {
   isEnabled: boolean
-  state: CompletionState
+  state: Pick<CompletionState, 'context' | 'isActive' | 'selectedIndex'> & {
+    preview: Pick<NonNullable<CompletionState['preview']>, 'isActive'> | null
+  }
   suggestions: UnifiedSuggestion[]
 }):
   | { action: 'none' }
@@ -300,13 +302,19 @@ export function useUnifiedCompletion({
     }
   }, [isEnabled, resetCompletion, state.isActive])
 
+  const isCompletionPreviewActive = state.preview?.isActive ?? false
   useEffect(() => {
     if (!state.context) return
 
     const nextSuggestions = generateSuggestions(state.context)
     const result = __computeCompletionRefreshForTests({
       isEnabled,
-      state,
+      state: {
+        context: state.context,
+        isActive: state.isActive,
+        preview: isCompletionPreviewActive ? { isActive: true } : null,
+        selectedIndex: state.selectedIndex,
+      },
       suggestions: nextSuggestions,
     })
 
@@ -338,7 +346,7 @@ export function useUnifiedCompletion({
     state.context,
     state.isActive,
     state.selectedIndex,
-    state.preview?.isActive,
+    isCompletionPreviewActive,
   ])
 
   useUnifiedCompletionTabKey({
