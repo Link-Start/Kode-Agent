@@ -11,7 +11,9 @@ export function startStreamReader(
   if (!stream) return
   try {
     stream.setEncoding('utf8')
-  } catch {}
+  } catch {
+    // Some readable streams do not support setting an encoding.
+  }
 
   stream.on('data', (chunk: unknown) => {
     const text =
@@ -102,7 +104,9 @@ export function createCancellableTextCollector(
 
   try {
     stream.setEncoding('utf8')
-  } catch {}
+  } catch {
+    // Some readable streams do not support setting an encoding.
+  }
 
   stream.on('data', onData)
   stream.on('error', onError)
@@ -118,7 +122,9 @@ export function createCancellableTextCollector(
         if (hasDestroy(stream)) {
           stream.destroy()
         }
-      } catch {}
+      } catch {
+        // The stream may already be closed.
+      }
       finish()
     },
   }
