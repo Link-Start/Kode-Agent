@@ -210,13 +210,19 @@ async function stdin() {
 process.on('exit', () => {
   try {
     restoreTuiStdioPatch()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   try {
     enableLineWrapping()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   try {
     resetMouseEvents()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   resetCursor()
   if (didEnterAlternateScreen) {
     exitAlternateScreen()
@@ -268,21 +274,31 @@ async function gracefulExit(code = 0) {
 
   try {
     resetCursor()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   try {
     enableLineWrapping()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   try {
     resetMouseEvents()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   if (didEnterAlternateScreen) {
     try {
       exitAlternateScreen()
-    } catch {}
+    } catch {
+      // Exit cleanup must not prevent process termination.
+    }
   }
   try {
     BunShell.getInstance().close()
-  } catch {}
+  } catch {
+    // Exit cleanup must not prevent process termination.
+  }
   process.exit(code)
 }
 
