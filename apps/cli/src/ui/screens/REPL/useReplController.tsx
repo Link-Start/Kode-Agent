@@ -71,6 +71,7 @@ import {
   type AssistantStreamStore,
 } from './assistantStreamStore'
 import { ensureLspManagerInitialized } from '#tools/tools/system/LspTool/call'
+import { prewarmLlmRuntime } from '#core/ai/llmLazy'
 import { describeToolPermissionRuleSource } from '#core/permissions/ruleString'
 import { triggerModelConfigChange } from '#core/messages'
 import {
@@ -968,6 +969,12 @@ export function useReplController(props: REPLProps) {
   useEffect(() => {
     // Best-effort eager init so the first LSP tool call doesn't pay process startup latency.
     void ensureLspManagerInitialized().catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    // Start after the first TUI render. This is process-wide, does no provider
+    // I/O, and shares one promise with an immediately submitted first request.
+    void prewarmLlmRuntime().catch(() => {})
   }, [])
 
   const onCancel = useCallback(() => {

@@ -16,7 +16,12 @@ export function __getRequestStatusLabelForTests(
 ): string {
   switch (status.kind) {
     case 'thinking': {
-      const detail = status.detail?.trim() || 'Preparing response'
+      const detail = status.detail?.trim()
+      if (!detail) {
+        return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
+          ? 'Waiting for model response · still waiting'
+          : 'Waiting for model response'
+      }
       return elapsedSeconds >= FIRST_RESPONSE_WARNING_SECONDS
         ? `${detail} · waiting for first model response`
         : detail

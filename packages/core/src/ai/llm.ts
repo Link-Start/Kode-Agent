@@ -66,6 +66,15 @@ type QueryLLMWithPromptCachingFn = typeof queryLLMWithPromptCaching
 const MODEL_POINTERS = new Set(['main', 'task', 'compact', 'quick'])
 const AUXILIARY_MODEL_POINTERS = new Set(['task', 'compact', 'quick'])
 
+/**
+ * Loads the process-wide model configuration before the first user request.
+ * This performs no provider I/O and is intentionally safe to run in the
+ * background after the interactive UI has mounted.
+ */
+export function prepareLlmRuntime(): void {
+  getModelManager()
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }

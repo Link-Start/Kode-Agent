@@ -19,6 +19,6 @@ describe('RequestStatusIndicator', () => {
   test('identifies an extended wait for the first model response', () => {
     expect(
       __getRequestStatusLabelForTests({ kind: 'thinking', updatedAt: 0 }, 15),
-    ).toBe('Preparing response · waiting for first model response')
+    ).toBe('Waiting for model response · still waiting')
   })
 })
