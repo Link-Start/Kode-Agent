@@ -120,11 +120,10 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
       provider === 'partnerProviders' || provider === 'partnerCodingPlans'
 
     if (!isProviderMenu) {
+      const apiKeyEnv = getSuggestedApiKeyEnvVar(provider)
       state.setApiKeyEdited(false)
-      state.setApiKeyEnv(getSuggestedApiKeyEnvVar(provider))
-      state.setApiKey('')
-      state.setCursorOffset(0)
-      state.setApiKeyCleanedNotification(false)
+      state.setApiKeyEnv(apiKeyEnv)
+      state.setCursorOffset(apiKeyEnv?.length ?? 0)
       state.setModelLoadError(null)
       state.setAvailableModels([])
       state.setSelectedModel('')
@@ -159,7 +158,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         params: {
           selectedProvider: state.selectedProvider,
           selectedModel: state.selectedModel,
-          apiKey: state.apiKey,
+          apiKey: readApiKeyFromEnvironment(state.apiKeyEnv) ?? '',
           maxTokens: state.maxTokens,
           providerBaseUrl: state.providerBaseUrl,
           customBaseUrl: state.customBaseUrl,

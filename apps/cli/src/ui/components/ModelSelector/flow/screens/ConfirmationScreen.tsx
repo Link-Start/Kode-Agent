@@ -1,7 +1,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 
-import { CONTEXT_LENGTH_OPTIONS } from '../options'
 import {
   ScreenFrame,
   type ScreenExitState,
@@ -19,10 +18,7 @@ type Props = {
   resourceName: string
   ollamaBaseUrl: string
   customBaseUrl: string
-  maxTokens: string
-  contextLength: number
-  supportsReasoningEffort: boolean
-  reasoningEffort: any
+  apiKeyEnv?: string
   validationError: string | null
   getProviderLabel: (provider: string, modelCount: number) => string
 }
@@ -39,10 +35,7 @@ export function ConfirmationScreen({
   resourceName,
   ollamaBaseUrl,
   customBaseUrl,
-  maxTokens,
-  contextLength,
-  supportsReasoningEffort,
-  reasoningEffort,
+  apiKeyEnv,
   validationError,
   getProviderLabel,
 }: Props) {
@@ -52,6 +45,7 @@ export function ConfirmationScreen({
   const providerDisplayName = getProviderLabel(selectedProvider, 0).split(
     ' (',
   )[0]
+  const showsCredential = selectedProvider !== 'ollama'
 
   return (
     <ScreenFrame
@@ -62,10 +56,10 @@ export function ConfirmationScreen({
       gap={containerGap}
     >
       <Box flexDirection="column" gap={containerGap}>
-        <Text bold>Confirm your model configuration:</Text>
+        <Text bold>Quick configuration / 快速配置</Text>
         {!tightLayout && (
           <Text color={theme.secondaryText}>
-            Please review your selections before saving.
+            Review the provider, model, and credential reference before saving.
           </Text>
         )}
 
@@ -110,37 +104,29 @@ export function ConfirmationScreen({
             <Text color={theme.suggestion}>{selectedModel}</Text>
           </Text>
 
-          {!tightLayout && maxTokens && (
+          {showsCredential && (
             <Text>
-              <Text bold>Max Tokens: </Text>
-              <Text color={theme.suggestion}>{maxTokens}</Text>
+              <Text bold>Credential: </Text>
+              <Text color={theme.suggestion}>
+                {apiKeyEnv
+                  ? `environment variable ${apiKeyEnv}`
+                  : '(environment variable required)'}
+              </Text>
             </Text>
           )}
 
-          <Text>
-            <Text bold>Context Length: </Text>
-            <Text color={theme.suggestion}>
-              {CONTEXT_LENGTH_OPTIONS.find(opt => opt.value === contextLength)
-                ?.label || `${contextLength.toLocaleString()} tokens`}
+          {!tightLayout && (
+            <Text color={theme.secondaryText} wrap="truncate-end">
+              Advanced controls appear only for values reported by model
+              discovery. Tool permissions are configured separately with
+              /permissions.
             </Text>
-          </Text>
-
-          {!tightLayout && supportsReasoningEffort && (
-            <Text>
-              <Text bold>Reasoning Effort: </Text>
-              <Text color={theme.suggestion}>{reasoningEffort}</Text>
-            </Text>
-          )}
-
-          {compactLayout && tightLayout && maxTokens && (
-            <Text dimColor>Max Tokens: {maxTokens}</Text>
           )}
         </Box>
 
         <Box marginTop={tightLayout ? 0 : 1}>
-          <Text dimColor>
-            Press <Text color={theme.suggestion}>Esc</Text> to go back or{' '}
-            <Text color={theme.suggestion}>Enter</Text> to save configuration
+          <Text color={theme.secondaryText} wrap="truncate-end">
+            Enter save · A advanced settings · Esc back
           </Text>
         </Box>
       </Box>

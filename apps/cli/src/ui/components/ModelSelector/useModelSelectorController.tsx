@@ -1,9 +1,8 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { getTheme } from '#core/utils/theme'
 import { useExitOnCtrlCD } from '#ui-ink/hooks/useExitOnCtrlCD'
 import { useCliExit } from '#ui-ink/hooks/useCliExit'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
-import { readApiKeyFromEnvironment } from '#core/utils/config'
 import { printModelConfig } from './flow/printModelConfig'
 import type { ModelSelectorProps } from './types'
 import type { ModelSelectorViewProps } from './viewTypes'
@@ -66,16 +65,6 @@ export function useModelSelectorController(
     availableModels: state.availableModels,
     modelSearchQuery: state.modelSearchQuery,
   })
-  const { apiKeyEdited, apiKeyEnv, setApiKey, setCursorOffset } = state
-
-  useEffect(() => {
-    if (!apiKeyEdited && apiKeyEnv) {
-      const envValue = readApiKeyFromEnvironment(apiKeyEnv) ?? ''
-      setApiKey(envValue)
-      setCursorOffset(envValue.length)
-    }
-  }, [apiKeyEdited, apiKeyEnv, setApiKey, setCursorOffset])
-
   const actions = useModelSelectorActions({ props, state, onDone })
 
   useEscapeNavigation(actions.handleBack, props.abortController)
@@ -155,7 +144,8 @@ export function useModelSelectorController(
     codingPlanFocusIndex: state.codingPlanFocusIndex,
     setCodingPlanFocusIndex: state.setCodingPlanFocusIndex,
     selectedProvider: state.selectedProvider,
-    apiKey: state.apiKey,
+    // The UI carries only the variable name; it never receives the secret.
+    apiKey: state.apiKeyEnv ?? '',
     resourceName: state.resourceName,
     providerBaseUrl: state.providerBaseUrl,
     customBaseUrl: state.customBaseUrl,
@@ -197,12 +187,11 @@ export function useModelSelectorController(
     selectedProvider: state.selectedProvider,
     selectedModel: state.selectedModel,
     apiKeyEnv: state.apiKeyEnv,
-    apiKey: state.apiKey,
+    apiKey: state.apiKeyEnv ?? '',
     cursorOffset: state.cursorOffset,
     handleApiKeyChange: actions.handleApiKeyChange,
     handleApiKeySubmit: actions.handleApiKeySubmit,
     handleCursorOffsetChange: actions.handleCursorOffsetChange,
-    apiKeyCleanedNotification: state.apiKeyCleanedNotification,
     isLoadingModels: state.isLoadingModels,
     modelLoadError: state.modelLoadError,
     providerBaseUrl: state.providerBaseUrl,
@@ -269,7 +258,6 @@ export function useModelSelectorController(
     codingReservedLines: menus.codingReservedLines,
     onCodingPlanOptionPress,
     onCodingPlanOptionWheel,
-    formatApiKeyDisplay: actions.formatApiKeyDisplay,
     getProviderLabel: menus.getProviderLabel,
   }
 }
