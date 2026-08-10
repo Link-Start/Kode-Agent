@@ -15,39 +15,27 @@ export function useRuntimeClient(args: {
   runtimeStatus: RuntimeStatus | null
   restartClient: () => void
 } {
-  const [nonce, setNonce] = React.useState(0)
-  const restartClient = React.useCallback(() => setNonce(n => n + 1), [])
+  const [clientGeneration, setClientGeneration] = React.useState(0)
+  const restartClient = React.useCallback(
+    () => setClientGeneration(generation => generation + 1),
+    [],
+  )
 
   const client = React.useMemo(() => {
+    // The generation is intentionally part of this factory so callers can
+    // discard a live transport and reconnect without changing credentials.
+    void clientGeneration
     if (!args.token) return null
     return new HttpClient({
       baseUrl: args.baseUrl,
       token: args.token,
       workspaceId: args.workspaceId ?? undefined,
     })
-  }, [args.baseUrl, args.token, args.workspaceId, nonce])
+  }, [args.baseUrl, args.token, args.workspaceId, clientGeneration])
 
   const [runtimeAttached, setRuntimeAttached] = React.useState(false)
   const [runtimeStatus, setRuntimeStatus] =
     React.useState<RuntimeStatus | null>(null)
-
-  const refreshRuntimeStatus = React.useCallback(async () => {
-    if (!client) {
-      setRuntimeStatus(null)
-      return
-    }
-    try {
-      setRuntimeStatus(await client.getRuntimeStatus())
-    } catch {
-      setRuntimeStatus({
-        ok: false,
-        transport: 'daemon',
-        pid: null,
-        version: null,
-        activeSessions: null,
-      })
-    }
-  }, [client])
 
   React.useEffect(() => {
     if (!client) {
@@ -68,12 +56,34 @@ export function useRuntimeClient(args: {
       setRuntimeStatus(null)
       return undefined
     }
-    void refreshRuntimeStatus()
-    const timer = setInterval(() => {
-      void refreshRuntimeStatus()
-    }, RUNTIME_STATUS_POLL_MS)
-    return () => clearInterval(timer)
-  }, [refreshRuntimeStatus])
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const poll = async () => {
+      let nextStatus: RuntimeStatus
+      try {
+        nextStatus = await client.getRuntimeStatus()
+      } catch {
+        nextStatus = {
+          ok: false,
+          transport: 'daemon',
+          pid: null,
+          version: null,
+          activeSessions: null,
+        }
+      }
+
+      if (cancelled) return
+      setRuntimeStatus(nextStatus)
+      timer = setTimeout(() => void poll(), RUNTIME_STATUS_POLL_MS)
+    }
+
+    void poll()
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [client])
 
   return { client, runtimeAttached, runtimeStatus, restartClient }
 }
