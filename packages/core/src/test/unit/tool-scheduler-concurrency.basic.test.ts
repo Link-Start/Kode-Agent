@@ -15,6 +15,20 @@ function deferred<T = void>() {
   return { promise, resolve, reject }
 }
 
+async function waitFor(
+  predicate: () => boolean,
+  label: string,
+  timeoutMs = 1_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Timed out waiting for ${label}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, 1))
+  }
+}
+
 function makeTool(options: {
   name: string
   inputSchema?: z.ZodTypeAny
@@ -114,7 +128,10 @@ describe('Tool scheduler (ToolUseQueue) parity', () => {
         return out
       })()
 
-      await new Promise(r => setTimeout(r, 0))
+      await waitFor(
+        () => started.length === 2,
+        'both concurrent tools to start',
+      )
       expect(new Set(started)).toEqual(new Set(['a', 'b']))
 
       gateA.resolve()
@@ -200,11 +217,14 @@ describe('Tool scheduler (ToolUseQueue) parity', () => {
         return out
       })()
 
-      await new Promise(r => setTimeout(r, 0))
+      await waitFor(() => started.includes('barrier'), 'barrier tool to start')
       expect(started).toEqual(['barrier'])
 
       barrierGate.resolve()
-      await new Promise(r => setTimeout(r, 0))
+      await waitFor(
+        () => started.includes('after'),
+        'tool after barrier to start',
+      )
       expect(new Set(started)).toEqual(new Set(['barrier', 'after']))
 
       afterGate.resolve()
@@ -276,10 +296,9 @@ describe('Tool scheduler (ToolUseQueue) parity', () => {
         return out
       })()
 
-      await new Promise(r => setTimeout(r, 0))
+      await waitFor(() => started.length === 2, 'both tools to start')
       expect(new Set(started)).toEqual(new Set(['fail', 'slow']))
 
-      await new Promise(r => setTimeout(r, 0))
       slowGate.resolve()
 
       const out = await consumePromise

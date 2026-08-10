@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import {
-  resetKodeAgentSessionIdForTests,
+  getKodeAgentSessionId,
   setKodeAgentSessionId,
 } from '#protocol/utils/kodeAgentSessionId'
+import { setSessionId } from '#core/utils/sessionId'
 
 import { loadSkillDirectoryCommandsFromBaseDir } from './discovery'
 
@@ -104,7 +105,10 @@ test('skills support frontmatter context/agent and expand ${CLAUDE_SESSION_ID}',
   )
 
   const sessionId = 'test-session-id'
-  setKodeAgentSessionId(sessionId)
+  const previousKodeAgentSessionId = getKodeAgentSessionId()
+  const previousKodeSessionId = process.env.KODE_SESSION_ID
+  const previousLegacySessionId = process.env.CLAUDE_CODE_SESSION_ID
+  setSessionId(sessionId)
 
   try {
     const commands = loadSkillDirectoryCommandsFromBaseDir(
@@ -123,6 +127,16 @@ test('skills support frontmatter context/agent and expand ${CLAUDE_SESSION_ID}',
     expect(text).toContain(`Session: ${sessionId}`)
     expect(text).not.toContain('${CLAUDE_SESSION_ID}')
   } finally {
-    resetKodeAgentSessionIdForTests()
+    if (previousKodeSessionId === undefined) {
+      delete process.env.KODE_SESSION_ID
+    } else {
+      process.env.KODE_SESSION_ID = previousKodeSessionId
+    }
+    if (previousLegacySessionId === undefined) {
+      delete process.env.CLAUDE_CODE_SESSION_ID
+    } else {
+      process.env.CLAUDE_CODE_SESSION_ID = previousLegacySessionId
+    }
+    setKodeAgentSessionId(previousKodeAgentSessionId)
   }
 })

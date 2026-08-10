@@ -2,39 +2,37 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import {
+  __persistErrorForTests,
+  __setErrorsPathForTests,
+  getErrorsLog,
+} from '#core/logging/log/errors'
 
 describe('error log jsonl parity', () => {
-  const originalKodeConfigDir = process.env.KODE_CONFIG_DIR
   let tempDir: string
+  let errorsPath: string
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'kode-errors-jsonl-'))
-    process.env.KODE_CONFIG_DIR = tempDir
+    errorsPath = join(tempDir, 'errors.jsonl')
+    __setErrorsPathForTests(errorsPath, 'ant')
   })
 
   afterEach(() => {
-    if (originalKodeConfigDir === undefined) {
-      delete process.env.KODE_CONFIG_DIR
-    } else {
-      process.env.KODE_CONFIG_DIR = originalKodeConfigDir
-    }
+    __setErrorsPathForTests(null)
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  test('logError appends newline-delimited JSON objects', async () => {
-    const { logError, getErrorsLog } = await import('#core/logging/log/errors')
-    const { getErrorsPath } = await import('#core/logging/log/paths')
+  test('error persistence appends newline-delimited JSON objects', () => {
+    expect(errorsPath.endsWith('.jsonl')).toBe(true)
+    expect(existsSync(errorsPath)).toBe(false)
 
-    const path = getErrorsPath()
-    expect(path.endsWith('.jsonl')).toBe(true)
-    expect(existsSync(path)).toBe(false)
+    __persistErrorForTests(new Error('boom'))
+    __persistErrorForTests('oops')
 
-    logError(new Error('boom'))
-    logError('oops')
+    expect(existsSync(errorsPath)).toBe(true)
 
-    expect(existsSync(path)).toBe(true)
-
-    const content = readFileSync(path, 'utf8')
+    const content = readFileSync(errorsPath, 'utf8')
     const lines = content.trim().split('\n')
     expect(lines.length).toBeGreaterThanOrEqual(2)
 
