@@ -28,7 +28,7 @@ import {
   renderBackgroundShellStatusAttachment,
   renderBashNotification,
 } from '#runtime/shell'
-import { getCwd } from '#core/utils/state'
+import { getCwd, getOriginalCwd } from '#core/utils/state'
 import { getEffectiveSessionId } from '#core/utils/sessionId'
 import {
   flushBackgroundAgentNotifications,
@@ -39,9 +39,14 @@ import {
   formatMemoryContext,
   getRelevantMemories,
 } from '#core/memory'
+import {
+  formatProjectLearningContext,
+  getRelevantProjectLearnings,
+} from '#core/projectLearning'
 import { evaluateActiveGoalAfterTurn, GoalService } from '#core/goals'
 import { checkAutoCompact } from '#core/utils/autoCompactCore'
 import { checkMicroCompact } from '#core/utils/microCompactCore'
+import { collectGoalVerificationEvidence } from './verification/evidence'
 import { asRecord } from '@kode/hooks/types'
 import {
   drainHookSystemPromptAdditions,
@@ -469,8 +474,22 @@ async function* messagePipelineCore(
         )
         if (memoryContext) fullSystemPrompt.push(memoryContext)
       } catch {
-        // Memory must never make a normal turn fail. Storage can be unavailable
-        // on read-only or transient environments.
+        // Long-term memory must never make a normal turn fail. Storage can be
+        // unavailable on read-only or transient environments.
+      }
+
+      try {
+        const learningContext = formatProjectLearningContext(
+          getRelevantProjectLearnings({
+            cwd: getOriginalCwd(),
+            query: latestUserPromptText,
+            limit: 4,
+          }),
+        )
+        if (learningContext) fullSystemPrompt.push(learningContext)
+      } catch {
+        // Project learning is independently best-effort: an unavailable
+        // learning store must not suppress regular durable memory either.
       }
     }
 
@@ -674,6 +693,7 @@ async function* messagePipelineCore(
           cwd: getCwd(),
           sessionId: getEffectiveSessionId(),
           assistantText: getAssistantTextForGoalEvaluation(assistantMessage),
+          verificationEvidence: collectGoalVerificationEvidence(messages),
           signal: toolUseContext.abortController.signal,
         })
 

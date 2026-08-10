@@ -1,5 +1,6 @@
 import type { ToolUseContext } from '@kode/tool-interface/Tool'
 import { getAbsolutePath } from '#core/utils/file'
+import { getCwd } from '#core/utils/state'
 import { extname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { readFile } from 'node:fs/promises'
@@ -14,6 +15,12 @@ import {
 import { listResolvedLspServers } from './lspConfig'
 import { LspServerManager } from './lspManager'
 import type { LspServerRunState } from './lspServer'
+import { runLspOperation } from './operations'
+import {
+  getOrCreateTsProject,
+  isFileTypeSupportedByTypescriptBackend,
+  tryLoadTypeScriptModule,
+} from './tsProject'
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object') return null
@@ -581,6 +588,65 @@ export async function ensureLspManagerInitialized(): Promise<LspServerManager | 
   return await getLspManager()
 }
 
+function noServerOutput(input: Input, absPath: string): Output {
+  return {
+    operation: input.operation,
+    result: `No LSP server available for file type: ${extname(absPath)}`,
+    filePath: input.filePath,
+  }
+}
+
+function runTypeScriptFallback(input: Input, absPath: string): Output | null {
+  if (!isFileTypeSupportedByTypescriptBackend(absPath)) return null
+
+  const state = getOrCreateTsProject(getCwd(), absPath)
+  if (!state) return null
+
+  try {
+    const program = state.languageService.getProgram?.()
+    const sourceFile = program?.getSourceFile(absPath)
+    if (!program || !sourceFile) {
+      return {
+        operation: input.operation,
+        result: 'TypeScript could not load this file into the local project.',
+        filePath: input.filePath,
+        resultCount: 0,
+        fileCount: 0,
+      }
+    }
+
+    const pos = sourceFile.getPositionOfLineAndCharacter(
+      input.line - 1,
+      input.character - 1,
+    )
+    const result = runLspOperation({
+      input,
+      absPath,
+      pos,
+      ts: state.ts,
+      program,
+      service: state.languageService,
+      sourceFile,
+    })
+    return {
+      operation: input.operation,
+      result: result.formatted,
+      filePath: input.filePath,
+      resultCount: result.resultCount,
+      fileCount: result.fileCount,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      operation: input.operation,
+      result: `Error performing ${input.operation} with local TypeScript analysis: ${message}`,
+      filePath: input.filePath,
+      resultCount: 0,
+      fileCount: 0,
+    }
+  }
+}
+
 export async function* callLspTool(
   input: Input,
   _context: ToolUseContext,
@@ -593,12 +659,8 @@ export async function* callLspTool(
 
   const manager = await getLspManager()
   if (!manager) {
-    const ext = extname(absPath)
-    const out: Output = {
-      operation: input.operation,
-      result: `No LSP server available for file type: ${ext}`,
-      filePath: input.filePath,
-    }
+    const out =
+      runTypeScriptFallback(input, absPath) ?? noServerOutput(input, absPath)
     yield { type: 'result', data: out, resultForAssistant: out.result }
     return
   }
@@ -612,12 +674,8 @@ export async function* callLspTool(
 
     const result = await manager.sendRequest(absPath, method, params)
     if (result === undefined) {
-      const ext = extname(absPath)
-      const out: Output = {
-        operation: input.operation,
-        result: `No LSP server available for file type: ${ext}`,
-        filePath: input.filePath,
-      }
+      const out =
+        runTypeScriptFallback(input, absPath) ?? noServerOutput(input, absPath)
       yield { type: 'result', data: out, resultForAssistant: out.result }
       return
     }

@@ -5,6 +5,10 @@ import { join } from 'node:path'
 
 import { __setLlmLazyQueryLLMLoaderForTests } from '#core/ai/llmLazy'
 import { rememberMemory } from '#core/memory'
+import {
+  getKodeAgentSessionId,
+  setKodeAgentSessionId,
+} from '#protocol/utils/kodeAgentSessionId'
 import { createAssistantMessage, createUserMessage } from '#core/utils/messages'
 import { setSessionId } from '#core/utils/sessionId'
 import { getCwd, setCwd } from '#core/utils/state'
@@ -12,14 +16,17 @@ import { getCwd, setCwd } from '#core/utils/state'
 describe('long-term memory system prompt integration', () => {
   const originalConfigDir = process.env.KODE_CONFIG_DIR
   const originalSessionId = process.env.KODE_SESSION_ID
+  const originalLegacySessionId = process.env.CLAUDE_CODE_SESSION_ID
   let configDir: string
   let projectDir: string
   let previousCwd: string
+  let previousKodeAgentSessionId: string
 
   beforeEach(async () => {
     configDir = mkdtempSync(join(tmpdir(), 'kode-memory-engine-config-'))
     projectDir = mkdtempSync(join(tmpdir(), 'kode-memory-engine-project-'))
     previousCwd = getCwd()
+    previousKodeAgentSessionId = getKodeAgentSessionId()
     process.env.KODE_CONFIG_DIR = configDir
     await setCwd(projectDir)
     setSessionId('0c403863-8d60-4a6a-a6f1-ca2f85f9a631')
@@ -32,6 +39,12 @@ describe('long-term memory system prompt integration', () => {
     else process.env.KODE_CONFIG_DIR = originalConfigDir
     if (originalSessionId === undefined) delete process.env.KODE_SESSION_ID
     else process.env.KODE_SESSION_ID = originalSessionId
+    if (originalLegacySessionId === undefined) {
+      delete process.env.CLAUDE_CODE_SESSION_ID
+    } else {
+      process.env.CLAUDE_CODE_SESSION_ID = originalLegacySessionId
+    }
+    setKodeAgentSessionId(previousKodeAgentSessionId)
     rmSync(configDir, { recursive: true, force: true })
     rmSync(projectDir, { recursive: true, force: true })
   })

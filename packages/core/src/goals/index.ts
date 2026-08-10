@@ -37,6 +37,7 @@ export {
   type GoalTurnEvaluation,
   type GoalTurnEvaluationResult,
   type GoalTurnEvaluator,
+  type GoalVerificationEvidence,
   type IntervalSchedule,
   type OnceSchedule,
   type RecoverInterruptedGoalsInput,

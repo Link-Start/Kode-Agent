@@ -12,6 +12,7 @@ import { extractSymbolAtPosition, toProjectRelativeIfPossible } from './format'
 import { summarizeToolResult } from './summary'
 import { callLspTool, ensureLspManagerInitialized } from './call'
 import { DESCRIPTION, PROMPT, TOOL_NAME_FOR_PROMPT } from './prompt'
+import { tryLoadTypeScriptModule } from './tsProject'
 
 export const inputSchema = z.strictObject({
   operation: z.enum(OPERATIONS).describe('The LSP operation to perform'),
@@ -65,10 +66,13 @@ export const LspTool = {
   },
   async isEnabled() {
     const manager = await ensureLspManagerInitialized()
-    if (!manager) return false
-    const servers = manager.getAllServers()
-    if (servers.size === 0) return false
-    return Array.from(servers.values()).some(s => s.state !== 'error')
+    if (manager) {
+      const servers = manager.getAllServers()
+      if (Array.from(servers.values()).some(s => s.state !== 'error')) {
+        return true
+      }
+    }
+    return tryLoadTypeScriptModule(getCwd()) !== null
   },
   isReadOnly() {
     return true

@@ -66,9 +66,10 @@ describe('microcompact (tool result offload)', () => {
     setOriginalCwd(projectDir)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     setMessagesSetter(() => {})
     resetKodeAgentSessionIdForTests()
+    await setCwd(runnerOriginalCwd)
     setOriginalCwd(runnerOriginalCwd)
     if (originalConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
     else process.env.KODE_CONFIG_DIR = originalConfigDir

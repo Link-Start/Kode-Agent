@@ -13,6 +13,14 @@ function isWhitespace(code: number): boolean {
   return code === 0x09 || code === 0x0a || code === 0x0d || code === 0x20
 }
 
+function getCwdForLogEntry(): string {
+  try {
+    return process.cwd()
+  } catch {
+    return 'cwd-unavailable'
+  }
+}
+
 function findJsonValueEnd(input: string, start: number): number | null {
   const first = input[start]
   if (!first) return null
@@ -169,8 +177,13 @@ export function readJsonLog(path: string): object[] {
   }
 }
 
-export function appendToJsonLog(path: string, message: object): void {
-  if (process.env.USER_TYPE === 'external') {
+export function appendToJsonLog(
+  path: string,
+  message: object,
+  options?: { userType?: string },
+): void {
+  const userType = options?.userType ?? process.env.USER_TYPE
+  if (userType === 'external') {
     return
   }
 
@@ -181,8 +194,8 @@ export function appendToJsonLog(path: string, message: object): void {
 
   const messageWithTimestamp = {
     ...message,
-    cwd: process.cwd(),
-    userType: process.env.USER_TYPE,
+    cwd: getCwdForLogEntry(),
+    userType,
     sessionId: getKodeAgentSessionId(),
     timestamp: new Date().toISOString(),
     version: MACRO.VERSION,

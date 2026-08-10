@@ -27,6 +27,12 @@ import {
   appendSessionSummaryRecord,
 } from '#protocol/utils/kodeAgentSessionLog'
 import { getCwd, getOriginalCwd } from '#core/utils/state'
+import {
+  hasSupportingToolEvidence,
+  PROJECT_LEARNING_COMPACTION_INSTRUCTIONS,
+  recordProjectLearningFromCompaction,
+} from '#core/projectLearning'
+import { getEffectiveSessionId } from '#core/utils/sessionId'
 
 const COMPRESSION_PROMPT = `Please provide a comprehensive summary of our conversation structured as follows:
 
@@ -54,7 +60,9 @@ Coding style, formatting, and organizational preferences. Communication patterns
 ## Key Decisions
 Important technical decisions made and their rationale. Alternative approaches considered and why they were rejected. Trade-offs accepted and their implications.
 
-Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.`
+Focus on information essential for continuing the conversation effectively, including specific details about code, files, errors, and plans.
+
+${PROJECT_LEARNING_COMPACTION_INSTRUCTIONS}`
 
 const compact = {
   type: 'local',
@@ -185,6 +193,20 @@ const compact = {
         })
       } catch {
         // best-effort only
+      }
+    }
+
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        recordProjectLearningFromCompaction({
+          cwd: getOriginalCwd(),
+          summary,
+          leafUuid: summaryResponse.uuid,
+          sessionId: getEffectiveSessionId(),
+          hasSupportingToolEvidence: hasSupportingToolEvidence(messages),
+        })
+      } catch {
+        // Learning and context snapshots are auxiliary and must not block /compact.
       }
     }
 

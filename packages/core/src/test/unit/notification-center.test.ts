@@ -1,10 +1,14 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import {
   addNotification,
   clearNotifications,
   getNotifications,
 } from '#core/services/notificationCenter'
+
+beforeEach(() => {
+  clearNotifications()
+})
 
 afterEach(() => {
   clearNotifications()

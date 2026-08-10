@@ -19,6 +19,14 @@ function getProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
+function getCwdForLogPath(): string {
+  try {
+    return process.cwd()
+  } catch {
+    return 'cwd-unavailable'
+  }
+}
+
 function getLegacyCacheRoot(): string {
   return process.env.KODE_LEGACY_CACHE_ROOT ?? paths.cache
 }
@@ -28,26 +36,27 @@ function getNewLogRoot(): string {
 }
 
 export const CACHE_PATHS = {
-  errors: () => join(getNewLogRoot(), getProjectDir(process.cwd()), 'errors'),
+  errors: () =>
+    join(getNewLogRoot(), getProjectDir(getCwdForLogPath()), 'errors'),
   messages: () =>
-    join(getNewLogRoot(), getProjectDir(process.cwd()), 'messages'),
+    join(getNewLogRoot(), getProjectDir(getCwdForLogPath()), 'messages'),
   mcpLogs: (serverName: string) =>
     join(
       getLegacyCacheRoot(),
-      getProjectDir(process.cwd()),
+      getProjectDir(getCwdForLogPath()),
       `mcp-logs-${serverName}`,
     ),
 }
 
 export const LEGACY_CACHE_PATHS = {
   errors: () =>
-    join(getLegacyCacheRoot(), getProjectDir(process.cwd()), 'errors'),
+    join(getLegacyCacheRoot(), getProjectDir(getCwdForLogPath()), 'errors'),
   messages: () =>
-    join(getLegacyCacheRoot(), getProjectDir(process.cwd()), 'messages'),
+    join(getLegacyCacheRoot(), getProjectDir(getCwdForLogPath()), 'messages'),
   mcpLogs: (serverName: string) =>
     join(
       getLegacyCacheRoot(),
-      getProjectDir(process.cwd()),
+      getProjectDir(getCwdForLogPath()),
       `mcp-logs-${serverName}`,
     ),
 }

@@ -8,13 +8,31 @@ import { CACHE_PATHS, DATE, getErrorsPath, getLegacyErrorsPath } from './paths'
 
 const IN_MEMORY_ERROR_LOG: Array<{ error: string; timestamp: string }> = []
 const MAX_IN_MEMORY_ERRORS = 100 // Limit to prevent memory issues
+let testErrorsPath: string | undefined
+let testErrorLogUserType: string | undefined
 
-export function logError(error: unknown): void {
-  try {
-    if (process.env.NODE_ENV === 'test') {
+function getCurrentErrorsPath(): string {
+  return testErrorsPath ?? getErrorsPath()
+}
+
+export function __setErrorsPathForTests(
+  path: string | null,
+  userType?: string,
+): void {
+  testErrorsPath = path ?? undefined
+  testErrorLogUserType = path === null ? undefined : userType
+}
+
+function persistError(error: unknown): void {
+  if (process.env.NODE_ENV === 'test') {
+    try {
       console.error(error)
+    } catch {
+      // Test diagnostics must never prevent durable local error logging.
     }
+  }
 
+  try {
     const errorStr =
       error instanceof Error ? error.stack || error.message : String(error)
 
@@ -28,17 +46,29 @@ export function logError(error: unknown): void {
     }
     IN_MEMORY_ERROR_LOG.push(errorInfo)
 
-    appendToJsonLog(getErrorsPath(), {
-      error: errorStr,
-    })
+    appendToJsonLog(
+      getCurrentErrorsPath(),
+      {
+        error: errorStr,
+      },
+      { userType: testErrorLogUserType },
+    )
   } catch {
     // pass
   }
 }
 
+export function logError(error: unknown): void {
+  persistError(error)
+}
+
+export function __persistErrorForTests(error: unknown): void {
+  persistError(error)
+}
+
 export function getErrorsLog(): object[] {
   return [
-    ...readJsonLog(getErrorsPath()),
+    ...readJsonLog(getCurrentErrorsPath()),
     ...readJsonLog(getLegacyErrorsPath()),
   ]
 }
