@@ -283,6 +283,7 @@ export function useChat(args: {
   events: AgentEvent[]
   permissionRequest: PermissionRequestEvent | null
   input: string
+  failedPrompt: string | null
   setInput: (v: string) => void
   insertPastedText: (args: {
     text: string
@@ -292,6 +293,7 @@ export function useChat(args: {
   sending: boolean
   send: () => Promise<void>
   cancel: () => void
+  restoreFailedPrompt: () => void
   startNewSession: () => void
   selectSession: (id: string) => Promise<void>
   clearPermissionRequest: () => void
@@ -306,6 +308,7 @@ export function useChat(args: {
   const [permissionRequest, setPermissionRequest] =
     React.useState<PermissionRequestEvent | null>(null)
   const [input, setInput] = React.useState('')
+  const [failedPrompt, setFailedPrompt] = React.useState<string | null>(null)
   const [sending, setSending] = React.useState(false)
   const inputRef = React.useRef('')
   const pastedTextCounterRef = React.useRef(1)
@@ -500,6 +503,7 @@ export function useChat(args: {
     setEvents([])
     setPermissionRequest(null)
     setSending(false)
+    setFailedPrompt(null)
     inputRef.current = ''
     pastedTextCounterRef.current = 1
     pastedTextSegmentsRef.current = []
@@ -528,6 +532,7 @@ export function useChat(args: {
     setEvents([])
     setPermissionRequest(null)
     setSending(false)
+    setFailedPrompt(null)
 
     void sessionClient.startSession().catch(error => {
       if (selectionEpochRef.current !== epoch) return
@@ -546,6 +551,7 @@ export function useChat(args: {
       setEvents([])
       setPermissionRequest(null)
       setSending(false)
+      setFailedPrompt(null)
 
       try {
         if (sessionClient) {
@@ -638,6 +644,7 @@ export function useChat(args: {
     setInput('')
     setSending(true)
     setPermissionRequest(null)
+    setFailedPrompt(null)
     activeRequestRef.current = activeRequest
 
     const receivesPersistentEvents = Boolean(sessionClient)
@@ -662,6 +669,10 @@ export function useChat(args: {
         )
         applyRequestStateUpdate(getRequestStateUpdate(ev))
 
+        if (ev.type === 'result' && ev.is_error) {
+          setFailedPrompt(text)
+        }
+
         if (receivesPersistentEvents) continue
         if (isPermissionRequest(ev)) {
           enqueueEvent(ev)
@@ -671,7 +682,10 @@ export function useChat(args: {
         enqueueEvent(ev)
       }
     } catch (error) {
-      if (isCurrentSelection()) enqueueEvent(createErrorLogEvent(error))
+      if (isCurrentSelection()) {
+        setFailedPrompt(text)
+        enqueueEvent(createErrorLogEvent(error))
+      }
     } finally {
       if (activeRequestRef.current?.clientMessageUuid === clientMessageUuid) {
         activeRequestRef.current = null
@@ -692,17 +706,27 @@ export function useChat(args: {
     sessionClient,
   ])
 
+  const restoreFailedPrompt = React.useCallback(() => {
+    if (sending || !failedPrompt) return
+    inputRef.current = failedPrompt
+    pastedTextSegmentsRef.current = []
+    setInput(failedPrompt)
+    setFailedPrompt(null)
+  }, [failedPrompt, sending])
+
   return {
     sessions,
     selectedSessionId,
     events,
     permissionRequest,
     input,
+    failedPrompt,
     setInput: setInputValue,
     insertPastedText,
     sending,
     send,
     cancel,
+    restoreFailedPrompt,
     startNewSession,
     selectSession,
     clearPermissionRequest,

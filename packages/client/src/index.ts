@@ -16,6 +16,10 @@ export type {
   GoalScheduleCreateRequest,
   AgentControlKodeClient,
   PermissionControlKodeClient,
+  RequestLifecycleEvent,
+  RequestLifecycleKodeClient,
+  RequestLifecyclePhase,
+  RequestLifecycleReason,
   ToolPermissionDecision,
   ToolPermissionInputUpdate,
 } from './types'

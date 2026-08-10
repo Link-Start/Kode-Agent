@@ -242,6 +242,8 @@ export default function App() {
                 onPasteText={chat.insertPastedText}
                 onSend={() => void chat.send()}
                 onCancel={chat.cancel}
+                failedPrompt={chat.failedPrompt}
+                onRestoreFailedPrompt={chat.restoreFailedPrompt}
                 disabled={!client}
                 sending={chat.sending}
                 permissionRequest={chat.permissionRequest}

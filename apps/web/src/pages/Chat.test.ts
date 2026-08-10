@@ -228,6 +228,8 @@ describe('ChatPage event normalization', () => {
         input: '',
         onInputChange: () => {},
         onSend: () => {},
+        failedPrompt: 'retry this request',
+        onRestoreFailedPrompt: () => {},
         runtimeAttached: true,
         permissionRequest: {
           type: 'permission_request',
@@ -254,6 +256,10 @@ describe('ChatPage event normalization', () => {
     expect(html).toContain('role="log"')
     expect(html).toContain('Permission pending')
     expect(html).toContain('daemon online')
+    expect(html).toContain(
+      'Request stopped. Restore the prompt to retry safely.',
+    )
+    expect(html).toContain('Restore prompt')
     expect(html).toContain('Enter')
     expect(html).toContain('/help')
     expect(__chatPageForTests.chatTerminalHints.map(hint => hint.key)).toEqual([

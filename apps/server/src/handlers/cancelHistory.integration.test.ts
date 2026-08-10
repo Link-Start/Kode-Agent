@@ -37,6 +37,42 @@ function historyView(messages: Message[]) {
 }
 
 describe('daemon cancellation history', () => {
+  test('turn deadline reports timeout, persists its terminal state, and clears the active controller', async () => {
+    const registry = new SessionRegistry()
+    const session = registry.create(process.cwd())
+    const events: Array<Record<string, unknown>> = []
+
+    await handleChatPrompt({
+      session,
+      prompt: 'slow turn',
+      echo: true,
+      echoDelayMs: 100,
+      requestTimeoutMs: 5,
+      commands: [] as never[],
+      tools: [] as never[],
+      toolNames: [] as never[],
+      slashCommands: [] as never[],
+      mcpClients: [] as never[],
+      persistSession: false,
+      wsSend(payload) {
+        events.push(payload as unknown as Record<string, unknown>)
+      },
+    })
+
+    expect(session.activeAbortController).toBeNull()
+    expect(historyView(session.messages)).toEqual([
+      { type: 'user', text: 'slow turn' },
+      {
+        type: 'assistant',
+        text: expect.stringContaining('Request timed out'),
+      },
+    ])
+    expect(events.find(event => event.type === 'result')).toMatchObject({
+      is_error: true,
+      result: expect.stringContaining('Request timed out'),
+    })
+  })
+
   test('keeps live and reloaded history identical after cancel and retry', async () => {
     const originalCwd = getCwd()
     const originalOriginalCwd = getOriginalCwd()

@@ -6,6 +6,7 @@ import { buildSystemPromptForSession, runTurn } from '@kode/engine'
 import { handleHashCommand } from '#core/utils/hashCommand'
 import { logError } from '#core/utils/log'
 import { debug as debugLogger } from '#core/utils/debugLogger'
+import { createAssistantMessage } from '#core/utils/messages'
 import { getToolPermissionContextForConversationKey } from '#core/utils/toolPermissionContextState'
 import type {
   AssistantMessage,
@@ -56,6 +57,10 @@ export function appendMessagesForReplState(
 
   return next ?? oldMessages
 }
+
+export const DEFAULT_REPL_TURN_TIMEOUT_MS = 15 * 60 * 1000
+const REPL_TURN_TIMEOUT_MESSAGE =
+  'Request timed out before the model or a tool completed. The turn was cancelled; check the provider or tool and retry.'
 
 export async function runReplQueryWithCleanup<T>(args: {
   controller: AbortController
@@ -152,6 +157,15 @@ export function useReplQuery(args: {
         clearAbortController,
         setIsLoading,
         execute: async () => {
+          let timedOut = false
+          const timeoutId = setTimeout(() => {
+            timedOut = true
+            try {
+              controllerToUse.abort()
+            } catch {
+              // AbortController abort is best-effort.
+            }
+          }, DEFAULT_REPL_TURN_TIMEOUT_MS)
           try {
             const shouldSuppressAppend =
               checkPendingForkAndSuppressAppend?.(newMessages) ?? false
@@ -245,6 +259,15 @@ export function useReplQuery(args: {
               }
             }
 
+            if (timedOut) {
+              setMessages(oldMessages =>
+                appendMessagesForReplState(oldMessages, [
+                  createAssistantMessage(REPL_TURN_TIMEOUT_MESSAGE),
+                ]),
+              )
+              return
+            }
+
             if (
               isKodingRequest &&
               lastAssistantMessage &&
@@ -270,8 +293,17 @@ export function useReplQuery(args: {
               }
             }
           } catch (error) {
+            if (timedOut) {
+              setMessages(oldMessages =>
+                appendMessagesForReplState(oldMessages, [
+                  createAssistantMessage(REPL_TURN_TIMEOUT_MESSAGE),
+                ]),
+              )
+            }
             logError(error)
             debugLogger.error('REPL_QUERY_ERROR', { error })
+          } finally {
+            clearTimeout(timeoutId)
           }
         },
       })

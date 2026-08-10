@@ -108,6 +108,7 @@ describe('HttpClient', () => {
       baseUrl: 'http://localhost:32123',
       token: 'token',
       webSocketImpl: FakeWebSocket,
+      maxReconnectAttempts: 0,
     })
 
     const iterator = client.sendMessage('hello')
@@ -130,6 +131,124 @@ describe('HttpClient', () => {
       'WebSocket connection closed before the response completed',
     )
     expect(client.isConnected()).toBe(false)
+  })
+
+  test('times out a stalled request, sends a correlated cancel, and releases the client', async () => {
+    FakeWebSocket.instances = []
+    const client = new HttpClient({
+      baseUrl: 'http://localhost:32123',
+      token: 'token',
+      webSocketImpl: FakeWebSocket,
+      responseStartTimeoutMs: 5,
+      responseIdleTimeoutMs: 100,
+      requestTimeoutMs: 100,
+      maxReconnectAttempts: 0,
+    })
+    const phases: string[] = []
+    const unsubscribe = client.subscribeRequestLifecycle(event => {
+      phases.push(event.phase)
+    })
+
+    const iterator = client.sendMessage('hello')
+    const first = iterator.next()
+    const ws = FakeWebSocket.instances[0]!
+    ws.open()
+    ws.message(initEvent('session'))
+
+    await expect(first).rejects.toThrow(
+      'Request timed out before the daemon began responding',
+    )
+    unsubscribe()
+
+    const sent = ws.sent.map(value => JSON.parse(value))
+    expect(sent[0]).toMatchObject({ type: 'prompt', prompt: 'hello' })
+    expect(sent[1]).toMatchObject({
+      type: 'cancel',
+      clientMessageUuid: sent[0]?.clientMessageUuid,
+    })
+    expect(phases).toEqual(
+      expect.arrayContaining([
+        'created',
+        'connecting',
+        'connected',
+        'streaming',
+        'timed_out',
+      ]),
+    )
+
+    const retry = client.sendMessage('retry')
+    const retryNext = retry.next()
+    ws.message({
+      type: 'result',
+      subtype: 'success',
+      result: 'retry ok',
+      num_turns: 1,
+      total_cost_usd: 0,
+      duration_ms: 1,
+      duration_api_ms: 0,
+      is_error: false,
+      session_id: 'session',
+      uuid: 'retry-result',
+    })
+    expect(await retryNext).toMatchObject({
+      done: false,
+      value: { type: 'result', result: 'retry ok' },
+    })
+  })
+
+  test('reconnects once with the same client message UUID after a transport interruption', async () => {
+    FakeWebSocket.instances = []
+    const client = new HttpClient({
+      baseUrl: 'http://localhost:32123',
+      token: 'token',
+      webSocketImpl: FakeWebSocket,
+      responseStartTimeoutMs: 100,
+      responseIdleTimeoutMs: 100,
+      requestTimeoutMs: 500,
+      reconnectBackoffMs: 1,
+      maxReconnectAttempts: 1,
+    })
+
+    const iterator = client.sendMessage('hello')
+    const first = iterator.next()
+    const firstSocket = FakeWebSocket.instances[0]!
+    firstSocket.open()
+    firstSocket.message(initEvent('session'))
+    await waitTick()
+    const firstPrompt = JSON.parse(firstSocket.sent[0] ?? '{}')
+    firstSocket.close()
+
+    await waitMs(5)
+    const retrySocket = FakeWebSocket.instances[1]!
+    expect(retrySocket).toBeDefined()
+    retrySocket.open()
+    retrySocket.message(initEvent('session'))
+    completeHistory(retrySocket, 'session')
+    await waitTick()
+
+    const retryPrompt = JSON.parse(retrySocket.sent[0] ?? '{}')
+    expect(retryPrompt).toMatchObject({
+      type: 'prompt',
+      prompt: 'hello',
+      clientMessageUuid: firstPrompt.clientMessageUuid,
+    })
+    retrySocket.message({
+      type: 'result',
+      subtype: 'success',
+      result: 'ok',
+      num_turns: 1,
+      total_cost_usd: 0,
+      duration_ms: 1,
+      duration_api_ms: 0,
+      is_error: false,
+      session_id: 'session',
+      uuid: 'reconnected-result',
+    })
+
+    expect(await first).toMatchObject({
+      done: false,
+      value: { type: 'result', result: 'ok' },
+    })
   })
 
   test('sendMessage still yields queued result before completing', async () => {

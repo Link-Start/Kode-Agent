@@ -55,6 +55,10 @@ import type {
   TaskOutputOptions,
   TaskQueryOptions,
   PermissionControlKodeClient,
+  RequestLifecycleEvent,
+  RequestLifecycleKodeClient,
+  RequestLifecyclePhase,
+  RequestLifecycleReason,
   ToolPermissionDecision,
   ToolPermissionInputUpdate,
 } from './types'
@@ -95,6 +99,60 @@ type DecodedDaemonEvent = {
 type RequestStreamFilter = {
   accepts: (event: CorrelatedAgentEvent) => boolean
   turnId: () => string | null
+}
+
+const DEFAULT_RESPONSE_START_TIMEOUT_MS = 90_000
+const DEFAULT_RESPONSE_IDLE_TIMEOUT_MS = 120_000
+const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 60_000
+const DEFAULT_RECONNECT_ATTEMPTS = 1
+const DEFAULT_RECONNECT_BACKOFF_MS = 250
+
+class RequestStreamFailure extends Error {
+  constructor(
+    readonly reason: RequestLifecycleReason,
+    readonly retryable: boolean,
+  ) {
+    super(
+      reason === 'connection_closed'
+        ? 'WebSocket connection closed before the response completed'
+        : reason === 'connection_error'
+          ? 'WebSocket connection error before the response completed'
+          : reason === 'connect_timeout'
+            ? 'WebSocket connection timed out'
+            : 'Request stream failed',
+    )
+    this.name = 'RequestStreamFailure'
+  }
+}
+
+class RequestTimeoutError extends Error {
+  constructor(readonly reason: RequestLifecycleReason) {
+    const message =
+      reason === 'first_response_timeout'
+        ? 'Request timed out before the daemon began responding. Cancellation was requested; you can retry.'
+        : reason === 'stream_idle_timeout'
+          ? 'Request stalled while waiting for model or tool output. Cancellation was requested; you can retry.'
+          : 'Request exceeded the maximum duration. Cancellation was requested; you can retry.'
+    super(message)
+    this.name = 'RequestTimeoutError'
+  }
+}
+
+function positiveTimeout(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : fallback
+}
+
+function boundedAttempts(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : fallback
+}
+
+function waitForDelay(delayMs: number): Promise<void> {
+  if (delayMs <= 0) return Promise.resolve()
+  return new Promise(resolve => setTimeout(resolve, delayMs))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -434,7 +492,8 @@ export class HttpClient
     TaskControlKodeClient,
     GoalScheduleControlKodeClient,
     PermissionControlKodeClient,
-    AgentControlKodeClient
+    AgentControlKodeClient,
+    RequestLifecycleKodeClient
 {
   private ws: WebSocketLike | null = null
   private desiredSessionId: string | null = null
@@ -448,6 +507,9 @@ export class HttpClient
   private activeRequest: {
     clientMessageUuid: string
     turnId: string | null
+    sessionId: string | null
+    attempt: number
+    startedAtMs: number
   } | null = null
   private readonly highestSequenceBySession = new Map<string, number>()
   private readonly correlatedSessions = new Set<string>()
@@ -455,6 +517,9 @@ export class HttpClient
     (event: CorrelatedAgentEvent) => void
   >()
   private readonly connectionListeners = new Set<ConnectionListener>()
+  private readonly requestLifecycleListeners = new Set<
+    (event: RequestLifecycleEvent) => void
+  >()
 
   constructor(
     private readonly options: {
@@ -465,6 +530,15 @@ export class HttpClient
       fetchImpl?: FetchLike
       connectTimeoutMs?: number
       historySyncTimeoutMs?: number
+      /** Maximum time to wait for any daemon event after a prompt is sent. */
+      responseStartTimeoutMs?: number
+      /** Maximum gap between correlated daemon events once a turn has started. */
+      responseIdleTimeoutMs?: number
+      /** Absolute deadline for one request, including a safe reconnect attempt. */
+      requestTimeoutMs?: number
+      /** Reconnects reuse clientMessageUuid, so the daemon cannot run a duplicate turn. */
+      maxReconnectAttempts?: number
+      reconnectBackoffMs?: number
     },
   ) {}
 
@@ -486,6 +560,39 @@ export class HttpClient
     this.eventListeners.add(listener)
     return () => {
       this.eventListeners.delete(listener)
+    }
+  }
+
+  subscribeRequestLifecycle(
+    listener: (event: RequestLifecycleEvent) => void,
+  ): () => void {
+    this.requestLifecycleListeners.add(listener)
+    return () => {
+      this.requestLifecycleListeners.delete(listener)
+    }
+  }
+
+  private transitionRequest(
+    phase: RequestLifecyclePhase,
+    reason?: RequestLifecycleReason,
+  ): void {
+    const request = this.activeRequest
+    if (!request) return
+    const event: RequestLifecycleEvent = {
+      clientMessageUuid: request.clientMessageUuid,
+      sessionId: request.sessionId,
+      attempt: request.attempt,
+      phase,
+      startedAtMs: request.startedAtMs,
+      occurredAtMs: Date.now(),
+      ...(reason ? { reason } : {}),
+    }
+    for (const listener of this.requestLifecycleListeners) {
+      try {
+        listener(event)
+      } catch {
+        // Observability consumers must never interrupt the active request.
+      }
     }
   }
 
@@ -843,8 +950,10 @@ export class HttpClient
   }
 
   cancelRequest(): void {
+    const hadActiveRequest = this.activeRequest !== null
     if (this.sendInFlight) {
       this.cancelRequested = true
+      if (hadActiveRequest) this.transitionRequest('cancelled', 'cancelled')
       if (!this.promptSent) {
         this.cancelPendingSend?.()
         return
@@ -1449,27 +1558,44 @@ export class HttpClient
     this.sendInFlight = true
     this.cancelRequested = false
     this.promptSent = false
-    this.activeRequest = { clientMessageUuid, turnId: null }
+    this.activeRequest = {
+      clientMessageUuid,
+      turnId: null,
+      sessionId: this.attachedSessionId ?? this.desiredSessionId,
+      attempt: 0,
+      startedAtMs: Date.now(),
+    }
     let cancelPendingSend: (() => void) | null = null
+    const responseStartTimeoutMs = positiveTimeout(
+      this.options.responseStartTimeoutMs,
+      DEFAULT_RESPONSE_START_TIMEOUT_MS,
+    )
+    const responseIdleTimeoutMs = positiveTimeout(
+      this.options.responseIdleTimeoutMs,
+      DEFAULT_RESPONSE_IDLE_TIMEOUT_MS,
+    )
+    const requestTimeoutMs = positiveTimeout(
+      this.options.requestTimeoutMs,
+      DEFAULT_REQUEST_TIMEOUT_MS,
+    )
+    const maxReconnectAttempts = boundedAttempts(
+      this.options.maxReconnectAttempts,
+      DEFAULT_RECONNECT_ATTEMPTS,
+    )
+    const reconnectBackoffMs = positiveTimeout(
+      this.options.reconnectBackoffMs,
+      DEFAULT_RECONNECT_BACKOFF_MS,
+    )
 
     try {
-      const cancelled = new Promise<'cancelled'>(resolve => {
-        cancelPendingSend = () => resolve('cancelled')
-        this.cancelPendingSend = cancelPendingSend
-      })
-      const connected = this.ensureConnected().then(() => 'connected' as const)
-      const connectionOutcome = await Promise.race([connected, cancelled])
-      if (connectionOutcome === 'cancelled') return
-      if (this.cancelPendingSend === cancelPendingSend) {
-        this.cancelPendingSend = null
-      }
-      if (this.cancelRequested) return
-      const ws = this.ws
-
       const queue: CorrelatedAgentEvent[] = []
       let resolveNext: (() => void) | null = null
       let done = false
       let streamError: Error | null = null
+      let receivedResponse = false
+      let activityTimer: ReturnType<typeof setTimeout> | null = null
+      let requestTimer: ReturnType<typeof setTimeout> | null = null
+      const deadlineWaiters = new Set<() => void>()
       const sessionId = this.attachedSessionId ?? this.desiredSessionId
       const requestFilter = createRequestStreamFilter({
         clientMessageUuid,
@@ -1493,59 +1619,190 @@ export class HttpClient
         r()
       }
 
+      const clearTimers = () => {
+        if (activityTimer) clearTimeout(activityTimer)
+        if (requestTimer) clearTimeout(requestTimer)
+        activityTimer = null
+        requestTimer = null
+      }
+
+      const failStream = (error: Error) => {
+        if (done) return
+        streamError = error
+        done = true
+        for (const resolve of deadlineWaiters) resolve()
+        deadlineWaiters.clear()
+        wake()
+      }
+
+      const scheduleActivityDeadline = () => {
+        if (activityTimer) clearTimeout(activityTimer)
+        const reason: RequestLifecycleReason = receivedResponse
+          ? 'stream_idle_timeout'
+          : 'first_response_timeout'
+        const timeoutMs = receivedResponse
+          ? responseIdleTimeoutMs
+          : responseStartTimeoutMs
+        activityTimer = setTimeout(
+          () => failStream(new RequestTimeoutError(reason)),
+          timeoutMs,
+        )
+      }
+
       const unsubscribe = this.subscribeEvents(event => {
         if (!requestFilter.accepts(event)) return
+        receivedResponse = true
+        scheduleActivityDeadline()
         queue.push(event)
 
         if (event.type === 'result') {
           done = true
+          if (!this.cancelRequested) this.transitionRequest('completed')
         }
 
         wake()
-      })
-
-      const failStream = (failureMessage: string) => {
-        if (done) return
-        streamError = new Error(failureMessage)
-        done = true
-        wake()
-      }
-      const unwatchFailure = this.watchSocketFailure({
-        ws,
-        onClose: () =>
-          failStream(
-            'WebSocket connection closed before the response completed',
-          ),
-        onError: () =>
-          failStream(
-            'WebSocket connection error before the response completed',
-          ),
       })
 
       try {
-        this.send({
-          type: 'prompt',
-          prompt: message,
-          clientMessageUuid,
-        })
-        this.promptSent = true
+        this.transitionRequest('created')
+        requestTimer = setTimeout(
+          () => failStream(new RequestTimeoutError('request_timeout')),
+          requestTimeoutMs,
+        )
 
-        while (!done || queue.length > 0) {
-          if (queue.length === 0) {
-            if (streamError) throw streamError
-            await new Promise<void>(resolve => {
-              resolveNext = resolve
+        for (let attempt = 0; attempt <= maxReconnectAttempts; attempt += 1) {
+          if (this.cancelRequested) return
+          if (this.activeRequest?.clientMessageUuid !== clientMessageUuid) {
+            return
+          }
+          this.activeRequest.attempt = attempt
+          this.transitionRequest('connecting')
+
+          const cancelled = new Promise<'cancelled'>(resolve => {
+            cancelPendingSend = () => resolve('cancelled')
+            this.cancelPendingSend = cancelPendingSend
+          })
+          let connectionFailureMessage = ''
+          const connected = this.ensureConnected()
+            .then(() => 'connected' as const)
+            .catch(error => {
+              connectionFailureMessage =
+                error instanceof Error ? error.message : String(error)
+              return 'failed' as const
             })
+          let resolveConnectionDeadline!: () => void
+          const connectionDeadline = new Promise<'deadline'>(resolve => {
+            resolveConnectionDeadline = () => resolve('deadline')
+          })
+          deadlineWaiters.add(resolveConnectionDeadline)
+          const connectionOutcome = await Promise.race([
+            connected,
+            cancelled,
+            connectionDeadline,
+          ])
+          deadlineWaiters.delete(resolveConnectionDeadline)
+          if (this.cancelPendingSend === cancelPendingSend) {
+            this.cancelPendingSend = null
+          }
+          if (connectionOutcome === 'cancelled' || this.cancelRequested) return
+
+          if (connectionOutcome === 'deadline') {
+            // `failStream` already recorded the precise timeout reason.
+          } else if (connectionOutcome === 'failed') {
+            const timedOut = connectionFailureMessage.includes('timeout')
+            streamError = new RequestStreamFailure(
+              timedOut ? 'connect_timeout' : 'connection_error',
+              true,
+            )
+          } else {
+            if (this.activeRequest?.clientMessageUuid !== clientMessageUuid) {
+              return
+            }
+            this.activeRequest.sessionId =
+              this.attachedSessionId ?? this.desiredSessionId
+            this.transitionRequest('connected')
+
+            const ws = this.ws
+            const unwatchFailure = this.watchSocketFailure({
+              ws,
+              onClose: () =>
+                failStream(new RequestStreamFailure('connection_closed', true)),
+              onError: () =>
+                failStream(new RequestStreamFailure('connection_error', true)),
+            })
+
+            try {
+              this.send({
+                type: 'prompt',
+                prompt: message,
+                clientMessageUuid,
+              })
+              this.promptSent = true
+              this.transitionRequest('streaming')
+              scheduleActivityDeadline()
+
+              while (!done || queue.length > 0) {
+                if (queue.length === 0) {
+                  if (streamError) throw streamError
+                  await new Promise<void>(resolve => {
+                    resolveNext = resolve
+                  })
+                  continue
+                }
+
+                const next = queue.shift()
+                if (next) yield next
+              }
+              if (streamError) throw streamError
+              return
+            } catch (error) {
+              streamError =
+                error instanceof Error ? error : new Error(String(error))
+            } finally {
+              unwatchFailure()
+            }
+          }
+
+          const failure = streamError
+          streamError = null
+          done = false
+          if (this.cancelRequested) return
+
+          if (failure instanceof RequestTimeoutError) {
+            this.transitionRequest('timed_out', failure.reason)
+            try {
+              this.send({
+                type: 'cancel',
+                ...(this.activeRequest?.turnId
+                  ? { turnId: this.activeRequest.turnId }
+                  : {}),
+                clientMessageUuid,
+              })
+            } catch {
+              // A disconnected daemon cannot receive a cancel frame. Its own
+              // deadline remains the authority; this client releases the UI.
+            }
+            throw failure
+          }
+
+          const retryable =
+            failure instanceof RequestStreamFailure && failure.retryable
+          if (retryable && attempt < maxReconnectAttempts) {
+            this.transitionRequest('retrying', failure.reason)
+            await waitForDelay(reconnectBackoffMs)
             continue
           }
 
-          const next = queue.shift()
-          if (next) yield next
+          const reason =
+            failure instanceof RequestStreamFailure
+              ? failure.reason
+              : 'connection_error'
+          this.transitionRequest('final_failed', reason)
+          throw failure ?? new Error('Request failed before completion')
         }
-        if (streamError) throw streamError
       } finally {
         unsubscribe()
-        unwatchFailure()
+        clearTimers()
       }
     } finally {
       if (this.cancelPendingSend === cancelPendingSend) {

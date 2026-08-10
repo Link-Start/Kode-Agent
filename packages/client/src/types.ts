@@ -36,6 +36,41 @@ export type SendMessageOptions = {
 }
 
 /**
+ * A privacy-safe, request-scoped transport lifecycle. It deliberately carries
+ * correlation identifiers and timing only: never prompt content, credentials,
+ * headers, or provider responses.
+ */
+export type RequestLifecyclePhase =
+  | 'created'
+  | 'connecting'
+  | 'connected'
+  | 'streaming'
+  | 'completed'
+  | 'timed_out'
+  | 'cancelled'
+  | 'retrying'
+  | 'final_failed'
+
+export type RequestLifecycleReason =
+  | 'connection_closed'
+  | 'connection_error'
+  | 'connect_timeout'
+  | 'first_response_timeout'
+  | 'stream_idle_timeout'
+  | 'request_timeout'
+  | 'cancelled'
+
+export type RequestLifecycleEvent = Readonly<{
+  clientMessageUuid: string
+  sessionId: string | null
+  attempt: number
+  phase: RequestLifecyclePhase
+  startedAtMs: number
+  occurredAtMs: number
+  reason?: RequestLifecycleReason
+}>
+
+/**
  * The client-facing form of a daemon event.
  *
  * Raw `AgentEvent` remains valid for direct/legacy transports. Daemon-backed
@@ -126,6 +161,13 @@ export interface KodeClient {
    * Disconnect the underlying transport.
    */
   disconnect(): void
+}
+
+/** Optional observability surface implemented by daemon-backed clients. */
+export interface RequestLifecycleKodeClient {
+  subscribeRequestLifecycle(
+    listener: (event: RequestLifecycleEvent) => void,
+  ): () => void
 }
 
 /**

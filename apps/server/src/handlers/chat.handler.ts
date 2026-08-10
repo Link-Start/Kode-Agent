@@ -37,6 +37,10 @@ import type { WrappedClient } from '@kode/core/mcp/client'
 
 type WsSend = (payload: AgentEvent) => void
 
+export const DEFAULT_DAEMON_TURN_TIMEOUT_MS = 15 * 60 * 1000
+const TURN_TIMEOUT_MESSAGE =
+  'Request timed out before the model or a tool completed. The turn was cancelled; check the provider or tool and retry.'
+
 type PermissionRequest = {
   type: 'permission_request'
   request_id: string
@@ -95,6 +99,8 @@ export async function handleChatPrompt(args: {
   slashCommands: string[]
   mcpClients: WrappedClient[]
   persistSession?: boolean
+  /** Testable override; production uses a bounded 15 minute turn deadline. */
+  requestTimeoutMs?: number
 }): Promise<void> {
   const {
     wsSend,
@@ -111,6 +117,21 @@ export async function handleChatPrompt(args: {
 
   const abortController = new AbortController()
   session.activeAbortController = abortController
+  const requestTimeoutMs =
+    args.requestTimeoutMs !== undefined &&
+    Number.isFinite(args.requestTimeoutMs) &&
+    args.requestTimeoutMs > 0
+      ? Math.floor(args.requestTimeoutMs)
+      : DEFAULT_DAEMON_TURN_TIMEOUT_MS
+  let timedOut = false
+  const timeoutId = setTimeout(() => {
+    timedOut = true
+    try {
+      abortController.abort()
+    } catch {
+      // AbortController abort is best-effort.
+    }
+  }, requestTimeoutMs)
 
   const startedAt = Date.now()
   const costBefore = getTotalCost()
@@ -189,11 +210,25 @@ export async function handleChatPrompt(args: {
     sendTerminalResult({ result: INTERRUPT_MESSAGE, isError: true })
   }
 
+  const sendTimedOutResult = () => {
+    if (userMessageRecorded && !cancellationMessageRecorded) {
+      recordAndSendMessage(createAssistantMessage(TURN_TIMEOUT_MESSAGE), {
+        persist: true,
+      })
+    }
+    sendTerminalResult({ result: TURN_TIMEOUT_MESSAGE, isError: true })
+  }
+
+  const sendAbortedResult = () => {
+    if (timedOut) sendTimedOutResult()
+    else sendCancelledResult()
+  }
+
   try {
     setOriginalCwd(session.cwd)
     await setCwd(session.cwd)
     if (abortController.signal.aborted) {
-      sendCancelledResult()
+      sendAbortedResult()
       return
     }
     grantReadPermissionForOriginalDir()
@@ -218,7 +253,7 @@ export async function handleChatPrompt(args: {
 
       await waitForDelayOrAbort(echoDelayMs, abortController.signal)
       if (abortController.signal.aborted) {
-        sendCancelledResult()
+        sendAbortedResult()
         return
       }
 
@@ -346,7 +381,7 @@ export async function handleChatPrompt(args: {
       buildSystemPromptForSession({ disableSlashCommands: false }),
     ])
     if (abortController.signal.aborted) {
-      sendCancelledResult()
+      sendAbortedResult()
       return
     }
 
@@ -410,7 +445,7 @@ export async function handleChatPrompt(args: {
     }
 
     if (abortController.signal.aborted) {
-      sendCancelledResult()
+      sendAbortedResult()
       return
     }
 
@@ -432,7 +467,7 @@ export async function handleChatPrompt(args: {
       abortController.abort()
     } catch {}
     if (wasCancelled) {
-      sendCancelledResult()
+      sendAbortedResult()
     } else {
       sendTerminalResult({
         result: err instanceof Error ? err.message : String(err),
@@ -441,6 +476,7 @@ export async function handleChatPrompt(args: {
       })
     }
   } finally {
+    clearTimeout(timeoutId)
     if (session.activeAbortController === abortController) {
       session.activeAbortController = null
     }

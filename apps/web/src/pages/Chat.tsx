@@ -295,6 +295,8 @@ export function ChatPage(props: {
   }) => { cursorOffset: number } | null
   onSend: () => void
   onCancel?: () => void
+  failedPrompt?: string | null
+  onRestoreFailedPrompt?: () => void
   disabled?: boolean
   sending?: boolean
   permissionRequest?: PermissionRequestEvent | null
@@ -451,6 +453,22 @@ export function ChatPage(props: {
       runtimeAttached={props.runtimeAttached}
       footer={
         <div className="mx-auto w-full max-w-6xl">
+          {props.failedPrompt && props.onRestoreFailedPrompt ? (
+            <div
+              className="mb-2 flex items-center justify-between gap-3 border border-amber-500/35 bg-amber-500/10 px-3 py-2 font-mono text-xs text-[hsl(var(--kode-terminal-text))]"
+              role="status"
+            >
+              <span>Request stopped. Restore the prompt to retry safely.</span>
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0 font-mono text-xs"
+                onClick={props.onRestoreFailedPrompt}
+              >
+                Restore prompt
+              </Button>
+            </div>
+          ) : null}
           <InputArea
             value={props.input}
             onChange={handlePromptChange}
