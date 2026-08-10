@@ -60,7 +60,10 @@ async function createCompletedLegacyReasoningOnlyMessage(): Promise<AssistantMes
   return { ...base, message } as AssistantMessage
 }
 
-function createToolUseContext(maxTurns?: number) {
+function createToolUseContext(
+  maxTurns?: number,
+  tools: Array<{ name: string }> = [],
+) {
   return {
     abortController: new AbortController(),
     messageId: undefined,
@@ -71,7 +74,7 @@ function createToolUseContext(maxTurns?: number) {
       commands: [],
       forkNumber: 0,
       messageLogName: 'unused',
-      tools: [],
+      tools,
       verbose: false,
       safeMode: false,
       maxThinkingTokens: 0,
@@ -200,5 +203,77 @@ describe('messagePipeline thinking-only recovery', () => {
     expect(assistantMessages[0]?.message.content[0]?.text).toBe(
       'Recovered final response.',
     )
+  })
+
+  test('retries an explicit project inspection once and fails closed if no tool is requested', async () => {
+    const calls: Array<{ messages: Message[]; systemPrompt: string[] }> = []
+    queryLLM.mockClear()
+    queryLLMImplementation = async (messages, systemPrompt) => {
+      calls.push({ messages, systemPrompt })
+      return createAssistantMessage('I can inspect the project for you.')
+    }
+
+    const { messagePipeline } = await import('@kode/engine/message-pipeline')
+    const out: Message[] = []
+    for await (const message of messagePipeline(
+      [createUserMessage('查看项目代码')],
+      [],
+      {},
+      (async () => ({ result: true })) as any,
+      createToolUseContext(2, [{ name: 'Read' }]),
+    )) {
+      out.push(message)
+    }
+
+    const assistantMessages = out.filter(
+      (message): message is AssistantMessage => message.type === 'assistant',
+    )
+    expect(queryLLM).toHaveBeenCalledTimes(2)
+    expect(calls[0]!.systemPrompt.join('\n')).toContain(
+      '<tool_use_requirement>',
+    )
+    expect(calls[1]!.messages).toHaveLength(1)
+    const recoveryMessage = calls[1]!.messages[0]
+    expect(recoveryMessage?.type).toBe('user')
+    if (!recoveryMessage || recoveryMessage.type !== 'user') {
+      throw new Error('tool-use recovery must remain a user message')
+    }
+    expect(JSON.stringify(recoveryMessage.message.content)).toContain(
+      '<tool_use_recovery>',
+    )
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0]?.isApiErrorMessage).toBe(true)
+    expect(assistantMessages[0]?.message.content[0]?.text).toContain(
+      'was not executed',
+    )
+  })
+
+  test('does not add a tool-use retry for a negated inspection request', async () => {
+    const calls: Array<{ messages: Message[]; systemPrompt: string[] }> = []
+    queryLLM.mockClear()
+    queryLLMImplementation = async (messages, systemPrompt) => {
+      calls.push({ messages, systemPrompt })
+      return createAssistantMessage(
+        'A unit test validates one unit of behavior.',
+      )
+    }
+
+    const { messagePipeline } = await import('@kode/engine/message-pipeline')
+    const out: Message[] = []
+    for await (const message of messagePipeline(
+      [createUserMessage('不要查看项目代码，只解释什么是单元测试。')],
+      [],
+      {},
+      (async () => ({ result: true })) as any,
+      createToolUseContext(2, [{ name: 'Read' }]),
+    )) {
+      out.push(message)
+    }
+
+    expect(queryLLM).toHaveBeenCalledTimes(1)
+    expect(calls[0]!.systemPrompt.join('\n')).not.toContain(
+      '<tool_use_requirement>',
+    )
+    expect(out.filter(message => message.type === 'assistant')).toHaveLength(1)
   })
 })

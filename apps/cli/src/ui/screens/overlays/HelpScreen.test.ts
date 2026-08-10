@@ -28,9 +28,11 @@ describe('HelpScreen helpers', () => {
     const lines = __buildHelpLinesForTests([command])
 
     expect(lines).toContain(
-      '- /deploy <environment> — Deploy the current project (aliases: /ship)',
+      '- /deploy <environment> [Other] — Deploy the current project (aliases: /ship)',
     )
-    expect(lines).toContain('- / + Tab: Accept command completion')
+    expect(lines).toContain(
+      '- /: Browse common commands; type to narrow, Tab accepts',
+    )
   })
 
   it('surfaces the primary command effects and platform shortcut labels', () => {

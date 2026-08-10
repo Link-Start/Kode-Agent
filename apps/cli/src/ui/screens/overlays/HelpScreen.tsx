@@ -4,6 +4,10 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import figures from 'figures'
 import type { Command } from '#cli-commands'
+import {
+  compareCommandsForDiscovery,
+  getCommandCategory,
+} from '#cli-commands/catalog'
 import { isPrimaryCommandName } from '#cli-commands/discovery'
 import { PRODUCT_COMMAND, PRODUCT_NAME } from '#core/constants/product'
 import { CACHE_PATHS, DATE } from '#core/logging/log/paths'
@@ -72,10 +76,11 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   // Keep the default help list focused on primary commands; full catalog stays
   // available via command search / palette.
   const primaryBuiltIns = builtInCommands.filter(cmd =>
-    isPrimaryCommandName(cmd.name),
+    isPrimaryCommandName(cmd.userFacingName()),
   )
   const commandsForHelp =
     primaryBuiltIns.length > 0 ? primaryBuiltIns : builtInCommands
+  commandsForHelp.sort(compareCommandsForDiscovery)
 
   const dirs = getCustomCommandDirectories()
 
@@ -121,7 +126,7 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push('- Ctrl+_: Undo')
   lines.push('- Double Esc: Clear input')
   lines.push(`- ${modeCycleShortcut.displayText}: Cycle permission mode`)
-  lines.push('- / + Tab: Accept command completion')
+  lines.push('- /: Browse common commands; type to narrow, Tab accepts')
   lines.push('- Down Arrow (empty input): Tasks (when available)')
   lines.push('')
 
@@ -143,8 +148,9 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push('Commands')
   for (const cmd of commandsForHelp) {
     const argumentHint = cmd.argumentHint ? ` ${cmd.argumentHint}` : ''
+    const category = getCommandCategory(cmd)
     lines.push(
-      `- /${cmd.userFacingName()}${argumentHint} — ${cmd.description}${formatCommandAliases(cmd)}`,
+      `- /${cmd.userFacingName()}${argumentHint} [${category.shortLabel}] — ${cmd.description}${formatCommandAliases(cmd)}`,
     )
   }
   if (commandsForHelp.length < builtInCommands.length) {
