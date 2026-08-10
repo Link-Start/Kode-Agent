@@ -83,7 +83,16 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
           )
         }
         if (typeof functionDelta.arguments === 'string') {
-          state.arguments += functionDelta.arguments
+          const deltaArguments = functionDelta.arguments
+          if (
+            deltaArguments &&
+            state.arguments !== deltaArguments &&
+            !state.arguments.endsWith(deltaArguments)
+          ) {
+            state.arguments += deltaArguments
+          } else if (!state.arguments && deltaArguments) {
+            state.arguments = deltaArguments
+          }
         }
       }
 

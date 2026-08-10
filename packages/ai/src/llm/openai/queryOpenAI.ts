@@ -143,6 +143,9 @@ export async function queryOpenAI(
   } else {
     model = options?.model || modelProfile?.modelName || ''
   }
+  // Trim model names so snapshot metadata from older configs (e.g. a leading
+  // space) can never reach the provider as an invalid model identifier.
+  model = model.trim()
   // Prepend system prompt block for easy API identification
   if (options?.prependCLISysprompt) {
     const prefix = options.cliSyspromptPrefix ?? CLI_SYSPROMPT_PREFIX

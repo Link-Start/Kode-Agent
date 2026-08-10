@@ -1,0 +1,141 @@
+import { describe, expect, test } from 'bun:test'
+import { handleMessageStream } from '#core/ai/llm/openai/stream'
+
+function rawChunk(choice: Record<string, unknown>) {
+  return {
+    id: 'chatcmpl_test',
+    model: 'mimo-v2.5-pro',
+    created: 1,
+    object: 'chat.completion.chunk',
+    choices: [{ index: 0, finish_reason: null as string | null, ...choice }],
+  }
+}
+
+function chunk(delta: Record<string, unknown>) {
+  return rawChunk({ delta })
+}
+
+describe('OpenAI stream snapshot-field deduplication', () => {
+  test('does not concatenate repeated snapshot metadata (type/id/role)', async () => {
+    const repeated: unknown[] = []
+    for (let i = 0; i < 10_000; i += 1) {
+      repeated.push(
+        chunk({
+          type: 'function',
+          id: 'call_abc123',
+          role: 'assistant',
+        }),
+      )
+    }
+    repeated.push(
+      chunk({
+        type: 'function',
+        content: 'hello',
+      }),
+    )
+
+    async function* stream() {
+      for (const item of repeated) yield item
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const message = result.choices[0]!.message as Record<string, unknown>
+    expect(message.type).toBe('function')
+    expect(message.id).toBe('call_abc123')
+    expect(message.role).toBe('assistant')
+    expect(message.content).toBe('hello')
+  })
+
+  test('does not quadratically accumulate repeated full content deltas', async () => {
+    const repeated: unknown[] = []
+    const fullText = 'x'.repeat(1000)
+    // Provider repeats the full accumulated content every chunk.
+    for (let i = 0; i < 100; i += 1) {
+      repeated.push(chunk({ content: fullText }))
+    }
+
+    async function* stream() {
+      for (const item of repeated) yield item
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const message = result.choices[0]!.message as { content: string }
+    // endsWith check keeps a single copy instead of 100 concatenations.
+    expect(message.content.length).toBe(1000)
+  })
+
+  test('deduplicates repeated tool-call arguments (full-repeat provider)', async () => {
+    const args = JSON.stringify({ command: 'ls -la', path: '/tmp' })
+    const repeated: unknown[] = []
+    for (let i = 0; i < 500; i += 1) {
+      repeated.push(
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call_xyz',
+              type: 'function',
+              function: {
+                name: 'Bash',
+                arguments: args,
+              },
+            },
+          ],
+        }),
+      )
+    }
+
+    async function* stream() {
+      for (const item of repeated) yield item
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const toolCalls = result.choices[0]!.message.tool_calls as Array<{
+      function: { arguments: string }
+    }>
+    expect(toolCalls).toHaveLength(1)
+    expect(toolCalls[0]!.function.arguments.length).toBe(args.length)
+  })
+
+  test('still accumulates genuine incremental content deltas', async () => {
+    async function* stream() {
+      yield chunk({ content: 'Hel' })
+      yield chunk({ content: 'lo, ' })
+      yield chunk({ content: 'world' })
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const message = result.choices[0]!.message as { content: string }
+    expect(message.content).toBe('Hello, world')
+  })
+
+  test('still accumulates genuine incremental tool arguments', async () => {
+    async function* stream() {
+      yield chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'Bash', arguments: '{"com' },
+          },
+        ],
+      })
+      yield chunk({
+        tool_calls: [
+          {
+            index: 0,
+            type: 'function',
+            function: { arguments: 'mand":"ls"}' },
+          },
+        ],
+      })
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const toolCalls = result.choices[0]!.message.tool_calls as Array<{
+      function: { arguments: string }
+    }>
+    expect(toolCalls[0]!.function.arguments).toBe('{"command":"ls"}')
+  })
+})

@@ -94,7 +94,19 @@ function mergeToolCallDelta(
         typeof mergedFunction.arguments === 'string'
           ? mergedFunction.arguments
           : ''
-      mergedFunction.arguments = previousArguments + delta.function.arguments
+      const deltaArguments = delta.function.arguments
+      if (
+        !previousArguments ||
+        previousArguments === deltaArguments ||
+        previousArguments.endsWith(deltaArguments)
+      ) {
+        // Some providers repeat the full accumulated arguments (or the last
+        // chunk) instead of sending pure increments. Overwrite/keep instead
+        // of concatenating so arguments cannot grow without bound.
+        mergedFunction.arguments = deltaArguments || previousArguments
+      } else {
+        mergedFunction.arguments = previousArguments + deltaArguments
+      }
     }
   }
 
@@ -104,6 +116,19 @@ function mergeToolCallDelta(
 
   return merged
 }
+
+const SNAPSHOT_STRING_FIELDS = new Set([
+  'type',
+  'id',
+  'role',
+  'model',
+  'object',
+  'finish_reason',
+  'stop_reason',
+  'stop_sequence',
+  'service_tier',
+  'status',
+])
 
 function messageReducer(
   previous: OpenAI.ChatCompletionMessage,
@@ -152,6 +177,19 @@ function messageReducer(
           }
         }
       } else if (typeof acc[key] === 'string' && typeof value === 'string') {
+        if (SNAPSHOT_STRING_FIELDS.has(key)) {
+          // Some OpenAI-compatible providers (e.g. mimo) repeat snapshot
+          // metadata (type/id/role) with every delta chunk. These fields are
+          // idempotent snapshots, not streamed text: overwrite instead of
+          // concatenating so the accumulated string cannot grow unbounded.
+          acc[key] = value
+          continue
+        }
+        if (!value || acc[key] === value || acc[key].endsWith(value)) {
+          // Providers may repeat trailing text with each delta; skip the
+          // duplicate so streamed content cannot accumulate quadratically.
+          continue
+        }
         acc[key] += value
       } else if (typeof acc[key] === 'number' && typeof value === 'number') {
         acc[key] = value
