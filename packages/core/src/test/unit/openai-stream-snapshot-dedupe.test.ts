@@ -39,7 +39,10 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     }
 
     const result = await handleMessageStream(stream() as any)
-    const message = result.choices[0]!.message as Record<string, unknown>
+    const message = result.choices[0]!.message as unknown as Record<
+      string,
+      unknown
+    >
     expect(message.type).toBe('function')
     expect(message.id).toBe('call_abc123')
     expect(message.role).toBe('assistant')
