@@ -64,6 +64,31 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     expect(message.content.length).toBe(1000)
   })
 
+  test('accepts growing full-content snapshots and only forwards new text', async () => {
+    const updates: Array<{ type: string; delta?: string }> = []
+
+    async function* stream() {
+      yield chunk({ content: 'Hel' })
+      yield chunk({ content: 'Hello' })
+      yield chunk({ content: 'Hello, world' })
+    }
+
+    const result = await handleMessageStream(stream() as any, undefined, {
+      onAssistantStreamUpdate: event => {
+        updates.push(event)
+      },
+    })
+    const message = result.choices[0]!.message as { content: string }
+
+    expect(message.content).toBe('Hello, world')
+    expect(updates).toEqual([
+      { type: 'start' },
+      { type: 'text_delta', delta: 'Hel' },
+      { type: 'text_delta', delta: 'lo' },
+      { type: 'text_delta', delta: ', world' },
+    ])
+  })
+
   test('deduplicates repeated tool-call arguments (full-repeat provider)', async () => {
     const args = JSON.stringify({ command: 'ls -la', path: '/tmp' })
     const repeated: unknown[] = []
@@ -95,6 +120,36 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     }>
     expect(toolCalls).toHaveLength(1)
     expect(toolCalls[0]!.function.arguments.length).toBe(args.length)
+  })
+
+  test('accepts growing full tool-argument snapshots', async () => {
+    async function* stream() {
+      yield chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call_xyz',
+            type: 'function',
+            function: { name: 'Bash', arguments: '{"command":"' },
+          },
+        ],
+      })
+      yield chunk({
+        tool_calls: [
+          {
+            index: 0,
+            type: 'function',
+            function: { arguments: '{"command":"pwd"}' },
+          },
+        ],
+      })
+    }
+
+    const result = await handleMessageStream(stream() as any)
+    const toolCalls = result.choices[0]!.message.tool_calls as Array<{
+      function: { arguments: string }
+    }>
+    expect(toolCalls[0]!.function.arguments).toBe('{"command":"pwd"}')
   })
 
   test('still accumulates genuine incremental content deltas', async () => {
