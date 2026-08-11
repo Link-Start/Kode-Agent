@@ -476,9 +476,8 @@ async function httpErrorMessage(
     const text = await response.text()
     const json = safeJsonParse(text)
     if (isRecord(json) && typeof json.error === 'string' && json.error.trim()) {
-      return `${fallback}: ${json.error.trim()}`
+      return `${fallback}: ${json.error.trim().slice(0, 200)}`
     }
-    if (text.trim()) return `${fallback}: ${text.trim().slice(0, 200)}`
   } catch {
     // Fall through to status-only message.
   }
@@ -949,6 +948,13 @@ export class HttpClient
     return url
   }
 
+  private async throwHttpError(
+    response: Response,
+    fallback: string,
+  ): Promise<never> {
+    throw new Error(await httpErrorMessage(response, fallback))
+  }
+
   cancelRequest(): void {
     const hadActiveRequest = this.activeRequest !== null
     if (this.sendInFlight) {
@@ -1011,7 +1017,10 @@ export class HttpClient
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to list sessions (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to list sessions (${response.status})`,
+      )
     }
 
     const json: unknown = await response.json()
@@ -1031,7 +1040,10 @@ export class HttpClient
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to read runtime status (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to read runtime status (${response.status})`,
+      )
     }
 
     const json: unknown = await response.json()
@@ -1051,7 +1063,10 @@ export class HttpClient
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to load session (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to load session (${response.status})`,
+      )
     }
 
     const json: unknown = await response.json()
@@ -1084,7 +1099,10 @@ export class HttpClient
       },
     })
     if (!response.ok) {
-      throw new Error(`Failed to delete session (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to delete session (${response.status})`,
+      )
     }
   }
 
@@ -1108,7 +1126,10 @@ export class HttpClient
       body: JSON.stringify(update),
     })
     if (!response.ok) {
-      throw new Error(`Failed to update session (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to update session (${response.status})`,
+      )
     }
     const json: unknown = await response.json()
     if (!isRecord(json) || !isSession(json.session)) {
@@ -1140,7 +1161,10 @@ export class HttpClient
       body: JSON.stringify(options),
     })
     if (!response.ok) {
-      throw new Error(`Failed to fork session (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to fork session (${response.status})`,
+      )
     }
     const json: unknown = await response.json()
     if (!isRecord(json) || !isSession(json.session)) {
@@ -1156,7 +1180,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to list tasks (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to list tasks (${response.status})`,
+      )
     }
     const parsed = DaemonTaskListResponseSchema.safeParse(await response.json())
     if (!parsed.success) throw new Error('Invalid tasks response')
@@ -1293,7 +1320,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to load task (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to load task (${response.status})`,
+      )
     }
     const parsed = DaemonTaskDetailResponseSchema.safeParse(
       await response.json(),
@@ -1327,7 +1357,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to read task output (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to read task output (${response.status})`,
+      )
     }
     const parsed = DaemonTaskOutputResponseSchema.safeParse(
       await response.json(),
@@ -1351,7 +1384,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to cancel task (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to cancel task (${response.status})`,
+      )
     }
     const parsed = DaemonTaskCancelResponseSchema.safeParse(
       await response.json(),
@@ -1369,7 +1405,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to read permissions (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to read permissions (${response.status})`,
+      )
     }
     const parsed = DaemonPermissionSnapshotResponseSchema.safeParse(
       await response.json(),
@@ -1402,7 +1441,10 @@ export class HttpClient
       }),
     })
     if (!response.ok) {
-      throw new Error(`Failed to update permissions (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to update permissions (${response.status})`,
+      )
     }
     const parsed = DaemonPermissionUpdateResponseSchema.safeParse(
       await response.json(),
@@ -1416,7 +1458,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to list agents (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to list agents (${response.status})`,
+      )
     }
     const parsed = DaemonAgentListResponseSchema.safeParse(
       await response.json(),
@@ -1444,7 +1489,10 @@ export class HttpClient
       headers: { authorization: `Bearer ${this.options.token}` },
     })
     if (!response.ok) {
-      throw new Error(`Failed to load agent (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to load agent (${response.status})`,
+      )
     }
     const parsed = DaemonAgentDetailResponseSchema.safeParse(
       await response.json(),
@@ -1467,7 +1515,10 @@ export class HttpClient
       body: JSON.stringify(parsedRequest.data),
     })
     if (!response.ok) {
-      throw new Error(`Failed to create agent (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to create agent (${response.status})`,
+      )
     }
     const parsed = DaemonAgentMutationResponseSchema.safeParse(
       await response.json(),
@@ -1503,7 +1554,10 @@ export class HttpClient
       },
     )
     if (!response.ok) {
-      throw new Error(`Failed to update agent (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to update agent (${response.status})`,
+      )
     }
     const parsed = DaemonAgentMutationResponseSchema.safeParse(
       await response.json(),
@@ -1534,7 +1588,10 @@ export class HttpClient
       },
     )
     if (!response.ok) {
-      throw new Error(`Failed to delete agent (${response.status})`)
+      return this.throwHttpError(
+        response,
+        `Failed to delete agent (${response.status})`,
+      )
     }
     const parsed = DaemonAgentDeleteResponseSchema.safeParse(
       await response.json(),
