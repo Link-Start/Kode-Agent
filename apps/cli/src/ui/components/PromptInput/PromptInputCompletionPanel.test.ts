@@ -7,6 +7,7 @@ import stripAnsi from 'strip-ansi'
 import { getTheme } from '#core/utils/theme'
 import {
   __areSuggestionItemPropsEqualForTests,
+  __areHelpTextPropsEqualForTests,
   __getSuggestionWindowForTests,
   PromptInputCompletionPanel,
 } from './PromptInputCompletionPanel'
@@ -88,6 +89,27 @@ describe('__getSuggestionWindowForTests', () => {
       __areSuggestionItemPropsEqualForTests(props, {
         ...props,
         theme: { ...theme, suggestion: '#ff0000' },
+      }),
+    ).toBe(false)
+  })
+
+  it('refreshes completion help when a suggestion changes type', () => {
+    const theme = getTheme()
+    const props = {
+      emptyDirMessage: '',
+      selectedSuggestion: {
+        type: 'command',
+        value: '/help',
+        displayValue: '/help',
+      },
+      maxWidth: 80,
+      theme,
+    }
+
+    expect(
+      __areHelpTextPropsEqualForTests(props, {
+        ...props,
+        selectedSuggestion: { ...props.selectedSuggestion, type: 'agent' },
       }),
     ).toBe(false)
   })
