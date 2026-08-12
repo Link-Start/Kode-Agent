@@ -9,6 +9,23 @@ import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 const harnessManager = createInkHarnessManager()
 let selectFile: ((value: string) => void) | null = null
 
+async function waitFor(
+  harness: ReturnType<typeof createInkTestHarness>,
+  condition: () => boolean,
+  description: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (condition()) return
+    await harness.wait(25)
+  }
+
+  throw new Error(
+    `Timed out waiting for ${description}: ${harness.getOutput().slice(-4_000)}`,
+  )
+}
+
 afterEach(async () => {
   await harnessManager.cleanup()
   mock.restore()
@@ -79,11 +96,15 @@ describe('TUI E2E regression (Ink render): OpenFileScreen', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(h, () => selectFile !== null, 'file selector')
     expect(selectFile).not.toBeNull()
     chooseTestFile()
     chooseTestFile()
-    await h.wait(25)
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Opening src/example.ts…'),
+      'opening status',
+    )
 
     expect(launches).toBe(1)
     expect(h.getOutput()).toContain('Opening src/example.ts…')
@@ -113,15 +134,19 @@ describe('TUI E2E regression (Ink render): OpenFileScreen', () => {
     )
     harnessManager.track(h)
 
-    await h.wait(50)
+    await waitFor(h, () => selectFile !== null, 'file selector')
     expect(selectFile).not.toBeNull()
     chooseTestFile()
-    await h.wait(25)
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Failed to open: temporary editor failure'),
+      'launcher failure status',
+    )
 
     expect(h.getOutput()).toContain('Failed to open: temporary editor failure')
 
     chooseTestFile()
-    await h.wait(25)
+    await waitFor(h, () => launches === 2, 'retry launcher call')
     expect(launches).toBe(2)
   })
 })
