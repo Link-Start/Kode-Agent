@@ -1,6 +1,18 @@
-import { existsSync, readdirSync, statSync } from 'fs'
+import { existsSync, readdirSync, statSync, type Dirent } from 'fs'
 import { basename, dirname, join, resolve } from 'path'
 import type { UnifiedSuggestion } from './types'
+
+function isDirectoryEntry(entry: Dirent, directory: string): boolean {
+  if (entry.isDirectory()) return true
+  if (!entry.isSymbolicLink()) return false
+
+  try {
+    return statSync(join(directory, entry.name)).isDirectory()
+  } catch {
+    // A broken or unreadable symbolic link should not hide the other entries.
+    return false
+  }
+}
 
 export function generateFileSuggestions(args: {
   prefix: string
@@ -39,21 +51,20 @@ export function generateFileSuggestions(args: {
     if (!existsSync(searchDir)) return []
 
     const showHidden = nameFilter.startsWith('.') || userPath.includes('/.')
-    const entries = readdirSync(searchDir)
+    const entries = readdirSync(searchDir, { withFileTypes: true })
       .filter(entry => {
-        if (!showHidden && entry.startsWith('.')) return false
+        if (!showHidden && entry.name.startsWith('.')) return false
         if (
           nameFilter &&
-          !entry.toLowerCase().startsWith(nameFilter.toLowerCase())
+          !entry.name.toLowerCase().startsWith(nameFilter.toLowerCase())
         )
           return false
         return true
       })
       .map(entry => {
-        const entryPath = join(searchDir, entry)
         return {
-          entry,
-          isDir: statSync(entryPath).isDirectory(),
+          entry: entry.name,
+          isDir: isDirectoryEntry(entry, searchDir),
         }
       })
       .sort((a, b) => {
