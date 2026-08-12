@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Text } from 'ink'
+import TextInput from '#ui-ink/components/TextInput'
+import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
 const harnessManager = createInkHarnessManager()
@@ -187,5 +189,79 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
       },
     ])
     expect(h.getOutput()).toContain('ready')
+  })
+
+  test('does not deliver a deferred bracketed paste after input unmounts', async () => {
+    const pasted: string[] = []
+
+    function DeferredPasteHarness(): React.ReactNode {
+      const [value, setValue] = useState('')
+      return (
+        <KeypressProvider>
+          <TextInput
+            value={value}
+            onChange={setValue}
+            onPaste={text => {
+              pasted.push(text)
+            }}
+            columns={80}
+            cursorOffset={0}
+            onChangeCursorOffset={() => {}}
+          />
+        </KeypressProvider>
+      )
+    }
+
+    const h = createInkTestHarness(<DeferredPasteHarness />)
+    harnessManager.track(h)
+    await h.wait(25)
+
+    const pastedText = 'x'.repeat(200)
+    h.stdin.write(`\x1b[200~${pastedText}\x1b[201~`)
+    h.unmount()
+
+    await h.wait(25)
+    expect(pasted).toEqual([])
+  })
+
+  test('cancels deferred marker fallback paste after unmount', async () => {
+    const { useBracketedPasteSequences } =
+      await import('#ui-ink/components/TextInputBracketedPaste')
+    const pasted: string[] = []
+    const handlePaste = {
+      current: null as ((input: string) => boolean) | null,
+    }
+
+    function MarkerPasteHarness(): React.ReactNode {
+      const handler = useBracketedPasteSequences({
+        insertText: () => {},
+        onPaste: text => {
+          pasted.push(text)
+        },
+        terminalColumns: 80,
+      })
+
+      useEffect(() => {
+        handlePaste.current = handler
+      }, [handler])
+
+      useEffect(() => {
+        return () => {
+          handlePaste.current = null
+        }
+      }, [])
+
+      return <Text>marker-paste</Text>
+    }
+
+    const h = createInkTestHarness(<MarkerPasteHarness />)
+    harnessManager.track(h)
+    await h.wait(25)
+
+    handlePaste.current?.(`\x1b[200~${'x'.repeat(200)}\x1b[201~`)
+    h.unmount()
+
+    await h.wait(25)
+    expect(pasted).toEqual([])
   })
 })
