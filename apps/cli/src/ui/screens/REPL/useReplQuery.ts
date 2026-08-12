@@ -3,13 +3,16 @@ import { getContext } from '@kode/context'
 import { getMaxThinkingTokens } from '#core/utils/thinking'
 import { getLastAssistantMessageId } from '#core/utils/messages'
 import { buildSystemPromptForSession, runTurn } from '@kode/engine'
-import { handleHashCommand } from '#core/utils/hashCommand'
 import { logError } from '#core/utils/log'
 import { debug as debugLogger } from '#core/utils/debugLogger'
 import {
   createAssistantAPIErrorMessage,
   createAssistantMessage,
 } from '#core/utils/messages'
+import {
+  handleHashCommand,
+  HASH_COMMAND_SAVE_FAILURE_MESSAGE,
+} from '#core/utils/hashCommand'
 import { getToolPermissionContextForConversationKey } from '#core/utils/toolPermissionContextState'
 import type {
   AssistantMessage,
@@ -133,6 +136,16 @@ export function appendReplQueryFailureMessage(
 ): MessageType[] {
   return appendMessagesForReplState(oldMessages, [
     createAssistantAPIErrorMessage(REPL_QUERY_FAILURE_MESSAGE),
+  ])
+}
+
+export function appendKodingSaveFailureMessage(
+  oldMessages: MessageType[],
+): MessageType[] {
+  return appendMessagesForReplState(oldMessages, [
+    createAssistantMessage(
+      `<local-command-stderr>${HASH_COMMAND_SAVE_FAILURE_MESSAGE}</local-command-stderr>`,
+    ),
   ])
 }
 
@@ -357,13 +370,16 @@ export function useReplQuery(args: {
                         .join('\n')
 
                 if (content && content.trim().length > 0) {
-                  handleHashCommand(content)
+                  if (!handleHashCommand(content)) {
+                    setMessages(appendKodingSaveFailureMessage)
+                  }
                 }
               } catch (error) {
                 logError(error)
                 debugLogger.error('REPL_KODING_SAVE_PROJECT_DOCS_ERROR', {
                   error,
                 })
+                setMessages(appendKodingSaveFailureMessage)
               }
             }
           } catch (error) {

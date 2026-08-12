@@ -6,7 +6,10 @@ import type { ToolPermissionContext } from '#core/types/toolPermissionContext'
 import type { SetToolJSXFn, Tool } from '#core/tooling/Tool'
 import { addToHistory } from '#core/history'
 import { logError } from '#core/utils/log'
-import { handleHashCommand } from '#core/utils/hashCommand'
+import {
+  handleHashCommand,
+  HASH_COMMAND_SAVE_FAILURE_MESSAGE,
+} from '#core/utils/hashCommand'
 import { processUserInput } from '#ui-ink/utils/processUserInput'
 import type { PromptMode } from './types'
 import type { PastedImageAttachment, PastedTextSegment } from './pastes'
@@ -153,10 +156,11 @@ export async function submitPrompt(args: {
     args.input.match(/^(#\s*)?(put|create|generate|write|give|provide)/i)
 
   if (isKoding && !isKodingActionPrompt) {
+    let noteSaved = false
     try {
       const contentToInterpret = args.input.trim()
       const interpreted = await interpretHashCommand(contentToInterpret)
-      handleHashCommand(interpreted)
+      noteSaved = handleHashCommand(interpreted)
     } catch (error) {
       logError(error)
     }
@@ -169,6 +173,9 @@ export async function submitPrompt(args: {
     })
     args.resetHistory()
     args.onModeChange('prompt')
+    if (!noteSaved) {
+      args.onProcessingError?.(HASH_COMMAND_SAVE_FAILURE_MESSAGE)
+    }
     return
   }
 

@@ -7,6 +7,7 @@ import {
 import type { Message } from '#core/query'
 import {
   appendMessagesForReplState,
+  appendKodingSaveFailureMessage,
   appendReplQueryFailureMessage,
   REPL_QUERY_FAILURE_MESSAGE,
   shouldAppendReplQueryFailure,
@@ -122,5 +123,25 @@ describe('REPL query failures', () => {
       }),
     ).toBe(true)
     expect(REPL_QUERY_FAILURE_MESSAGE).not.toContain('secret')
+  })
+})
+
+describe('Koding note persistence failures', () => {
+  test('adds a safe recovery message when generated notes cannot be saved', () => {
+    const result = appendKodingSaveFailureMessage([createUserMessage('note')])
+    const failure = result.at(-1)
+
+    expect(failure?.type).toBe('assistant')
+    if (!failure || failure.type !== 'assistant') {
+      throw new Error('Expected a note persistence failure message')
+    }
+
+    expect(failure.message.content).toEqual([
+      {
+        type: 'text',
+        text: '<local-command-stderr>Unable to save the note to AGENTS.md. Check the file path and permissions, then retry.</local-command-stderr>',
+        citations: [],
+      },
+    ])
   })
 })
