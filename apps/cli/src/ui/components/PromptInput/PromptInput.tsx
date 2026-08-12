@@ -56,10 +56,8 @@ import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { buildPromptInputStatusLine } from './inputModeDisplay'
 import { useThrottledTokenUsage } from './useThrottledTokenUsage'
 import { useCliExit } from '#ui-ink/hooks/useCliExit'
-import {
-  buildPromptStatusLineInput,
-  getPromptStatusLineUsage,
-} from './statusLineModel'
+import { buildPromptStatusLineInput } from './statusLineModel'
+import { useThrottledStatusLineUsage } from './useThrottledStatusLineUsage'
 import {
   getPromptModeForTypedPrefix,
   shouldEmptyPromptModeExitToPrompt,
@@ -247,6 +245,7 @@ export function PromptInput({
 
   const theme = getTheme()
   const tokenUsage = useThrottledTokenUsage(messages)
+  const statusLineUsage = useThrottledStatusLineUsage(messages)
 
   const modelInfo = useMemo(() => {
     void submitCount
@@ -262,10 +261,6 @@ export function PromptInput({
       : null
   }, [submitCount, tokenUsage, uiRefreshCounter])
 
-  const statusLineUsage = useMemo(
-    () => getPromptStatusLineUsage(messages),
-    [messages],
-  )
   const totalCostUSD = statusLineUsage.totalCostUSD
 
   const statusLineInput = useMemo(() => {
