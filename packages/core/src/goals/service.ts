@@ -20,7 +20,6 @@ import {
   type GoalTurnEvaluation,
   type GoalTurnEvaluationResult,
   type GoalTurnEvaluator,
-  type GoalVerificationEvidence,
   type RecoverInterruptedGoalsInput,
   type Schedule,
   type ScheduleInput,
@@ -141,55 +140,6 @@ function parseEvaluationText(text: string): GoalTurnEvaluation | null {
   return null
 }
 
-function requiredVerificationKinds(
-  goal: Goal,
-): GoalVerificationEvidence['kind'][] {
-  const criteria = goal.acceptanceCriteria.join('\n')
-  const required = new Set<GoalVerificationEvidence['kind']>()
-  if (/\b(?:test|tests|jest|vitest|pytest|mocha|ava)\b|测试/i.test(criteria)) {
-    required.add('test')
-  }
-  if (
-    /\b(?:type\s*check|typecheck|tsc|pyright|mypy)\b|类型检查/i.test(criteria)
-  ) {
-    required.add('typecheck')
-  }
-  if (
-    /\b(?:lint|eslint|oxlint|biome|ruff)\b|静态检查|代码检查/i.test(criteria)
-  ) {
-    required.add('lint')
-  }
-  if (/\b(?:build|compile|tsup|vite build)\b|构建|编译/i.test(criteria)) {
-    required.add('build')
-  }
-  return Array.from(required)
-}
-
-function enforceRequiredVerificationEvidence(
-  goal: Goal,
-  evidence: GoalVerificationEvidence[],
-  decision: GoalTurnEvaluation,
-): GoalTurnEvaluation {
-  if (decision.action !== 'complete') return decision
-
-  const passedKinds = new Set(
-    evidence
-      .filter(receipt => receipt.status === 'passed')
-      .map(receipt => receipt.kind),
-  )
-  const missingKinds = requiredVerificationKinds(goal).filter(
-    kind => !passedKinds.has(kind),
-  )
-  if (missingKinds.length === 0) return decision
-
-  const labels = missingKinds.join(', ')
-  return {
-    action: 'continue',
-    reason: `Completion requires fresh passed verification evidence for: ${labels}.`,
-    continuationPrompt: `Run the required ${labels} verification after the latest source change and collect its result before completing the goal.`,
-  }
-}
-
 export async function defaultGoalTurnEvaluator(
   input: Parameters<GoalTurnEvaluator>[0],
 ): Promise<GoalTurnEvaluation> {
@@ -205,26 +155,20 @@ export async function defaultGoalTurnEvaluator(
       'Assess the assistant response only against the goal and acceptance criteria.',
       'Return exactly one JSON object: {"action":"continue"|"complete"|"paused"|"none","reason":"...","continuationPrompt":"..."}.',
       'Use complete only when every criterion has concrete evidence. Use continue when more work is needed and give a concise continuationPrompt. Use paused for ambiguity, missing evidence, unsafe action, or evaluator uncertainty.',
-      'Verification evidence is engine-generated and only proves the exact recorded command after the latest detected write. Never invent a passing execution result from assistant text. A failed, blocked, interrupted, or started receipt is not passing evidence. Do not require a receipt when an acceptance criterion does not need command execution.',
     ],
     userPrompt: JSON.stringify({
       objective: input.goal.objective,
       acceptanceCriteria: input.goal.acceptanceCriteria,
       assistantText: input.assistantText,
-      verificationEvidence: input.verificationEvidence ?? [],
     }),
   })
   const text = extractTextContent(response.message.content)
-  const decision =
+  return (
     parseEvaluationText(text) ??
     ({
       action: 'paused',
       reason: 'Goal evaluator did not return a valid decision.',
     } satisfies GoalTurnEvaluation)
-  return enforceRequiredVerificationEvidence(
-    input.goal,
-    input.verificationEvidence ?? [],
-    decision,
   )
 }
 
@@ -1040,7 +984,6 @@ export async function evaluateActiveGoalAfterTurn(args: {
   cwd: string
   sessionId: string
   assistantText: string
-  verificationEvidence?: GoalVerificationEvidence[]
   signal?: AbortSignal
   evaluate?: GoalTurnEvaluator
   now?: number
@@ -1129,7 +1072,6 @@ export async function evaluateActiveGoalAfterTurn(args: {
       cwd: args.cwd,
       sessionId: args.sessionId,
       assistantText: args.assistantText,
-      verificationEvidence: args.verificationEvidence,
       signal: args.signal,
     })
   } catch (error) {

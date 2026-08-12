@@ -282,44 +282,6 @@ describe('durable goals', () => {
     expect(completed.goal?.status).toBe('completed')
   })
 
-  test('forwards bounded verification evidence to a goal evaluator', async () => {
-    const root = makeRoot()
-    const cwd = join(root, 'workspace')
-    startGoal({
-      rootDir: root,
-      cwd,
-      sessionId: 'session-evidence',
-      objective: 'Run a checked release step',
-    })
-    const verificationEvidence = [
-      {
-        version: 1 as const,
-        kind: 'test' as const,
-        status: 'passed' as const,
-        toolUseId: 'verify-1',
-        commandDigest: 'a'.repeat(16),
-        outputDigest: 'b'.repeat(16),
-        recordedAt: '2026-08-10T00:00:00.000Z',
-      },
-    ]
-    let observedEvidence: unknown
-
-    const result = await evaluateActiveGoalAfterTurn({
-      rootDir: root,
-      cwd,
-      sessionId: 'session-evidence',
-      assistantText: 'The focused test passed.',
-      verificationEvidence,
-      evaluate: async input => {
-        observedEvidence = input.verificationEvidence
-        return { action: 'complete', reason: 'Evidence received.' }
-      },
-    })
-
-    expect(observedEvidence).toEqual(verificationEvidence)
-    expect(result.action).toBe('complete')
-  })
-
   test('exposes an unstarted direct goal to an interactive dispatcher', () => {
     const root = makeRoot()
     const goal = startGoal({

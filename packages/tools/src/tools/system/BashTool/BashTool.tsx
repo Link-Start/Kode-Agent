@@ -83,7 +83,6 @@ export type Out = {
 
 export const BashTool = {
   name: 'Bash',
-  isTrustedExecutionTool: true,
   cachedDescription: 'Run shell command',
   async description(input?: z.infer<typeof inputSchema>) {
     return input?.description || 'Run shell command'

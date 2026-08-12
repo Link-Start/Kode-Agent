@@ -10,11 +10,6 @@ import {
 } from '../messages/create'
 import { maybePersistOversizedToolResult } from '#core/utils/toolResultPersistence'
 import {
-  attachVerificationReceipt,
-  createVerificationReceipt,
-  formatVerificationSystemMessage,
-} from '../verification/receipt'
-import {
   getHookTranscriptPath,
   queueHookAdditionalContexts,
   queueHookSystemMessages,
@@ -334,22 +329,6 @@ export async function* checkPermissionsAndCallTool(
     for await (const result of generator) {
       switch (result.type) {
         case 'result': {
-          const verificationReceipt = createVerificationReceipt({
-            toolName: tool.name,
-            isTrustedExecutionTool: tool.isTrustedExecutionTool === true,
-            toolUseId: toolUseID,
-            input: normalizedInput,
-            output: result.data,
-          })
-          const data = attachVerificationReceipt(
-            result.data,
-            verificationReceipt,
-          )
-          if (verificationReceipt) {
-            queueHookSystemMessages(context, [
-              formatVerificationSystemMessage(verificationReceipt),
-            ])
-          }
           const rawContent =
             result.resultForAssistant ??
             tool.renderResultForAssistant(result.data as never)
@@ -366,7 +345,7 @@ export async function* checkPermissionsAndCallTool(
           const postOutcome = await runPostToolUseHooks({
             toolName: tool.name,
             toolInput: normalizedInput,
-            toolResult: data,
+            toolResult: result.data,
             toolUseId: toolUseID,
             permissionMode: context.options?.toolPermissionContext?.mode,
             cwd: getCwd(),
@@ -401,7 +380,7 @@ export async function* checkPermissionsAndCallTool(
               },
             ],
             {
-              data,
+              data: result.data,
               resultForAssistant: content,
               ...(newMessages.length > 0 ? { newMessages } : {}),
               ...(result.contextModifier

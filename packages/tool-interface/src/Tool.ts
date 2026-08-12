@@ -134,12 +134,6 @@ export interface ToolMetadata<
   name: string
   maxResultSizeChars?: number
   isMcp?: boolean
-  /**
-   * Marks a built-in execution tool whose result data is produced by the local
-   * runtime, rather than by an extension or an MCP server. The engine uses
-   * this boundary before creating durable execution receipts.
-   */
-  isTrustedExecutionTool?: boolean
   description?: string | ((input?: z.infer<TInput>) => Promise<string>)
   inputSchema: TInput
   inputJSONSchema?: Record<string, unknown>

@@ -46,10 +46,6 @@ import {
 import { evaluateActiveGoalAfterTurn, GoalService } from '#core/goals'
 import { checkAutoCompact } from '#core/utils/autoCompactCore'
 import { checkMicroCompact } from '#core/utils/microCompactCore'
-import {
-  collectGoalVerificationEvidence,
-  getTurnVerificationState,
-} from './verification/evidence'
 import { asRecord } from '@kode/hooks/types'
 import {
   drainHookSystemPromptAdditions,
@@ -91,12 +87,10 @@ type PipelineRetryState = {
   stopHookAttempts?: number
   thinkingOnlyAttempts?: number
   requiredToolUseAttempts?: number
-  verificationAttempts?: number
 }
 
 const MAX_THINKING_ONLY_RETRIES = 3
 const MAX_REQUIRED_TOOL_USE_RECOVERIES = 1
-const MAX_VERIFICATION_RECOVERIES = 1
 
 const TOOL_USE_INTENT_PATTERNS = [
   /(?:查看|看看|检查|检视|浏览|读取|搜索|查找|分析|审查|审阅|排查).{0,20}(?:项目|工程|代码库|代码|仓库|文件|目录|工作区)/u,
@@ -200,32 +194,10 @@ function isThinkingOnlyRecoveryMessage(message: Message): boolean {
   )
 }
 
-function createVerificationRecoveryMessage(): UserMessage {
-  return createUserMessage(
-    [
-      '<verification-recovery>',
-      'Workspace changes were made in this turn, but no trusted terminal verification result was recorded after the latest change.',
-      'Run the narrowest applicable deterministic test, typecheck, lint, build, or check now. Read project instructions first if the command is unclear.',
-      'If verification fails, fix the issue when it is in scope and rerun the relevant check. If verification is blocked, report the exact blocker and do not claim that checks passed.',
-      'Do not make unrelated changes.',
-      '</verification-recovery>',
-    ].join('\n'),
-  )
-}
-
-function isVerificationRecoveryMessage(message: Message): boolean {
-  return (
-    message.type === 'user' &&
-    typeof message.message.content === 'string' &&
-    message.message.content.startsWith('<verification-recovery>')
-  )
-}
-
 function isEngineRecoveryMessage(message: Message): boolean {
   return (
     isRequiredToolUseRecoveryMessage(message) ||
-    isThinkingOnlyRecoveryMessage(message) ||
-    isVerificationRecoveryMessage(message)
+    isThinkingOnlyRecoveryMessage(message)
   )
 }
 
@@ -347,7 +319,6 @@ async function* messagePipelineCore(
     const stopHookAttempts = hookState?.stopHookAttempts ?? 0
     const thinkingOnlyAttempts = hookState?.thinkingOnlyAttempts ?? 0
     const requiredToolUseAttempts = hookState?.requiredToolUseAttempts ?? 0
-    const verificationAttempts = hookState?.verificationAttempts ?? 0
 
     const maxTurns = toolUseContext.options.maxTurns
     const normalizedMaxTurns =
@@ -415,20 +386,10 @@ async function* messagePipelineCore(
     }
 
     // Auto-compact check
-    // Defer compaction while the active turn has written to the workspace
-    // without terminal verification evidence: compaction replaces the
-    // transcript with a summary, which would silently discard the mutation and
-    // verification receipts the completion gate relies on. The gate resolves
-    // within the same turn (recovery or a hard error), so the deferral is
-    // bounded and cannot grow the transcript unboundedly.
-    const preCompactVerificationState = getTurnVerificationState(messages)
-    const shouldDeferAutoCompact =
-      preCompactVerificationState.hasMutation &&
-      !preCompactVerificationState.hasTerminalEvidence
-    const { messages: processedMessages, wasCompacted } =
-      shouldDeferAutoCompact
-        ? { messages, wasCompacted: false as const }
-        : await checkAutoCompact(messages, toolUseContext)
+    const { messages: processedMessages, wasCompacted } = await checkAutoCompact(
+      messages,
+      toolUseContext,
+    )
     if (wasCompacted) {
       messages = processedMessages
     }
@@ -818,43 +779,6 @@ async function* messagePipelineCore(
         return
       }
 
-      const hasTrustedVerificationTool = toolUseContext.options.tools.some(
-        tool => tool.name === 'Bash' && tool.isTrustedExecutionTool === true,
-      )
-      const verificationState = getTurnVerificationState(messages)
-      if (
-        hasTrustedVerificationTool &&
-        verificationState.hasMutation &&
-        !verificationState.hasTerminalEvidence
-      ) {
-        if (verificationAttempts < MAX_VERIFICATION_RECOVERIES) {
-          yield* await messagePipelineCore(
-            [
-              ...messages.filter(
-                message => !isVerificationRecoveryMessage(message),
-              ),
-              assistantMessage,
-              createVerificationRecoveryMessage(),
-            ],
-            systemPrompt,
-            context,
-            canUseTool,
-            toolUseContext,
-            getBinaryFeedbackResponse,
-            {
-              ...hookState,
-              verificationAttempts: verificationAttempts + 1,
-            },
-          )
-          return
-        }
-
-        yield createAssistantAPIErrorMessage(
-          'API_ERROR: Workspace changes were made, but the model stopped without recording a trusted test, typecheck, lint, build, or check result after the latest change. The changes remain unverified; run an applicable check or retry with a model that can complete verification.',
-        )
-        return
-      }
-
       const stopHookEvent =
         toolUseContext.agentId && toolUseContext.agentId !== 'main'
           ? ('SubagentStop' as const)
@@ -916,7 +840,6 @@ async function* messagePipelineCore(
           cwd: getCwd(),
           sessionId: getEffectiveSessionId(),
           assistantText: getAssistantTextForGoalEvaluation(assistantMessage),
-          verificationEvidence: collectGoalVerificationEvidence(messages),
           signal: toolUseContext.abortController.signal,
         })
 
@@ -1013,7 +936,6 @@ async function* messagePipelineCore(
         stopHookActive: false,
         stopHookAttempts: 0,
         thinkingOnlyAttempts: 0,
-        verificationAttempts,
       },
     )
   } finally {
