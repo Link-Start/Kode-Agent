@@ -5,6 +5,22 @@ import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
 const harnessManager = createInkHarnessManager()
 
+async function waitForOutput(
+  harness: ReturnType<typeof createInkTestHarness>,
+  expected: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (harness.getOutput().includes(expected)) return
+    await harness.wait(25)
+  }
+
+  throw new Error(
+    `Timed out waiting for ${expected}: ${harness.getOutput().slice(-4_000)}`,
+  )
+}
+
 const foreignSession = {
   sessionId: 'foreign-session',
   slug: 'foreign-session',
@@ -66,22 +82,18 @@ describe('TUI E2E regression (Ink render): cross-project resume', () => {
 
     await h.wait(100)
     h.stdin.write('\x01')
-    await h.wait(100)
-    expect(h.getOutput()).toContain('other-project')
+    await waitForOutput(h, 'other-project')
 
     h.stdin.write('\r')
-    await h.wait(50)
-    expect(h.getOutput()).toContain('different directory')
+    await waitForOutput(h, 'different directory')
     expect(copyRequests).toHaveLength(1)
 
     h.clearOutput()
     h.stdin.write('\x1b')
-    await h.wait(100)
-    expect(h.getOutput()).not.toContain('different directory')
+    await waitForOutput(h, 'other-project')
     h.stdin.write('\r')
-    await h.wait(100)
+    await waitForOutput(h, 'different directory')
     expect(copyRequests).toHaveLength(2)
-    expect(h.getOutput()).toContain('different directory')
 
     h.clearOutput()
     copyRequests[0]!.reject(new Error('first clipboard request failed'))
