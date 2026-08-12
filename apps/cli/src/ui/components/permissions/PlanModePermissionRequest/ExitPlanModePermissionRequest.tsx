@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import figures from 'figures'
 import type { ToolUseConfirm } from '#ui-ink/components/permissions/PermissionRequest'
 import { getTheme } from '#core/utils/theme'
@@ -131,6 +131,9 @@ export function ExitPlanModePermissionRequest({
   })
   const [planSaved, setPlanSaved] = useState(false)
   const [editorLabel, setEditorLabel] = useState(() => getExternalEditorLabel())
+  const [editorStatus, setEditorStatus] = useState<
+    { kind: 'opening' | 'error'; message: string } | null
+  >(null)
   const [rejectDraft, setRejectDraft] = useState('')
   const [selectedAllowedPromptIndices, setSelectedAllowedPromptIndices] =
     useState<number[]>(() =>
@@ -143,6 +146,16 @@ export function ExitPlanModePermissionRequest({
   const [remoteExitMessage, setRemoteExitMessage] = useState<string | null>(
     null,
   )
+  const isOpeningEditorRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningEditorRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!planSaved) return undefined
@@ -375,6 +388,72 @@ export function ExitPlanModePermissionRequest({
     onDone()
   }
 
+  const openPlanInEditor = useCallback(async () => {
+    if (isOpeningEditorRef.current) return
+
+    isOpeningEditorRef.current = true
+    setEditorStatus({ kind: 'opening', message: 'Opening external editor…' })
+
+    try {
+      if (!planExists) {
+        const initial = planText === planPlaceholder() ? '# Plan\n' : planText
+        try {
+          writeFileSync(planFilePath, initial, 'utf-8')
+        } catch {
+          const edited = await launchExternalEditor(initial)
+          if (!mountedRef.current) return
+
+          if ('editorLabel' in edited && edited.editorLabel) {
+            setEditorLabel(edited.editorLabel)
+          }
+          if (edited.text !== null) {
+            setPlanText(edited.text)
+            setPlanSaved(true)
+            setEditorStatus(null)
+          } else {
+            setEditorStatus({
+              kind: 'error',
+              message:
+                ('error' in edited ? edited.error?.message : undefined) ??
+                'Unable to open the external editor. Check $EDITOR and try again.',
+            })
+          }
+          return
+        }
+      }
+
+      const opened = await launchExternalEditorForFilePath(planFilePath)
+      if (!mountedRef.current) return
+
+      if ('editorLabel' in opened && opened.editorLabel) {
+        setEditorLabel(opened.editorLabel)
+      }
+      if (opened.ok) {
+        const next = readPlanFile(undefined, conversationKey)
+        setPlanExists(next.exists)
+        setPlanText(next.exists ? next.content : planPlaceholder())
+        setPlanSaved(true)
+        setEditorStatus(null)
+      } else {
+        setEditorStatus({
+          kind: 'error',
+          message:
+            opened.error.message ||
+            'Unable to open the external editor. Check $EDITOR and try again.',
+        })
+      }
+    } catch {
+      if (mountedRef.current) {
+        setEditorStatus({
+          kind: 'error',
+          message: 'Unable to open the external editor. Check $EDITOR and try again.',
+        })
+      }
+    } finally {
+      isOpeningEditorRef.current = false
+    }
+  }, [conversationKey, planExists, planFilePath, planText])
+
   useKeypress((input, key) => {
     if (remoteExitState !== 'default') {
       if (key.escape) {
@@ -557,36 +636,8 @@ export function ExitPlanModePermissionRequest({
 
     if (!(key.ctrl && input.toLowerCase() === 'g')) return undefined
 
-    void (async () => {
-      if (!planExists) {
-        const initial = planText === planPlaceholder() ? '# Plan\n' : planText
-        try {
-          writeFileSync(planFilePath, initial, 'utf-8')
-        } catch {
-          const edited = await launchExternalEditor(initial)
-          if ('editorLabel' in edited && edited.editorLabel) {
-            setEditorLabel(edited.editorLabel)
-          }
-          if (edited.text !== null) {
-            setPlanText(edited.text)
-            setPlanSaved(true)
-          }
-          return
-        }
-      }
-
-      const opened = await launchExternalEditorForFilePath(planFilePath)
-      if ('editorLabel' in opened && opened.editorLabel) {
-        setEditorLabel(opened.editorLabel)
-      }
-      if (opened.ok) {
-        const next = readPlanFile(undefined, conversationKey)
-        setPlanExists(next.exists)
-        setPlanText(next.exists ? next.content : planPlaceholder())
-        setPlanSaved(true)
-      }
-    })()
-    return undefined
+    void openPlanInEditor()
+    return true
   })
 
   if (remoteExitState === 'checking') {
@@ -738,6 +789,19 @@ export function ExitPlanModePermissionRequest({
                 </Box>
               ) : null}
             </Box>
+          ) : null}
+
+          {editorStatus ? (
+            <Text
+              color={
+                editorStatus.kind === 'error'
+                  ? theme.error
+                  : theme.secondaryText
+              }
+              wrap="truncate-end"
+            >
+              {editorStatus.message}
+            </Text>
           ) : null}
 
           {allowedPrompts ? (
