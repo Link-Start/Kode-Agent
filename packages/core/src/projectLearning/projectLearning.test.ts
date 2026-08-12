@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,8 +13,10 @@ import { join } from 'node:path'
 
 import {
   __acquireProjectLearningLockForTests,
+  __setProjectLearningCompactThresholdForTests,
   extractProjectLearningCandidates,
   formatProjectLearningContext,
+  getProjectLearningEventsPath,
   getRelevantProjectLearnings,
   hasSupportingToolEvidence,
   isCompactionSummarySafe,
@@ -339,6 +342,71 @@ describe('project learning', () => {
       second!()
     } finally {
       rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  test('compacts the event log once it grows past the threshold', () => {
+    __setProjectLearningCompactThresholdForTests(2_000)
+    try {
+      const text =
+        'Compaction guardrails: run the focused unit tests for the changed module, then verify the diff stays minimal.'
+      const record = observeProjectLearning({
+        cwd: projectRoot,
+        storageRoot,
+        candidate: { kind: 'procedure', text, pathPrefixes: [] },
+        sourceId: 'source-0',
+        sessionId: 'session-1',
+        now: 1_000,
+      })
+
+      // Repeated observations append a fresh upsert every time (evidence
+      // accumulates), which is exactly the unbounded-growth case.
+      for (let i = 1; i < 12; i += 1) {
+        observeProjectLearning({
+          cwd: projectRoot,
+          storageRoot,
+          candidate: { kind: 'procedure', text, pathPrefixes: [] },
+          sourceId: `source-${i}`,
+          sessionId: 'session-1',
+          now: 1_000 + i,
+        })
+      }
+
+      const eventsPath = getProjectLearningEventsPath({
+        cwd: projectRoot,
+        storageRoot,
+      })
+      const sizeAfterCompaction = statSync(eventsPath).size
+      // The log must have been rewritten to one upsert per current record
+      // instead of keeping all 12 historical upserts.
+      expect(sizeAfterCompaction).toBeLessThan(2_000)
+
+      const records = listProjectLearnings({
+        cwd: projectRoot,
+        storageRoot,
+        includeRetired: true,
+      })
+      expect(records).toHaveLength(1)
+      expect(records[0]!.id).toBe(record!.id)
+      expect(records[0]!.evidence).toHaveLength(12)
+
+      // Records remain fully usable after compaction: retire + re-observe.
+      expect(
+        retireProjectLearning({
+          cwd: projectRoot,
+          storageRoot,
+          id: record!.id,
+          reason: 'Superseded by newer guidance.',
+        }),
+      ).toBe(true)
+      const retired = listProjectLearnings({
+        cwd: projectRoot,
+        storageRoot,
+        includeRetired: true,
+      }).find(item => item.id === record!.id)
+      expect(retired?.status).toBe('retired')
+    } finally {
+      __setProjectLearningCompactThresholdForTests(null)
     }
   })
 })

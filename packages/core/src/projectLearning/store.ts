@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -44,6 +45,11 @@ const MAX_LEARNING_TEXT_LENGTH = 600
 const MAX_SNAPSHOT_SUMMARY_LENGTH = 24_000
 const MAX_EVIDENCE = 12
 const MAX_PATH_PREFIXES = 8
+const SNAPSHOT_LOG_COMPACT_MAX_ENTRIES = 200
+// Compacting rewrites the whole log, so the threshold must be low enough that
+// the rewrite stays cheap yet high enough that it does not run constantly.
+let EVENT_LOG_COMPACT_MAX_BYTES = 512 * 1024
+const SNAPSHOT_LOG_COMPACT_MAX_BYTES = 2 * 1024 * 1024
 
 type CachedEvents = {
   size: number
@@ -368,6 +374,78 @@ function appendJsonl(path: string, value: unknown): void {
   eventsCache.delete(path)
 }
 
+function jsonlSize(path: string): number {
+  try {
+    return statSync(path).size
+  } catch {
+    return 0
+  }
+}
+
+function atomicRewriteJsonl(path: string, lines: string[]): void {
+  if (lines.length === 0) {
+    writeFileSync(path, '', { encoding: 'utf8', mode: 0o600 })
+  } else {
+    const tempPath = `${path}.tmp`
+    writeFileSync(tempPath, `${lines.join('\n')}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
+    renameSync(tempPath, path)
+  }
+  eventsCache.delete(path)
+}
+
+/**
+ * Rewrites the event log as one upsert per current record, dropping retired
+ * state transitions while preserving the resulting statuses. Called under the
+ * store lock so replay cost and disk usage stay bounded as the project ages.
+ */
+function compactEventLog(path: string): void {
+  try {
+    const records = replayEvents(readEvents(path))
+    atomicRewriteJsonl(
+      path,
+      records.map(record => {
+        const event: ProjectLearningEvent = {
+          schemaVersion: PROJECT_LEARNING_SCHEMA_VERSION,
+          type: 'upsert',
+          at: record.updatedAt,
+          learning: record,
+        }
+        return JSON.stringify(event)
+      }),
+    )
+  } catch {
+    // Best-effort: a failing compaction must not break the store.
+  }
+}
+
+/**
+ * Trims the context-snapshot log to the newest entries so capture-heavy
+ * sessions cannot grow it without bound.
+ */
+function compactSnapshotLog(path: string): void {
+  try {
+    const parsed = readFileSync(path, 'utf8')
+      .split('\n')
+      .flatMap(line => {
+        if (!line.trim()) return []
+        try {
+          const snapshot = parseSnapshot(JSON.parse(line))
+          return snapshot ? [snapshot] : []
+        } catch {
+          return []
+        }
+      })
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, SNAPSHOT_LOG_COMPACT_MAX_ENTRIES)
+    atomicRewriteJsonl(path, parsed.map(snapshot => JSON.stringify(snapshot)))
+  } catch {
+    // Best-effort: an unreadable snapshot log is left untouched.
+  }
+}
+
 function getStorageRoot(storageRoot?: string): string {
   return storageRoot ? resolve(storageRoot) : (testStorageRoot ?? getKodeRoot())
 }
@@ -542,6 +620,12 @@ export function observeProjectLearning(
       at: now,
       learning: record,
     } satisfies ProjectLearningEvent)
+    if (
+      jsonlSize(getProjectLearningEventsPath(input)) >
+      EVENT_LOG_COMPACT_MAX_BYTES
+    ) {
+      compactEventLog(getProjectLearningEventsPath(input))
+    }
     return record
   } finally {
     release()
@@ -573,6 +657,12 @@ export function retireProjectLearning(
       id,
       ...(reason ? { reason } : {}),
     } satisfies ProjectLearningEvent)
+    if (
+      jsonlSize(getProjectLearningEventsPath(input)) >
+      EVENT_LOG_COMPACT_MAX_BYTES
+    ) {
+      compactEventLog(getProjectLearningEventsPath(input))
+    }
     return true
   } finally {
     release()
@@ -690,6 +780,12 @@ export function captureProjectContextSnapshot(
       createdAt: input.now ?? Date.now(),
     }
     appendJsonl(getProjectContextSnapshotsPath(input), snapshot)
+    if (
+      jsonlSize(getProjectContextSnapshotsPath(input)) >
+      SNAPSHOT_LOG_COMPACT_MAX_BYTES
+    ) {
+      compactSnapshotLog(getProjectContextSnapshotsPath(input))
+    }
     return snapshot
   } finally {
     release()
@@ -759,4 +855,16 @@ export function __acquireProjectLearningLockForTests(
   directory: string,
 ): (() => void) | null {
   return acquireLock(join(directory, LOCK_FILENAME))
+}
+
+/**
+ * Test-only override for the event-log compaction threshold.
+ */
+export function __setProjectLearningCompactThresholdForTests(
+  bytes: number | null,
+): void {
+  EVENT_LOG_COMPACT_MAX_BYTES =
+    bytes !== null && Number.isFinite(bytes) && bytes > 0
+      ? bytes
+      : 512 * 1024
 }

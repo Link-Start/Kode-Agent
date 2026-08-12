@@ -179,6 +179,29 @@ describe('archive extraction (zip + tar.gz)', () => {
     }
   })
 
+  test('detects case-only collisions on case-folding file systems', async () => {
+    const zip = zipSync({
+      'root/A.txt': strToU8('upper'),
+      'root/a.txt': strToU8('lower'),
+    })
+    const outDir = makeTempDir('kode-zip-case-')
+    try {
+      const caseFolding =
+        process.platform === 'darwin' || process.platform === 'win32'
+      if (caseFolding) {
+        await expect(
+          extractZipBuffer(zip, outDir, { stripComponents: 1 }),
+        ).rejects.toThrow('Duplicate archive output path')
+      } else {
+        await extractZipBuffer(zip, outDir, { stripComponents: 1 })
+        expect(readFileSync(join(outDir, 'A.txt'), 'utf8')).toBe('upper')
+        expect(readFileSync(join(outDir, 'a.txt'), 'utf8')).toBe('lower')
+      }
+    } finally {
+      rmSync(outDir, { recursive: true, force: true })
+    }
+  })
+
   test('rejects ZIP file/directory hierarchy conflicts before writing', async () => {
     const zip = zipSync({
       'root/a/child.txt': strToU8('child'),

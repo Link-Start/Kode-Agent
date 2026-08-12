@@ -12,6 +12,7 @@ export {
 export {
   __acquireProjectLearningLockForTests,
   __resetProjectLearningStoreForTests,
+  __setProjectLearningCompactThresholdForTests,
   __setProjectLearningStorageRootForTests,
   captureProjectContextSnapshot,
   getProjectContextSnapshotsPath,

@@ -82,22 +82,33 @@ function validateOutputPathHierarchy(
   let parent = ''
   for (let index = 0; index < parts.length - 1; index += 1) {
     parent = parent ? `${parent}/${parts[index]}` : parts[index]!
-    if (fileOutputPaths.has(parent)) {
+    if (fileOutputPaths.has(pathCollisionKey(parent))) {
       throw new Error(
         `Archive output path conflicts with file ancestor: ${outputPath}`,
       )
     }
-    requiredDirectories.add(parent)
+    requiredDirectories.add(pathCollisionKey(parent))
   }
 
-  if (!isDirectory && requiredDirectories.has(outputPath)) {
+  if (!isDirectory && requiredDirectories.has(pathCollisionKey(outputPath))) {
     throw new Error(
       `Archive file conflicts with an existing directory path: ${outputPath}`,
     )
   }
 
-  if (isDirectory) requiredDirectories.add(outputPath)
-  else fileOutputPaths.add(outputPath)
+  if (isDirectory) requiredDirectories.add(pathCollisionKey(outputPath))
+  else fileOutputPaths.add(pathCollisionKey(outputPath))
+}
+
+/**
+ * Default APFS (macOS) and NTFS (Windows) file systems fold case, so entries
+ * that differ only by case collide on disk. Fold the comparison key on those
+ * platforms while keeping case-sensitive checks elsewhere.
+ */
+function pathCollisionKey(path: string): string {
+  return process.platform === 'win32' || process.platform === 'darwin'
+    ? path.toLowerCase()
+    : path
 }
 
 function assertArchiveSize(byteLength: number, maxArchiveBytes: number): void {
@@ -284,7 +295,7 @@ export async function extractZipBuffer(
       }
     }
 
-    if (selectedOutputPaths.has(stripped)) {
+    if (selectedOutputPaths.has(pathCollisionKey(stripped))) {
       throw new Error(`Duplicate archive output path: ${stripped}`)
     }
     validateOutputPathHierarchy(
@@ -293,7 +304,7 @@ export async function extractZipBuffer(
       fileOutputPaths,
       requiredDirectories,
     )
-    selectedOutputPaths.add(stripped)
+    selectedOutputPaths.add(pathCollisionKey(stripped))
     selectedEntries.set(file.name, {
       outputPath: stripped,
       isDirectory,
@@ -557,7 +568,7 @@ async function extractTarBufferData(
     const isFile = typeflag === '0' || typeflag === '\0'
     if (!isDirectory && !isFile) continue
 
-    if (outputPaths.has(stripped)) {
+    if (outputPaths.has(pathCollisionKey(stripped))) {
       throw new Error(`Duplicate archive output path: ${stripped}`)
     }
     validateOutputPathHierarchy(
@@ -566,7 +577,7 @@ async function extractTarBufferData(
       fileOutputPaths,
       requiredDirectories,
     )
-    outputPaths.add(stripped)
+    outputPaths.add(pathCollisionKey(stripped))
 
     if (isDirectory) {
       entries.push({

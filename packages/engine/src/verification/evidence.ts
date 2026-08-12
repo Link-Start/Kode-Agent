@@ -4,6 +4,9 @@ import type { Message } from '../pipeline/types'
 import { classifyVerificationCommand } from './receipt'
 
 const MAX_GOAL_VERIFICATION_EVIDENCE = 12
+// Tools that are provably read-only. `Skill` is intentionally absent: a skill
+// runs an arbitrary instruction with tool access and can mutate the workspace,
+// so it must stay fail-closed (treated as a potential direct write).
 const NON_MUTATING_TOOL_NAMES = new Set([
   'Architect',
   'AskExpertModel',
@@ -18,7 +21,6 @@ const NON_MUTATING_TOOL_NAMES = new Set([
   'MCPSearch',
   'Read',
   'ReadMcpResourceTool',
-  'Skill',
   'TaskCreate',
   'TaskGet',
   'TaskList',

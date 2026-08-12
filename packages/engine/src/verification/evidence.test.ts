@@ -186,6 +186,30 @@ describe('goal verification evidence', () => {
     expect(evidence).toEqual([])
   })
 
+  test('treats a Skill use as a potential workspace write (fail-closed)', () => {
+    const evidence = collectGoalVerificationEvidence([
+      toolUse([
+        {
+          id: receipt.toolUseId,
+          name: 'Bash',
+          input: { command: 'bun test ./packages/engine' },
+        },
+      ]),
+      toolResult({ verification: receipt }),
+      toolUse([
+        {
+          id: 'skill-1',
+          name: 'Skill',
+          input: { skillName: 'apply-changes' },
+        },
+      ]),
+    ])
+
+    // The Skill can mutate the workspace, so the earlier passing receipt no
+    // longer counts as terminal evidence for the gate.
+    expect(evidence).toEqual([])
+  })
+
   test('rejects unmatched, malformed, and non-Bash receipt-shaped data', () => {
     expect(
       collectGoalVerificationEvidence([
