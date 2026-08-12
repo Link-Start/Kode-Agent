@@ -22,6 +22,16 @@ export type AssistantStreamUpdate =
       requestId?: string
     }
   | {
+      /**
+       * Provider-supplied reasoning that the provider also returns as an
+       * assistant thinking block. Consumers must not fabricate thinking data.
+       */
+      type: 'thinking_delta'
+      delta: string
+      agentId?: string
+      requestId?: string
+    }
+  | {
       type: 'text_delta'
       delta: string
       agentId?: string

@@ -11,6 +11,21 @@ import type { AssistantStreamStore } from './assistantStreamStore'
 export const ASSISTANT_STREAM_PREVIEW_CHARS_PER_CELL = 4
 const MIN_ASSISTANT_STREAM_PREVIEW_CHARS = 512
 
+export function getLivePreviewHeightBudget(args: {
+  hasThinking: boolean
+  hasText: boolean
+  maxHeight: number
+}): { thinking: number; text: number } {
+  if (args.maxHeight <= 1) {
+    return args.hasText ? { thinking: 0, text: 1 } : { thinking: 1, text: 0 }
+  }
+  if (!args.hasThinking) return { thinking: 0, text: args.maxHeight }
+  if (!args.hasText) return { thinking: args.maxHeight, text: 0 }
+
+  const thinking = Math.min(4, Math.max(1, Math.floor(args.maxHeight / 3)))
+  return { thinking, text: Math.max(1, args.maxHeight - thinking) }
+}
+
 export function getBoundedAssistantStreamPreviewText(args: {
   text: string
   maxWidth: number
@@ -35,12 +50,14 @@ export function AssistantStreamPreview({
   transientItems,
   maxHeight,
   isVisible,
+  isActive,
   debug,
 }: {
   store: AssistantStreamStore
   transientItems: TranscriptItem[]
   maxHeight: number
   isVisible: boolean
+  isActive: boolean
   debug: boolean
 }) {
   const snapshot = useSyncExternalStore(
@@ -48,12 +65,21 @@ export function AssistantStreamPreview({
     store.getSnapshot,
     store.getSnapshot,
   )
+  const hasLiveThinking = snapshot.thinking.trim().length > 0
   const hasLiveText = snapshot.text.trim().length > 0
+  const heightBudget = getLivePreviewHeightBudget({
+    hasThinking: hasLiveThinking,
+    hasText: hasLiveText,
+    maxHeight,
+  })
 
   if (
     !isVisible ||
     maxHeight <= 0 ||
-    (transientItems.length === 0 && !hasLiveText)
+    (!isActive &&
+      transientItems.length === 0 &&
+      !hasLiveThinking &&
+      !hasLiveText)
   ) {
     return null
   }
@@ -67,12 +93,18 @@ export function AssistantStreamPreview({
       width="100%"
     >
       {transientItems.map(item => item.jsx)}
-      {hasLiveText && (
+      {hasLiveThinking && heightBudget.thinking > 0 && (
+        <AssistantStreamThinking
+          text={snapshot.thinking}
+          maxHeight={heightBudget.thinking}
+        />
+      )}
+      {hasLiveText && heightBudget.text > 0 && (
         <AssistantStreamText
           text={snapshot.text}
           debug={debug}
           addMargin={transientItems.length > 0}
-          maxHeight={maxHeight}
+          maxHeight={heightBudget.text}
         />
       )}
     </Box>
@@ -130,6 +162,54 @@ const AssistantStreamText = React.memo(function AssistantStreamText({
         </Box>
       </Box>
       <Cost costUSD={0} durationMs={0} debug={debug} />
+    </Box>
+  )
+})
+
+const AssistantStreamThinking = React.memo(function AssistantStreamThinking({
+  text,
+  maxHeight,
+}: {
+  text: string
+  maxHeight: number
+}): React.ReactNode {
+  const { columns } = useTerminalSize()
+  const contentWidth = Math.max(1, columns - 6)
+  const previewText = getBoundedAssistantStreamPreviewText({
+    text,
+    maxWidth: contentWidth,
+    maxHeight,
+  })
+
+  if (maxHeight <= 1) {
+    return (
+      <Box flexDirection="row" width="100%">
+        <Box minWidth={2}>
+          <Text color={getTheme().kode}>{CIRCLE}</Text>
+        </Box>
+        <Text color={getTheme().secondaryText} dimColor wrap="truncate-end">
+          Thinking: {previewText}
+        </Text>
+      </Box>
+    )
+  }
+
+  return (
+    <Box flexDirection="row" width="100%">
+      <Box minWidth={2}>
+        <Text color={getTheme().kode}>{CIRCLE}</Text>
+      </Box>
+      <Box flexDirection="column" width={contentWidth}>
+        <Text color={getTheme().secondaryText} dimColor>
+          Thinking
+        </Text>
+        <MaxSizedText
+          text={previewText}
+          maxHeight={maxHeight - 1}
+          maxWidth={contentWidth}
+          overflowDirection="bottom"
+        />
+      </Box>
     </Box>
   )
 })

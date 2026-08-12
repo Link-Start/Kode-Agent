@@ -92,7 +92,10 @@ function createHarness(
   return harness
 }
 
-function renderThinkingMessage(shouldAnimate: boolean): React.ReactElement {
+function renderThinkingMessage(
+  shouldAnimate: boolean,
+  isTransient = false,
+): React.ReactElement {
   return (
     <Message
       message={thinkingMessage}
@@ -106,6 +109,7 @@ function renderThinkingMessage(shouldAnimate: boolean): React.ReactElement {
       unresolvedToolUseIDs={new Set()}
       shouldAnimate={shouldAnimate}
       shouldShowDot={false}
+      isTransient={isTransient}
     />
   )
 }
@@ -131,6 +135,20 @@ describe('animation lifecycle', () => {
     expect(setIntervalSpy).not.toHaveBeenCalled()
     await harness.wait(220)
     expect(setIntervalSpy).not.toHaveBeenCalled()
+    expect(harness.getRenderCount()).toBe(initialRenderCount)
+    expect(harness.getOutput()).toBe(initialOutput)
+  })
+
+  test('keeps completed thinking static even while the request status is active', async () => {
+    const setIntervalSpy = spyOn(globalThis, 'setInterval')
+    const harness = createHarness(renderThinkingMessage(true, false))
+
+    await harness.wait(40)
+    const initialOutput = harness.getOutput()
+    const initialRenderCount = harness.getRenderCount()
+
+    expect(setIntervalSpy).not.toHaveBeenCalled()
+    await harness.wait(220)
     expect(harness.getRenderCount()).toBe(initialRenderCount)
     expect(harness.getOutput()).toBe(initialOutput)
   })

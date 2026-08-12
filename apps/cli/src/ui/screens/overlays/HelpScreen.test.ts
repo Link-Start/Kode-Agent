@@ -48,5 +48,8 @@ describe('HelpScreen helpers', () => {
         lines.some(line => line.startsWith(`- ${shortcut.trigger}:`)),
       ).toBe(true)
     }
+    expect(lines).toContain(
+      `- ${hints.shortcuts[0]!.trigger.slice(0, -1)}T: Thinking mode (automatic, enabled, or disabled)`,
+    )
   })
 })

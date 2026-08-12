@@ -50,7 +50,11 @@ import { TasksScreen } from '#ui-ink/screens/overlays/TasksScreen'
 import { WorkTasksScreen } from '#ui-ink/screens/overlays/WorkTasksScreen'
 import { HistorySearchScreen } from '#ui-ink/screens/overlays/HistorySearchScreen'
 import { ModelPickerScreen } from '#ui-ink/screens/overlays/ModelPickerScreen'
-import { ThinkingToggleScreen } from '#ui-ink/screens/overlays/ThinkingToggleScreen'
+import {
+  getThinkingModeLabel,
+  ThinkingToggleScreen,
+  type ThinkingMode,
+} from '#ui-ink/screens/overlays/ThinkingToggleScreen'
 import { ModelConfig } from '#ui-ink/components/ModelConfig'
 import { Doctor } from '#ui-ink/screens/Doctor'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
@@ -468,9 +472,8 @@ export function useReplController(props: REPLProps) {
     pastedTexts: PastedTextSegment[]
     pastedImages: PastedImageAttachment[]
   }>({ pastedTexts: [], pastedImages: [] })
-  const [sessionThinkingMode, setSessionThinkingMode] = useState<
-    'enabled' | 'auto' | null
-  >(null)
+  const [sessionThinkingMode, setSessionThinkingMode] =
+    useState<ThinkingMode | null>(null)
   const [submitCount, setSubmitCount] = useState(0)
   const [isMessageSelectorVisible, setIsMessageSelectorVisible] =
     useState(false)
@@ -681,7 +684,6 @@ export function useReplController(props: REPLProps) {
       if (key.meta && inputChar === 't') {
         const effectiveThinkingMode =
           sessionThinkingMode ?? getGlobalConfigCached().thinkingMode ?? 'auto'
-        const currentValue = effectiveThinkingMode === 'enabled'
         const isMidConversation =
           messages.some(m => m.type === 'assistant') ||
           messages.some(m => m.type === 'user' && !(m as any)?.isMeta)
@@ -689,11 +691,11 @@ export function useReplController(props: REPLProps) {
         openToolView({
           jsx: (
             <ThinkingToggleScreen
-              currentValue={currentValue}
+              currentMode={effectiveThinkingMode}
               isMidConversation={isMidConversation}
-              onSelect={enabled => {
-                setSessionThinkingMode(enabled ? 'enabled' : 'auto')
-                showToast(`Thinking: ${enabled ? 'ON' : 'OFF'}`)
+              onSelect={mode => {
+                setSessionThinkingMode(mode)
+                showToast(`Thinking: ${getThinkingModeLabel(mode)}`)
               }}
               onDone={dismissToolView}
             />

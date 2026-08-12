@@ -233,6 +233,33 @@ function hasAnyAssistantOutput(message: OpenAI.ChatCompletionMessage): boolean {
   )
 }
 
+function getNewReasoningDelta(args: {
+  previous: OpenAI.ChatCompletionMessage
+  accumulated: OpenAI.ChatCompletionMessage
+  delta: unknown
+}): string {
+  if (!isRecord(args.delta)) return ''
+
+  const previous = args.previous as unknown as Record<string, unknown>
+  const accumulated = args.accumulated as unknown as Record<string, unknown>
+  const deltas: string[] = []
+
+  for (const field of ['reasoning_content', 'reasoning']) {
+    if (typeof args.delta[field] !== 'string') continue
+
+    const before = typeof previous[field] === 'string' ? previous[field] : ''
+    const after =
+      typeof accumulated[field] === 'string' ? accumulated[field] : ''
+    if (!after || after === before) continue
+
+    deltas.push(
+      after.startsWith(before) ? after.slice(before.length) : args.delta[field],
+    )
+  }
+
+  return deltas.join('')
+}
+
 export function isOpenAIStreamDegradedResponse(
   response: OpenAI.ChatCompletion,
 ): response is OpenAIStreamDegradedCompletion {
@@ -306,11 +333,19 @@ export async function handleMessageStream(
           }
         }
 
+        const previousMessage = message
         const previousContent =
-          typeof message.content === 'string' ? message.content : ''
+          typeof previousMessage.content === 'string'
+            ? previousMessage.content
+            : ''
         message = messageReducer(message, chunk)
         const accumulatedContent =
           typeof message.content === 'string' ? message.content : ''
+        const thinkingDelta = getNewReasoningDelta({
+          previous: previousMessage,
+          accumulated: message,
+          delta: chunk?.choices?.[0]?.delta,
+        })
 
         const textDelta = chunk?.choices?.[0]?.delta?.content
         const newTextDelta =
@@ -318,6 +353,12 @@ export async function handleMessageStream(
           accumulatedContent.startsWith(previousContent)
             ? accumulatedContent.slice(previousContent.length)
             : textDelta
+        if (thinkingDelta) {
+          emitAssistantStreamUpdate(options, {
+            type: 'thinking_delta',
+            delta: thinkingDelta,
+          })
+        }
         if (newTextDelta) {
           emitAssistantStreamUpdate(options, {
             type: 'text_delta',

@@ -270,7 +270,10 @@ function AssistantMessage({
         <AssistantThinkingMessage
           addMargin={addMargin}
           param={param as ThinkingBlockParam}
-          shouldAnimate={shouldAnimate}
+          // Live provider reasoning is rendered by AssistantStreamPreview.
+          // Once it becomes a transcript item it must remain still; otherwise
+          // its spinner keeps repainting completed terminal history.
+          shouldAnimate={shouldAnimate && Boolean(isTransient)}
         />
       )
     default:

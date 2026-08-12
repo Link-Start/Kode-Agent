@@ -115,6 +115,8 @@ export async function queryOpenAI(
 ): Promise<AssistantMessage> {
   const config = getGlobalConfig()
   const toolUseContext = options?.toolUseContext
+  const thinkingMode = toolUseContext?.options?.thinkingMode
+  const shouldRequestReasoningSummary = thinkingMode !== 'disabled'
 
   const modelProfile =
     options?.modelProfile ?? getModelManager().getModel('main')
@@ -122,8 +124,20 @@ export async function queryOpenAI(
 
   // 🔍 Debug: 记录模型配置详情
   const currentRequest = getCurrentRequest()
+  const onAssistantStreamUpdate =
+    toolUseContext?.options?.onAssistantStreamUpdate
   const assistantStreamUpdateOptions = {
-    onAssistantStreamUpdate: toolUseContext?.options?.onAssistantStreamUpdate,
+    onAssistantStreamUpdate: onAssistantStreamUpdate
+      ? event => {
+          // A disabled session must not reintroduce provider thinking through a
+          // legacy OpenAI-compatible stream. The completed transcript is
+          // filtered below for the same reason.
+          if (thinkingMode === 'disabled' && event.type === 'thinking_delta') {
+            return
+          }
+          onAssistantStreamUpdate(event)
+        }
+      : undefined,
     agentId: toolUseContext?.agentId,
     requestId: toolUseContext?.requestId ?? currentRequest?.id ?? randomUUID(),
   } satisfies AssistantStreamUpdateOptions
@@ -235,13 +249,11 @@ export async function queryOpenAI(
       // Chat Completions models use legacy path for stability
       if (shouldUseResponses) {
         const adapter = ModelAdapterFactory.createAdapter(modelProfile)
-        const reasoningEffort = await getReasoningEffort(
-          modelProfile,
-          messages,
-          {
-            thinkingTokens: maxThinkingTokens,
-          },
-        )
+        const reasoningEffort = shouldRequestReasoningSummary
+          ? await getReasoningEffort(modelProfile, messages, {
+              thinkingTokens: maxThinkingTokens,
+            })
+          : null
 
         // Determine verbosity based on model name
         // Most GPT-5 codex models only support 'medium', so default to that unless we detect 'high' in the name
@@ -262,6 +274,11 @@ export async function queryOpenAI(
             options?.maxTokens ?? getMaxTokensFromProfile(modelProfile),
           stream: config.stream,
           reasoningEffort: reasoningEffort ?? undefined,
+          reasoning: {
+            enable: shouldRequestReasoningSummary,
+            effort: reasoningEffort ?? 'medium',
+            summary: 'auto',
+          },
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
@@ -337,9 +354,14 @@ export async function queryOpenAI(
             typeof modelProfile?.provider === 'string'
               ? modelProfile.provider
               : null,
-          reasoningEffort: await getReasoningEffort(modelProfile, messages, {
-            thinkingTokens: maxThinkingTokens,
-          }),
+          // Omitting this field avoids explicitly opting into profile-level
+          // extended reasoning in the legacy endpoint. Some old models have
+          // no portable `none` value, so they retain their provider default.
+          reasoningEffort: shouldRequestReasoningSummary
+            ? await getReasoningEffort(modelProfile, messages, {
+                thinkingTokens: maxThinkingTokens,
+              })
+            : undefined,
         })
 
         const completionFunction = isGPT5Model(modelProfile?.modelName || '')
@@ -398,6 +420,11 @@ export async function queryOpenAI(
   assistantMessage.message.content = normalizeContentFromAPI(
     assistantMessage.message.content || [],
   )
+  if (thinkingMode === 'disabled') {
+    assistantMessage.message.content = assistantMessage.message.content.filter(
+      block => block.type !== 'thinking' && block.type !== 'redacted_thinking',
+    )
+  }
 
   const normalizedUsage = normalizeUsage(assistantMessage.message.usage)
   assistantMessage.message.usage = normalizedUsage

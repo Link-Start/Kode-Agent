@@ -134,6 +134,11 @@ export function ShortcutsScreen({ onDone }: Props): React.ReactNode {
       detail: editorShortcut.effect,
       tone: 'shortcut',
     },
+    {
+      label: `${shortcutModifier}+T`,
+      detail: 'thinking mode',
+      tone: 'shortcut',
+    },
     { label: 'Ctrl+O', detail: 'transcript output', tone: 'shortcut' },
     { label: 'Ctrl+T', detail: 'work tasks', tone: 'shortcut' },
     { label: 'Ctrl+_', detail: 'undo', tone: 'shortcut' },

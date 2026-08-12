@@ -167,6 +167,35 @@ describe('OpenAI stream snapshot-field deduplication', () => {
     expect(message.content).toBe('Hello, world')
   })
 
+  test('accepts growing reasoning snapshots and only forwards new thinking', async () => {
+    const updates: Array<{ type: string; delta?: string }> = []
+
+    async function* stream() {
+      yield chunk({ reasoning_content: 'Inspect' })
+      yield chunk({ reasoning_content: 'Inspect the request' })
+      yield chunk({ content: 'Answer' })
+    }
+
+    const result = await handleMessageStream(stream() as any, undefined, {
+      onAssistantStreamUpdate: event => {
+        updates.push(event)
+      },
+    })
+    const message = result.choices[0]!.message as unknown as Record<
+      string,
+      unknown
+    >
+
+    expect(message.reasoning_content).toBe('Inspect the request')
+    expect(message.content).toBe('Answer')
+    expect(updates).toEqual([
+      { type: 'start' },
+      { type: 'thinking_delta', delta: 'Inspect' },
+      { type: 'thinking_delta', delta: ' the request' },
+      { type: 'text_delta', delta: 'Answer' },
+    ])
+  })
+
   test('still accumulates genuine incremental tool arguments', async () => {
     async function* stream() {
       yield chunk({

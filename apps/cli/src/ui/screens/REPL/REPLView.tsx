@@ -298,10 +298,9 @@ export function REPLView({
       VIEWPORT_SAFE_MARGIN_ROWS,
   )
   const canShowTransientRegion =
-    !isLayoutMeasurementStale &&
-    !isLayoutMeasurementPending &&
     !isMicroViewport &&
-    transientMaxHeight > 0
+    transientMaxHeight > 0 &&
+    (isLoading || (!isLayoutMeasurementStale && !isLayoutMeasurementPending))
   const showRequestStatus =
     !isMicroViewport &&
     !toolJSX &&
@@ -439,6 +438,7 @@ export function REPLView({
               transientItems={transientItems}
               maxHeight={transientMaxHeight}
               isVisible={canShowTransientRegion}
+              isActive={isLoading}
               debug={debug}
             />
 
