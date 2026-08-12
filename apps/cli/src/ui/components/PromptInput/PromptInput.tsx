@@ -1042,6 +1042,14 @@ export function PromptInput({
   }
 
   const [isQueueDrainInFlight, setIsQueueDrainInFlight] = useState(false)
+  const pendingPromptInputs = useMemo(
+    () => pendingPrompts.map(prompt => prompt.input),
+    [pendingPrompts],
+  )
+  const queuedPromptInputs = useMemo(
+    () => queuedPrompts.map(prompt => prompt.input),
+    [queuedPrompts],
+  )
   const lastCancelRequestKeyRef = useRef(cancelRequestKey)
   useEffect(() => {
     if (lastCancelRequestKeyRef.current !== cancelRequestKey) {
@@ -1289,8 +1297,8 @@ export function PromptInput({
       isEditingExternally={isEditingExternally}
       isDisabled={isDisabled}
       isLoading={isLoading}
-      pendingPrompts={pendingPrompts.map(item => item.input)}
-      queuedPrompts={queuedPrompts.map(item => item.input)}
+      pendingPrompts={pendingPromptInputs}
+      queuedPrompts={queuedPromptInputs}
       completionActive={completionVisible}
       historyIndex={historyIndex}
       suggestions={visibleSuggestions}
