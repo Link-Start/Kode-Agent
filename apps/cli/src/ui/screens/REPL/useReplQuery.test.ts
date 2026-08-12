@@ -5,7 +5,12 @@ import {
   createUserMessage,
 } from '#core/utils/messages'
 import type { Message } from '#core/query'
-import { appendMessagesForReplState } from './useReplQuery'
+import {
+  appendMessagesForReplState,
+  appendReplQueryFailureMessage,
+  REPL_QUERY_FAILURE_MESSAGE,
+  shouldAppendReplQueryFailure,
+} from './useReplQuery'
 
 function makeProgress(toolUseID: string, text: string): Message {
   return createProgressMessage(
@@ -59,5 +64,63 @@ describe('appendMessagesForReplState', () => {
       user,
       assistant,
     ])
+  })
+})
+
+describe('REPL query failures', () => {
+  test('adds a safe, retryable API error to the transcript', () => {
+    const user = createUserMessage('hello')
+    const result = appendReplQueryFailureMessage([user])
+    const failure = result.at(-1)
+
+    expect(failure?.type).toBe('assistant')
+    if (!failure || failure.type !== 'assistant') {
+      throw new Error('Expected an assistant API error message')
+    }
+
+    expect(failure.isApiErrorMessage).toBe(true)
+    expect(failure.message.content).toEqual([
+      {
+        type: 'text',
+        text: REPL_QUERY_FAILURE_MESSAGE,
+        citations: [],
+      },
+    ])
+    expect(REPL_QUERY_FAILURE_MESSAGE).not.toContain('provider token')
+  })
+
+  test('does not append a second failure for timeout or cancellation', () => {
+    expect(
+      shouldAppendReplQueryFailure({
+        timedOut: true,
+        aborted: true,
+        error: new Error('timed out'),
+      }),
+    ).toBe(false)
+    expect(
+      shouldAppendReplQueryFailure({
+        timedOut: false,
+        aborted: true,
+        error: new Error('cancelled'),
+      }),
+    ).toBe(false)
+    expect(
+      shouldAppendReplQueryFailure({
+        timedOut: false,
+        aborted: false,
+        error: new DOMException('cancelled', 'AbortError'),
+      }),
+    ).toBe(false)
+  })
+
+  test('keeps unclassified errors visible without exposing their details', () => {
+    expect(
+      shouldAppendReplQueryFailure({
+        timedOut: false,
+        aborted: false,
+        error: new Error('provider token: secret'),
+      }),
+    ).toBe(true)
+    expect(REPL_QUERY_FAILURE_MESSAGE).not.toContain('secret')
   })
 })

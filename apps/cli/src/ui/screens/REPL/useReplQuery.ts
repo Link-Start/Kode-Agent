@@ -6,7 +6,10 @@ import { buildSystemPromptForSession, runTurn } from '@kode/engine'
 import { handleHashCommand } from '#core/utils/hashCommand'
 import { logError } from '#core/utils/log'
 import { debug as debugLogger } from '#core/utils/debugLogger'
-import { createAssistantMessage } from '#core/utils/messages'
+import {
+  createAssistantAPIErrorMessage,
+  createAssistantMessage,
+} from '#core/utils/messages'
 import { getToolPermissionContextForConversationKey } from '#core/utils/toolPermissionContextState'
 import type {
   AssistantMessage,
@@ -110,6 +113,28 @@ export function appendMessagesForReplState(
 export const DEFAULT_REPL_TURN_TIMEOUT_MS = 15 * 60 * 1000
 const REPL_TURN_TIMEOUT_MESSAGE =
   'Request timed out before the model or a tool completed. The turn was cancelled; check the provider or tool and retry.'
+export const REPL_QUERY_FAILURE_MESSAGE =
+  'API Error: Request ended before completion. Your last prompt is saved in history; press Up Arrow to restore it and retry after checking the model configuration or connection.'
+
+export function shouldAppendReplQueryFailure(args: {
+  timedOut: boolean
+  aborted: boolean
+  error: unknown
+}): boolean {
+  return (
+    !args.timedOut &&
+    !args.aborted &&
+    !(args.error instanceof Error && args.error.name === 'AbortError')
+  )
+}
+
+export function appendReplQueryFailureMessage(
+  oldMessages: MessageType[],
+): MessageType[] {
+  return appendMessagesForReplState(oldMessages, [
+    createAssistantAPIErrorMessage(REPL_QUERY_FAILURE_MESSAGE),
+  ])
+}
 
 export async function runReplQueryWithCleanup<T>(args: {
   controller: AbortController
@@ -348,6 +373,14 @@ export function useReplQuery(args: {
                   createAssistantMessage(REPL_TURN_TIMEOUT_MESSAGE),
                 ]),
               )
+            } else if (
+              shouldAppendReplQueryFailure({
+                timedOut,
+                aborted: controllerToUse.signal.aborted,
+                error,
+              })
+            ) {
+              setMessages(appendReplQueryFailureMessage)
             }
             logError(error)
             debugLogger.error('REPL_QUERY_ERROR', { error })
