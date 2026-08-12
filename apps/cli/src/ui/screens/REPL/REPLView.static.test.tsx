@@ -239,16 +239,16 @@ describe('REPLView Static output epoch', () => {
     expect(harness.getOutput()).toContain('static-a')
   })
 
-  test('does not reserve an empty transient viewport before controls', async () => {
+  test('reserves the transient viewport while a request is active', async () => {
     const staticItems = [makeStaticItem('static-a')]
     const harness = createHarness(
       renderReplView({ staticOutputEpoch: 0, staticItems, isLoading: true }),
     )
 
-    await harness.wait(20)
+    await harness.wait(480)
 
     expect(harness.getOutput()).toContain('static-a')
-    expect(harness.getOutput()).not.toMatch(/(?:\n\s*){4,}/)
+    expect(harness.getOutput()).toMatch(/(?:\n\s*){4,}/)
   })
 
   test('renders transient items immediately on initial layout', async () => {
@@ -263,6 +263,35 @@ describe('REPLView Static output epoch', () => {
     await harness.wait(40)
 
     expect(harness.getOutput()).toContain('transient-a')
+  })
+
+  test('keeps the transient viewport mounted while an active request is remeasured', async () => {
+    const harness = createHarness(
+      renderReplView({
+        staticOutputEpoch: 0,
+        staticItems: [],
+        transientItems: [makeStaticItem('transient-a')],
+        isLoading: true,
+      }),
+      { columns: 100, rows: 30 },
+    )
+
+    await harness.wait(480)
+    expect(harness.getOutput()).toContain('transient-a')
+
+    harness.clearOutput()
+    harness.resize(80, 24)
+    harness.rerender(
+      renderReplView({
+        staticOutputEpoch: 0,
+        staticItems: [],
+        transientItems: [makeStaticItem('transient-b')],
+        isLoading: true,
+      }),
+    )
+    await harness.wait(80)
+
+    expect(harness.getOutput()).toContain('transient-b')
   })
 
   test('pauses transient output during resize measurement and restores it after', async () => {

@@ -50,6 +50,8 @@ export interface ReasoningStreamingContext {
   pendingSummaryParagraph: boolean
   thinkingContent?: string
   currentPartIndex?: number
+  reasoningPartText?: Map<string, string>
+  seenReasoningPartKeys?: Set<string>
   seenToolCallIds?: Set<string>
   responseFunctionCalls?: Map<
     string,

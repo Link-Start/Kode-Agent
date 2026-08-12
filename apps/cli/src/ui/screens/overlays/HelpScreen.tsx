@@ -117,6 +117,9 @@ export function __buildHelpLinesForTests(commands: Command[]): string[] {
   lines.push(
     `- ${shortcutModifier}+P: Model picker (type to filter; Ctrl+O opens model settings)`,
   )
+  lines.push(
+    `- ${shortcutModifier}+T: Thinking mode (automatic, enabled, or disabled)`,
+  )
   lines.push(`- ${modelShortcut.trigger}: ${modelShortcut.effect}`)
   lines.push(
     `- ${editorShortcut.trigger}: ${editorShortcut.effect} (Ctrl+G also works)`,
