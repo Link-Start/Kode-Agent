@@ -102,6 +102,52 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     expect(loginStarted).toBe(true)
   })
 
+  test('ignores a manual login check that finishes after Escape', async () => {
+    let statusChecks = 0
+    let resolveManualCheck:
+      ((status: { kind: 'authenticated' }) => void) | undefined
+
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {}}
+          pollIntervalMs={60_000}
+          codexAuth={{
+            getStatus: () => {
+              statusChecks += 1
+              if (statusChecks === 1) {
+                return Promise.resolve({ kind: 'unauthenticated' as const })
+              }
+              return new Promise(resolve => {
+                resolveManualCheck = resolve
+              })
+            },
+            startLogin: async () => {},
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Codex is not signed in yet.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Browser sign-in started.')
+
+    h.stdin.write('\r')
+    await h.wait(25)
+    expect(resolveManualCheck).toBeDefined()
+
+    h.stdin.write('\x1b')
+    await waitForOutput(h, 'Codex is not signed in yet.')
+
+    if (!resolveManualCheck) throw new Error('Manual login check did not start')
+    resolveManualCheck({ kind: 'authenticated' })
+    await h.wait(75)
+
+    expect(h.getOutput()).toContain('Codex is not signed in yet.')
+    expect(h.getOutput()).not.toContain('Codex is signed in.')
+  })
+
   test('opens the OpenAI API-key setup directly from the login selector', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>
