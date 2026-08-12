@@ -837,8 +837,25 @@ describe('HttpClient', () => {
     })
 
     await expect(client.listSessions()).rejects.toThrow(
+      'Failed to list sessions (503): missing',
+    )
+  })
+
+  test('keeps unstructured daemon failure bodies out of user-visible errors', async () => {
+    const client = new HttpClient({
+      baseUrl: 'http://localhost:32123',
+      token: 'token',
+      webSocketImpl: FakeWebSocket,
+      fetchImpl: async () =>
+        new Response('upstream diagnostic included token=secret', {
+          status: 503,
+        }),
+    })
+
+    await expect(client.listSessions()).rejects.toThrow(
       'Failed to list sessions (503)',
     )
+    await expect(client.listSessions()).rejects.not.toThrow('token=secret')
   })
 
   test('listSessions rejects malformed HTTP session list responses', async () => {
@@ -906,7 +923,7 @@ describe('HttpClient', () => {
     })
 
     await expect(client.getRuntimeStatus()).rejects.toThrow(
-      'Failed to read runtime status (503)',
+      'Failed to read runtime status (503): missing',
     )
   })
 
@@ -920,6 +937,23 @@ describe('HttpClient', () => {
 
     await expect(client.getRuntimeStatus()).rejects.toThrow(
       'Invalid runtime status response',
+    )
+  })
+
+  test('surfaces structured Agent control errors', async () => {
+    const client = new HttpClient({
+      baseUrl: 'http://localhost:32123',
+      token: 'token',
+      webSocketImpl: FakeWebSocket,
+      fetchImpl: async () =>
+        Response.json(
+          { ok: false, error: 'Agent controls are unavailable' },
+          { status: 409 },
+        ),
+    })
+
+    await expect(client.listAgents()).rejects.toThrow(
+      'Failed to list agents (409): Agent controls are unavailable',
     )
   })
 
@@ -984,7 +1018,7 @@ describe('HttpClient', () => {
 
     await expect(
       client.loadSession('11111111-1111-4111-8111-111111111111'),
-    ).rejects.toThrow('Failed to load session (404)')
+    ).rejects.toThrow('Failed to load session (404): missing')
   })
 
   test('loadSession rejects malformed HTTP history responses', async () => {
