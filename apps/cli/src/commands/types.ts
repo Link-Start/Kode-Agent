@@ -34,13 +34,30 @@ export type LocalCommand = {
 export type LocalJSXCommand = {
   type: 'local-jsx'
   call(
-    onDone: (result?: string) => void,
+    onDone: LocalJSXDoneCallback,
     context: ToolUseContext & {
       setForkConvoWithMessagesOnTheNextRender: SetForkConvoWithMessagesOnTheNextRender
     },
     args?: string,
   ): Promise<ReactNode>
 }
+
+/** A local interactive command can either render transcript output or submit a reviewed prompt. */
+export type LocalJSXCommandResult =
+  | string
+  | {
+      type: 'submit-prompt'
+      prompt: string
+      voiceInput?: boolean
+      voiceResponse?: boolean
+    }
+
+// Local command tests and existing overlays often provide a string-only
+// callback. Keep that established callback shape assignable while allowing a
+// new overlay to submit a structured prompt.
+export type LocalJSXDoneCallback = {
+  bivarianceHack(result?: LocalJSXCommandResult): void
+}['bivarianceHack']
 
 export type Command = {
   description: string

@@ -27,6 +27,7 @@ import { ReadMcpResourceTool } from '#tools/tools/mcp/ReadMcpResourceTool/ReadMc
 import { SlashCommandTool } from '#tools/tools/interaction/SlashCommandTool/SlashCommandTool'
 import { SkillTool } from '#tools/tools/interaction/SkillTool/SkillTool'
 import { TaskTool } from '#tools/tools/ai/TaskTool/TaskTool'
+import { TaskBatchTool } from '#tools/tools/ai/TaskBatchTool/TaskBatchTool'
 import { TodoWriteTool } from '#tools/tools/interaction/TodoWriteTool/TodoWriteTool'
 import { WebFetchTool } from '#tools/tools/network/WebFetchTool/WebFetchTool'
 import { WebSearchTool } from '#tools/tools/search/WebSearchTool/WebSearchTool'
@@ -36,6 +37,7 @@ import { getMCPTools, getMcpListChangedVersion } from '#core/mcp/client'
 // Base tool list for the CLI toolset
 export const getAllTools = (): Tool[] => [
   TaskTool as unknown as Tool,
+  TaskBatchTool as unknown as Tool,
   AskExpertModelTool as unknown as Tool,
   BashTool as unknown as Tool,
   TaskOutputTool as unknown as Tool,

@@ -1,4 +1,4 @@
-import type { Tool } from '@kode/tool-interface/Tool'
+import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
 import { getAvailableAgentTypes } from '@kode/agent'
 import { getAgentTranscript } from '#core/utils/agentTranscripts'
 import { getCwd } from '#core/utils/state'
@@ -7,7 +7,7 @@ import { loadKodeAgentSidechainMessagesForResume } from '#protocol/utils/kodeAge
 
 import { TOOL_NAME } from './constants'
 import { getPrompt } from './prompt'
-import { callTaskTool } from './call'
+import { callTaskTool, getVoiceTaskDispatchError } from './call'
 import { inputSchema, type Input, type Output } from './schema'
 import {
   renderTaskToolResultForAssistant,
@@ -42,7 +42,13 @@ export const TaskTool = {
   needsPermissions() {
     return false
   },
-  async validateInput(input: Input) {
+  async validateInput(input: Input, context?: ToolUseContext) {
+    const voiceDispatchError = context
+      ? getVoiceTaskDispatchError(context)
+      : null
+    if (voiceDispatchError) {
+      return { result: false, message: voiceDispatchError }
+    }
     if (!input.description || typeof input.description !== 'string') {
       return {
         result: false,

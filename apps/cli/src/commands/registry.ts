@@ -33,6 +33,7 @@ import outputStyle from './builtin/output-style'
 import permissions from './builtin/permissions'
 import theme from './builtin/theme'
 import vim from './builtin/vim'
+import voice from './builtin/voice'
 import * as model from './builtin/model'
 import modelstatus from './builtin/modelstatus'
 import note from './builtin/note'
@@ -109,6 +110,7 @@ const COMMANDS = memoize((): Command[] => [
   permissions,
   theme,
   vim,
+  voice,
   statusline,
   capabilities,
   mcp,

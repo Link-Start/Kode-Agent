@@ -2,6 +2,7 @@
  * advertised as capabilities of a Task subagent. */
 export const SUBAGENT_DISALLOWED_TOOL_NAMES = new Set<string>([
   'Task',
+  'TaskBatch',
   'TaskOutput',
   'TaskStop',
   'EnterPlanMode',

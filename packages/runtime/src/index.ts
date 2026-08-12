@@ -16,3 +16,4 @@ export type {
   SpawnStdio,
 } from './types'
 export * from './cwd'
+export * from './voice'

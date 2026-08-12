@@ -41,6 +41,8 @@ export interface ExtendedToolUseContext extends ToolUseContext {
     isKodingRequest?: boolean
     commandAllowedTools?: string[]
     lastUserPrompt?: string
+    voiceTurn?: boolean
+    voiceIntentPrepared?: boolean
     model?: string | import('#config').ModelPointerType
     toolPermissionContext?: ToolPermissionContext
     /**

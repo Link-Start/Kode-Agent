@@ -37,6 +37,19 @@ type TaskToolUseContext = ToolUseContext & {
   __testQuery?: QueryFn
 }
 
+/**
+ * Raw speech can be fragmented or self-correcting. A main agent must turn it
+ * into a validated TaskBatch voice brief before a subagent receives work.
+ */
+export function getVoiceTaskDispatchError(
+  context: Pick<ToolUseContext, 'options'>,
+): string | null {
+  return context.options?.voiceTurn === true &&
+    context.options.voiceIntentPrepared !== true
+    ? 'Voice-originated delegation must use TaskBatch with a complete voice_intent. Organize the request, ask about unresolved points, then dispatch the structured tasks through TaskBatch.'
+    : null
+}
+
 export async function* callTaskTool(
   input: Input,
   toolUseContext: TaskToolUseContext,
@@ -59,6 +72,8 @@ export async function* callTaskTool(
   void,
   unknown
 > {
+  const voiceDispatchError = getVoiceTaskDispatchError(toolUseContext)
+  if (voiceDispatchError) throw new Error(voiceDispatchError)
   const startTime = Date.now()
   const options = toolUseContext.options ?? {}
   const safeMode = options.safeMode ?? false

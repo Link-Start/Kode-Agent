@@ -1,5 +1,7 @@
 import { homedir } from 'node:os'
 
+import type { VoiceConfig } from './voice'
+
 export type ThemeNames =
   // Light themes
   | 'light'
@@ -247,6 +249,8 @@ export type GlobalConfig = {
   defaultModelName?: string
   lastDismissedUpdateVersion?: string
   shiftEnterKeyBindingInstalled?: boolean
+  /** Voice provider settings; API key material stays in the named environment variable. */
+  voice?: Partial<VoiceConfig>
 }
 
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {

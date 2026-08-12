@@ -66,6 +66,10 @@ export interface ToolUseContext {
     permissionMode?: PermissionMode
     toolPermissionContext?: ToolPermissionContext
     lastUserPrompt?: string
+    /** True only for a user turn submitted from the reviewed voice UI. */
+    voiceTurn?: boolean
+    /** Internal capability granted by TaskBatch after validating a voice brief. */
+    voiceIntentPrepared?: boolean
     getCustomSystemPromptAdditions?: () => string[]
     openMessageSelector?: () => void
     onStreamEvent?: (event: unknown) => void

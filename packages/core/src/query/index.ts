@@ -46,6 +46,8 @@ export interface ExtendedToolUseContext extends ToolUseContext {
     isKodingRequest?: boolean
     commandAllowedTools?: string[]
     lastUserPrompt?: string
+    voiceTurn?: boolean
+    voiceIntentPrepared?: boolean
     model?: string | ModelPointerType
     toolPermissionContext?: ToolPermissionContext
     shouldAvoidPermissionPrompts?: boolean
@@ -74,6 +76,10 @@ export type UserMessage = {
     commandName?: string
     commandArgs?: string
     requestStatusDetail?: string
+    /** Submitted through the reviewed voice UI. */
+    voiceInput?: boolean
+    /** Voice turn eligible for best-effort TTS. */
+    voiceResponse?: boolean
   }
 }
 

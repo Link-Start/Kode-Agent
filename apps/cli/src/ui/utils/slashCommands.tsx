@@ -10,6 +10,24 @@ import {
   NO_RESPONSE_REQUESTED,
 } from '#core/utils/messages'
 import type { SetForkConvoWithMessagesOnTheNextRender } from '#ui-ink/types/conversationReset'
+import type { LocalJSXCommandResult } from '#cli-commands/types'
+
+/** Convert an interactive local JSX result into the ordinary REPL input type. */
+export function createInteractivePromptMessage(
+  result: LocalJSXCommandResult,
+): Message | null {
+  if (typeof result === 'string' || result.type !== 'submit-prompt') return null
+  const prompt = result.prompt.trim()
+  if (!prompt) return null
+
+  const userMessage = createUserMessage(prompt)
+  userMessage.options = {
+    ...userMessage.options,
+    voiceInput: result.voiceInput === true,
+    voiceResponse: result.voiceResponse === true,
+  }
+  return userMessage
+}
 
 export async function getMessagesForSlashCommand(
   commandName: string,
@@ -39,7 +57,22 @@ export async function getMessagesForSlashCommand(
                     resolveMessages([])
                     return
                   }
-                  resolveMessages([createAssistantMessage(r)])
+                  if (typeof r !== 'string' && r.type === 'submit-prompt') {
+                    const userMessage = createInteractivePromptMessage(r)
+                    if (!userMessage) {
+                      resolveMessages([])
+                      return
+                    }
+                    resolveMessages([userMessage])
+                    return
+                  }
+                  resolveMessages([
+                    createAssistantMessage(
+                      typeof r === 'string'
+                        ? r
+                        : 'Interactive command returned an unsupported result.',
+                    ),
+                  ])
                   return
                 }
 
@@ -48,7 +81,11 @@ export async function getMessagesForSlashCommand(
           <command-message>${command.userFacingName()}</command-message>
           <command-args>${args}</command-args>`),
                   r
-                    ? createAssistantMessage(r)
+                    ? createAssistantMessage(
+                        typeof r === 'string'
+                          ? r
+                          : 'Interactive command returned an unsupported result.',
+                      )
                     : createAssistantMessage(NO_RESPONSE_REQUESTED),
                 ])
               },

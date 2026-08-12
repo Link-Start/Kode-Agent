@@ -86,6 +86,7 @@ export const COMMAND_CATEGORIES = [
       'terminal-setup',
       'theme',
       'vim',
+      'voice',
     ],
   },
   {

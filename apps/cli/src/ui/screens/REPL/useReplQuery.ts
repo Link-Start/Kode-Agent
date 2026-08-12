@@ -28,6 +28,11 @@ import {
   getOutputStyleSystemPromptAdditions,
   getCurrentOutputStyleDefinition,
 } from '#cli-services/outputStyles'
+import {
+  getVoiceInputSystemPromptAdditions,
+  interruptVoicePlayback,
+  speakVoiceReply,
+} from '#cli-services/voice'
 import type {
   AssistantStreamStore,
   AssistantStreamUpdateEvent,
@@ -261,10 +266,19 @@ export function useReplQuery(args: {
             const lastMessage = newMessages.at(-1)
             if (!lastMessage) return
 
+            // Text input interrupts a reply that is no longer useful.
+            if (lastMessage.type === 'user') interruptVoicePlayback()
+
             const firstMessage = newMessages[0]
             const isKodingRequest =
               firstMessage?.type === 'user' &&
               firstMessage.options?.isKodingRequest === true
+            const shouldSpeakVoiceReply =
+              firstMessage?.type === 'user' &&
+              firstMessage.options?.voiceResponse === true
+            const isVoiceInput =
+              firstMessage?.type === 'user' &&
+              firstMessage.options?.voiceInput === true
 
             setMessages(oldMessages =>
               appendMessagesForReplState(oldMessages, newMessages),
@@ -304,14 +318,17 @@ export function useReplQuery(args: {
               thinkingMode,
               requestToolUsePermission,
               isKodingRequest: isKodingRequest || undefined,
+              voiceTurn: isVoiceInput || undefined,
               toolPermissionContext: getToolPermissionContextForConversationKey(
                 {
                   conversationKey: `${messageLogName}:${forkNumber}`,
                   isBypassPermissionsModeAvailable: !safeMode,
                 },
               ),
-              getCustomSystemPromptAdditions:
-                getOutputStyleSystemPromptAdditions,
+              getCustomSystemPromptAdditions: () => [
+                ...getOutputStyleSystemPromptAdditions(),
+                ...(isVoiceInput ? getVoiceInputSystemPromptAdditions() : []),
+              ],
               onAssistantStreamUpdate: (event: AssistantStreamUpdateEvent) => {
                 assistantStreamStore.handleUpdate(controllerToUse, event)
               },
@@ -353,6 +370,15 @@ export function useReplQuery(args: {
                 ]),
               )
               return
+            }
+
+            if (
+              shouldSpeakVoiceReply &&
+              lastAssistantMessage?.type === 'assistant'
+            ) {
+              void speakVoiceReply(lastAssistantMessage).catch(error => {
+                logError(error)
+              })
             }
 
             if (
