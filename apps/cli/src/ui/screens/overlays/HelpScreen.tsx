@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -216,6 +216,16 @@ export function HelpScreen({
   const [scrollTop, setScrollTop] = useState(0)
   const [status, setStatus] = useState<string | null>(null)
   const [savedPath, setSavedPath] = useState<string | null>(null)
+  const isCopyingRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isCopyingRef.current = false
+    }
+  }, [])
 
   const rawLines = useMemo(() => __buildHelpLinesForTests(commands), [commands])
   const wrapped = useMemo(() => {
@@ -244,16 +254,27 @@ export function HelpScreen({
   const maxScrollTop = Math.max(0, wrapped.length - contentRows)
 
   const copyAll = useCallback(async () => {
+    if (isCopyingRef.current) return
+
+    isCopyingRef.current = true
+    setStatus('Copying to clipboard…')
+
     try {
       const result = await copyTextToClipboard(rawLines.join('\n') + '\n')
+      if (!mountedRef.current) return
+
       if (result.method === 'osc52' && result.truncated) {
         setStatus('Copied (OSC 52, truncated).')
       } else {
         setStatus('Copied to clipboard.')
       }
     } catch (error) {
+      if (!mountedRef.current) return
+
       const message = error instanceof Error ? error.message : String(error)
       setStatus(`Copy failed: ${message}`)
+    } finally {
+      isCopyingRef.current = false
     }
   }, [rawLines])
 
