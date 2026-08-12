@@ -51,7 +51,11 @@ import {
   convertAnthropicMessagesToOpenAIMessages,
   convertOpenAIResponseToAnthropic,
 } from './conversion'
-import { buildOpenAIChatCompletionCreateParams, isGPT5Model } from './params'
+import {
+  buildOpenAIChatCompletionCreateParams,
+  isGPT5Model,
+  resolveOpenAIStreamDecision,
+} from './params'
 import { handleMessageStream, isOpenAIStreamDegradedResponse } from './stream'
 import { buildAssistantMessageFromUnifiedResponse } from './unifiedResponse'
 import {
@@ -113,7 +117,7 @@ export async function queryOpenAI(
     cliSyspromptPrefix?: string
   },
 ): Promise<AssistantMessage> {
-  const streamEnabled = options?.stream ?? getAiStream()
+  const configuredStream = options?.stream ?? getAiStream()
   const toolUseContext = options?.toolUseContext
   const thinkingMode = toolUseContext?.options?.thinkingMode
   const shouldRequestReasoningSummary = thinkingMode !== 'disabled'
@@ -194,6 +198,20 @@ export async function queryOpenAI(
         }) as OpenAI.ChatCompletionTool,
     ),
   )
+
+  const streamDecision = resolveOpenAIStreamDecision({
+    configuredStream,
+    model,
+    toolNames: tools.map(tool => tool.name),
+  })
+  debugLogger.api('OPENAI_STREAM_POLICY', {
+    model,
+    toolCount: String(toolSchemas.length),
+    configuredStream: String(configuredStream),
+    effectiveStream: String(streamDecision.stream),
+    reason: streamDecision.reason,
+    requestId: getCurrentRequest()?.id,
+  })
 
   const openaiSystem = system.map(
     s =>
@@ -278,7 +296,7 @@ export async function queryOpenAI(
           tools,
           maxTokens:
             options?.maxTokens ?? getMaxTokensFromProfile(modelProfile),
-          stream: streamEnabled,
+          stream: streamDecision.stream,
           reasoningEffort: reasoningEffort ?? undefined,
           reasoning: {
             enable: shouldRequestReasoningSummary,
@@ -353,7 +371,7 @@ export async function queryOpenAI(
           temperature:
             options?.temperature ??
             (isGPT5Model(model) ? 1 : MAIN_QUERY_TEMPERATURE),
-          stream: streamEnabled,
+          stream: streamDecision.stream,
           toolSchemas: toolSchemas,
           stopSequences: options?.stopSequences,
           provider:

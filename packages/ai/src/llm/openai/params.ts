@@ -16,6 +16,36 @@ export function isMiMoModel(modelName: string): boolean {
   return modelName.toLowerCase().startsWith('mimo-')
 }
 
+export type OpenAIStreamDecision = {
+  stream: boolean
+  reason: 'configured_off' | 'mimo_file_tool_integrity' | 'configured_on'
+}
+
+const LARGE_ARGUMENT_FILE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit'])
+
+/**
+ * MiMo tool calls can contain an entire generated file in one JSON argument.
+ * Its compatible SSE endpoint has been observed to terminate before those
+ * arguments finish, while the same request succeeds through the non-streaming
+ * endpoint. Prefer completion integrity over partial UI updates for that path.
+ */
+export function resolveOpenAIStreamDecision(args: {
+  configuredStream: boolean
+  model: string
+  toolNames: readonly string[]
+}): OpenAIStreamDecision {
+  if (!args.configuredStream) {
+    return { stream: false, reason: 'configured_off' }
+  }
+  if (
+    detectModelFamily(args.model) === 'mimo' &&
+    args.toolNames.some(toolName => LARGE_ARGUMENT_FILE_TOOLS.has(toolName))
+  ) {
+    return { stream: false, reason: 'mimo_file_tool_integrity' }
+  }
+  return { stream: true, reason: 'configured_on' }
+}
+
 /**
  * MiMo / DeepSeek thinking burns completion budget and can break tool_calls.
  * Enable only for medium/high effort without tools.

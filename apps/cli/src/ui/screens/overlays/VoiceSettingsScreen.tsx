@@ -42,7 +42,7 @@ const FIELDS: Array<{
   {
     key: 'apiKey',
     label: 'MiMo API key',
-    hint: 'Paste to Kode credential storage. It is masked, owner-only, and never saved in regular configuration.',
+    hint: 'Paste and press Enter to save it immediately. It is masked, owner-only, and never saved in regular configuration.',
     editable: true,
   },
   {
@@ -123,8 +123,12 @@ function cycleLanguage(
 
 export function VoiceSettingsScreen({
   onDone,
+  onSaved,
+  requireCredential = false,
 }: {
   onDone: (result?: LocalJSXCommandResult) => void
+  onSaved?: () => void
+  requireCredential?: boolean
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
@@ -189,9 +193,17 @@ export function VoiceSettingsScreen({
         }
         try {
           storeVoiceApiKey(validated.config, trimmed)
+          if (requireCredential && onSaved) {
+            saveGlobalConfig({
+              ...getGlobalConfig(),
+              voice: validated.config,
+            })
+            onSaved()
+            return
+          }
         } catch {
           setError(
-            'Kode could not save the MiMo API key. Check the permissions of ~/.kode and retry.',
+            'Kode could not save the MiMo credential safely. Check the permissions of the Kode data directory and retry.',
           )
           return
         }
@@ -215,7 +227,7 @@ export function VoiceSettingsScreen({
       }
       setEditing(null)
     },
-    [config, editing, update],
+    [config, editing, onSaved, requireCredential, update],
   )
 
   const save = useCallback(() => {
@@ -224,11 +236,25 @@ export function VoiceSettingsScreen({
       setError(validated.message)
       return
     }
+    if (
+      requireCredential &&
+      getVoiceCredentialStatus(validated.config) === 'missing'
+    ) {
+      setSelected(0)
+      setError(
+        'Paste a MiMo API key before continuing, or close Voice and configure the named environment variable.',
+      )
+      return
+    }
     saveGlobalConfig({ ...getGlobalConfig(), voice: validated.config })
+    if (onSaved) {
+      onSaved()
+      return
+    }
     onDone(
       `Voice settings saved. MiMo credential: ${displayValue(validated.config, 'apiKey')}.`,
     )
-  }, [config, onDone])
+  }, [config, onDone, onSaved, requireCredential])
 
   useKeypress(
     (input, key) => {

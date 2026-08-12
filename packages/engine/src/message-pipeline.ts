@@ -227,6 +227,42 @@ function createVerificationRecoveryMessage(): UserMessage {
   )
 }
 
+function appendVerificationUnavailableNotice(
+  assistantMessage: AssistantMessage,
+): AssistantMessage {
+  const content = [...assistantMessage.message.content]
+  const assistantText = content
+    .filter(block => block.type === 'text')
+    .map(block => (block.type === 'text' ? block.text : ''))
+    .join('\n')
+  const notice = /[\u3400-\u9fff]/u.test(assistantText)
+    ? '本次会话没有可信终端工具，因此未运行自动验证。工具实际应用的工作区改动仍会保留；依赖该结果前，请手动验证或使用可信执行工具重新运行。'
+    : 'Automated verification was not run because this session has no trusted terminal tool. Any workspace changes applied by tools remain in place; verify them manually or rerun with a trusted execution tool before relying on the result.'
+  let lastTextIndex = -1
+  for (let index = content.length - 1; index >= 0; index -= 1) {
+    if (content[index]?.type !== 'text') continue
+    lastTextIndex = index
+    break
+  }
+
+  if (lastTextIndex >= 0) {
+    const block = content[lastTextIndex]
+    if (block?.type === 'text') {
+      content[lastTextIndex] = {
+        ...block,
+        text: `${block.text.trimEnd()}\n\n${notice}`,
+      }
+    }
+  } else {
+    content.push({ type: 'text', text: notice, citations: [] })
+  }
+
+  return {
+    ...assistantMessage,
+    message: { ...assistantMessage.message, content },
+  }
+}
+
 function isVerificationRecoveryMessage(message: Message): boolean {
   return (
     message.type === 'user' &&
@@ -968,10 +1004,13 @@ async function* messagePipelineCore(
           return
         }
 
+        if (!hasTrustedVerificationTool) {
+          yield appendVerificationUnavailableNotice(assistantMessage)
+          return
+        }
+
         yield createAssistantAPIErrorMessage(
-          hasTrustedVerificationTool
-            ? 'Verification incomplete: a direct workspace-writing tool ran, but the model still did not record a completed test, typecheck, lint, build, or check after the latest write. The workspace is unchanged by this warning; run a focused check or retry the turn.'
-            : 'Verification unavailable: a direct workspace-writing tool ran, but this session has no trusted terminal tool that can record a test, typecheck, lint, build, or check result. The workspace is unchanged by this warning; enable a trusted execution tool or verify the change manually.',
+          'Verification incomplete: a direct workspace-writing tool ran, but the model still did not record a completed test, typecheck, lint, build, or check after the latest write. The workspace is unchanged by this warning; run a focused check or retry the turn.',
         )
         return
       }

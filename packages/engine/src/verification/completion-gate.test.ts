@@ -197,7 +197,7 @@ describe('interactive completion verification gate', () => {
     expect(context.turnCount).toBe(1)
   })
 
-  test('reports an actionable boundary when no trusted execution tool exists', async () => {
+  test('preserves completion with a verification boundary when no trusted execution tool exists', async () => {
     const { output } = await run(
       [
         createUserMessage('Implement the requested change.'),
@@ -213,7 +213,66 @@ describe('interactive completion verification gate', () => {
         (message): message is AssistantMessage => message.type === 'assistant',
       )
       .at(-1)
-    expect(last?.isApiErrorMessage).toBe(true)
-    expect(last?.message.content[0]?.text).toContain('Verification unavailable')
+    expect(last?.isApiErrorMessage).not.toBe(true)
+    expect(last?.message.content[0]?.text).toContain('Done.')
+    expect(last?.message.content[0]?.text).toContain(
+      'Automated verification was not run',
+    )
+    expect(last?.message.content[0]?.text).toContain(
+      'workspace changes applied by tools remain in place',
+    )
+  })
+
+  test('localizes the no-terminal boundary for a Chinese completion', async () => {
+    queryImplementation = async () => createAssistantMessage('已完成修改。')
+
+    const { output } = await run(
+      [
+        createUserMessage('完成修改。'),
+        toolUse('edit-1', 'Edit', { file_path: 'a.ts' }),
+        toolResult('edit-1', {}),
+      ],
+      createContext({ trustedBash: false }),
+    )
+
+    const last = output
+      .filter(
+        (message): message is AssistantMessage => message.type === 'assistant',
+      )
+      .at(-1)
+    expect(last?.message.content[0]?.text).toContain('已完成修改。')
+    expect(last?.message.content[0]?.text).toContain('未运行自动验证')
+    expect(last?.message.content[0]?.text).toContain(
+      '工具实际应用的工作区改动仍会保留',
+    )
+  })
+
+  test('adds the boundary after non-text assistant content', async () => {
+    queryImplementation = async () => {
+      const message = createAssistantMessage('')
+      message.message.content = [
+        { type: 'image', source: { type: 'base64', data: 'AA==' } },
+      ] as any
+      return message
+    }
+
+    const { output } = await run(
+      [
+        createUserMessage('Implement the requested change.'),
+        toolUse('edit-1', 'Edit', { file_path: 'a.ts' }),
+        toolResult('edit-1', {}),
+      ],
+      createContext({ trustedBash: false }),
+    )
+
+    const last = output
+      .filter(
+        (message): message is AssistantMessage => message.type === 'assistant',
+      )
+      .at(-1)
+    const text = last?.message.content.find(block => block.type === 'text')
+    expect(text?.type === 'text' ? text.text : '').toContain(
+      'Automated verification was not run',
+    )
   })
 })

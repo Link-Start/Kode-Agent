@@ -50,7 +50,7 @@ const loop = {
   description: 'Create and manage durable fixed-interval goal prompts',
   argumentHint: '[start <objective> --every 5m | status [id] | cancel <id>]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(args) {
     const raw = args.trim()
     if (!raw) return USAGE

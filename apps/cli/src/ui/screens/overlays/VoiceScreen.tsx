@@ -21,6 +21,7 @@ import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
+import { VoiceSettingsScreen } from './VoiceSettingsScreen'
 
 type VoiceScreenState =
   | { kind: 'ready' }
@@ -29,7 +30,9 @@ type VoiceScreenState =
   | { kind: 'transcribing' }
   | { kind: 'review'; error?: string }
   | { kind: 'submitting' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; recovery: 'retry' | 'configure' }
+
+type VoiceScreenMode = 'conversation' | 'settings'
 
 export class VoiceSubmissionError extends Error {
   override name = 'VoiceSubmissionError'
@@ -58,6 +61,7 @@ export function VoiceScreen({
   const layout = useScreenLayout()
   const { columns } = useTerminalSize()
   const [state, setState] = useState<VoiceScreenState>({ kind: 'ready' })
+  const [mode, setMode] = useState<VoiceScreenMode>('conversation')
   const [transcript, setTranscript] = useState('')
   const [cursorOffset, setCursorOffset] = useState(0)
   const transcriptRef = useRef('')
@@ -89,13 +93,18 @@ export function VoiceScreen({
     appendNextRecordingRef.current = appendTranscript
     const resolved = resolveVoiceConfig(getGlobalConfig().voice)
     if (!resolved.ok) {
-      setState({ kind: 'error', message: resolved.message })
+      setState({
+        kind: 'error',
+        message: resolved.message,
+        recovery: 'configure',
+      })
       return
     }
     if (!readVoiceApiKey(resolved.config)?.trim()) {
       setState({
         kind: 'error',
-        message: `Configure ${resolved.config.apiKeyEnv} in the environment or paste it in /voice config before recording. The key is never stored in regular Kode configuration.`,
+        message: `No MiMo credential was found. Set ${resolved.config.apiKeyEnv} in the environment, or press Enter to paste a key securely in Voice settings. It is never stored in regular Kode configuration.`,
+        recovery: 'configure',
       })
       return
     }
@@ -113,7 +122,11 @@ export function VoiceScreen({
       setState({ kind: 'recording' })
     } catch (error) {
       if (!closedRef.current)
-        setState({ kind: 'error', message: toSafeMessage(error) })
+        setState({
+          kind: 'error',
+          message: toSafeMessage(error),
+          recovery: 'retry',
+        })
     }
   }, [])
 
@@ -152,7 +165,11 @@ export function VoiceScreen({
       setState({ kind: 'review' })
     } catch (error) {
       if (!closedRef.current && !controller.signal.aborted) {
-        setState({ kind: 'error', message: toSafeMessage(error) })
+        setState({
+          kind: 'error',
+          message: toSafeMessage(error),
+          recovery: 'retry',
+        })
       }
     } finally {
       if (requestRef.current === controller) requestRef.current = null
@@ -167,6 +184,7 @@ export function VoiceScreen({
           kind: 'error',
           message:
             'The transcript is empty. Record again or edit it before sending.',
+          recovery: 'retry',
         })
         return
       }
@@ -218,6 +236,10 @@ export function VoiceScreen({
         return true
       }
       if (!key.return) return undefined
+      if (state.kind === 'error' && state.recovery === 'configure') {
+        setMode('settings')
+        return true
+      }
       if (state.kind === 'ready' || state.kind === 'error') {
         void startRecording()
         return true
@@ -228,7 +250,10 @@ export function VoiceScreen({
       }
       return undefined
     },
-    { priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY },
+    {
+      isActive: mode === 'conversation',
+      priority: KEYPRESS_PRIORITY.FULLSCREEN_OVERLAY,
+    },
   )
 
   const stateLine =
@@ -244,7 +269,38 @@ export function VoiceScreen({
               ? `Review the transcript, then press Enter to send it to ${submission?.destination ?? 'the normal agent'}.`
               : state.kind === 'submitting'
                 ? `Sending reviewed transcript to ${submission?.destination ?? 'the normal agent'}…`
-                : 'Press Enter to try again, or Esc to close.'
+                : state.recovery === 'configure'
+                  ? 'Press Enter to open Voice settings, or Esc to close.'
+                  : 'Press Enter to try again, or Esc to close.'
+  const controlsLine =
+    state.kind === 'review'
+      ? 'Ctrl+R records another segment and appends it · Esc/Ctrl+C close'
+      : state.kind === 'recording'
+        ? 'Enter stops recording · Esc/Ctrl+C cancels and closes'
+        : state.kind === 'transcribing'
+          ? 'Esc/Ctrl+C cancels transcription and closes'
+          : state.kind === 'error' && state.recovery === 'configure'
+            ? 'Enter opens settings · paste the key and press Enter to continue · Esc/Ctrl+C closes'
+            : state.kind === 'error'
+              ? 'Enter tries again · Esc/Ctrl+C closes'
+              : state.kind === 'ready'
+                ? 'Enter starts recording · Esc/Ctrl+C closes'
+                : 'Esc/Ctrl+C cancels and closes'
+
+  if (mode === 'settings') {
+    return (
+      <VoiceSettingsScreen
+        requireCredential
+        onDone={close}
+        onSaved={() => {
+          if (closedRef.current) return
+          setMode('conversation')
+          setState({ kind: 'ready' })
+          void startRecording()
+        }}
+      />
+    )
+  }
 
   return (
     <ScreenFrame
@@ -294,9 +350,7 @@ export function VoiceScreen({
           <Text color={theme.error}>{state.error}</Text>
         ) : null}
         <Text dimColor wrap="truncate-end">
-          {state.kind === 'review'
-            ? 'Ctrl+R records another segment and appends it · Esc/Ctrl+C close'
-            : 'Esc/Ctrl+C close · /voice config opens settings · /voice stop interrupts speech'}
+          {controlsLine}
         </Text>
       </Box>
     </ScreenFrame>

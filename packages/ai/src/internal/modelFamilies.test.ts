@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { detectModelFamily, isDeepSeekReasonerModel } from './modelFamilies'
 import {
   buildOpenAIChatCompletionCreateParams,
+  resolveOpenAIStreamDecision,
   shouldDisableProviderThinking,
 } from '../llm/openai/params'
 import { estimateCostUSD, normalizeUsage } from '../llm/openai/usage'
@@ -118,6 +119,52 @@ describe('provider thinking defaults', () => {
       toolSchemas: [],
     })
     expect(params.temperature).toBeUndefined()
+  })
+})
+
+describe('OpenAI streaming policy', () => {
+  test('uses non-streaming completions for MiMo tool-call integrity', () => {
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'mimo-v2.5-pro',
+        toolNames: ['Read', 'Write'],
+      }),
+    ).toEqual({ stream: false, reason: 'mimo_file_tool_integrity' })
+  })
+
+  test('keeps streaming for MiMo chat, read-only tools, and other models', () => {
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'mimo-v2.5-pro',
+        toolNames: [],
+      }),
+    ).toEqual({ stream: true, reason: 'configured_on' })
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'mimo-v2.5-pro',
+        toolNames: ['Read', 'Grep', 'WebFetch'],
+      }),
+    ).toEqual({ stream: true, reason: 'configured_on' })
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: true,
+        model: 'qwen3-coder',
+        toolNames: ['Read', 'Write'],
+      }),
+    ).toEqual({ stream: true, reason: 'configured_on' })
+  })
+
+  test('respects an explicit global stream disable', () => {
+    expect(
+      resolveOpenAIStreamDecision({
+        configuredStream: false,
+        model: 'mimo-v2.5-pro',
+        toolNames: ['Read', 'Write'],
+      }),
+    ).toEqual({ stream: false, reason: 'configured_off' })
   })
 })
 

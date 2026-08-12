@@ -36,7 +36,7 @@ const automation = {
   description: 'Recover interrupted goals and inspect durable automation state',
   argumentHint: '[recover | status | events <goal-id>]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   async call(args) {
     const raw = args.trim()
     const [verbRaw, ...rest] = raw.split(/\s+/)

@@ -29,6 +29,7 @@ describe('generateSlashCommandSuggestions', () => {
       commands: [
         makeCommand('clear'),
         makeCommand('work'),
+        makeCommand('inspect'),
         makeCommand('help'),
         makeCommand('model'),
         makeCommand('alpha'),
@@ -38,13 +39,26 @@ describe('generateSlashCommandSuggestions', () => {
 
     expect(suggestions.map(suggestion => suggestion.value)).toEqual([
       'help',
-      'work',
-      'clear',
       'model',
+      'work',
+      'inspect',
+      'clear',
       'alpha',
     ])
     expect(suggestions[0]?.displayValue).toBe('/help · Start')
-    expect(suggestions[2]?.displayValue).toBe('/clear · Context')
+    expect(suggestions[4]?.displayValue).toBe('/clear · Context')
+  })
+
+  it('keeps aggregate commands visible while leaf commands stay directly invokable', () => {
+    const hiddenGoal = makeCommand('goal')
+    hiddenGoal.isHidden = true
+
+    const suggestions = generateSlashCommandSuggestions({
+      commands: [makeCommand('work'), hiddenGoal],
+      prefix: '',
+    })
+
+    expect(suggestions.map(suggestion => suggestion.value)).toEqual(['work'])
   })
 
   it('prefers a canonical command name over an alias and matches case-insensitively', () => {

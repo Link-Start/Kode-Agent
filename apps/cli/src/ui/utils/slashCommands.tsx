@@ -12,6 +12,12 @@ import {
 import type { SetForkConvoWithMessagesOnTheNextRender } from '#ui-ink/types/conversationReset'
 import type { LocalJSXCommandResult } from '#cli-commands/types'
 
+function isCommandDelegationResult(
+  result: LocalJSXCommandResult | undefined,
+): result is Extract<LocalJSXCommandResult, { type: 'delegate-command' }> {
+  return typeof result !== 'string' && result?.type === 'delegate-command'
+}
+
 /** Convert an interactive local JSX result into the ordinary REPL input type. */
 export function createInteractivePromptMessage(
   result: LocalJSXCommandResult,
@@ -55,6 +61,28 @@ export async function getMessagesForSlashCommand(
                 if (didMountJsx) {
                   if (!r || r === NO_RESPONSE_REQUESTED) {
                     resolveMessages([])
+                    return
+                  }
+                  if (isCommandDelegationResult(r)) {
+                    void getMessagesForSlashCommand(
+                      r.commandName,
+                      r.args,
+                      setToolJSX,
+                      context,
+                    )
+                      .then(resolveMessages)
+                      .catch(error => {
+                        logError(error)
+                        resolveMessages([
+                          createAssistantMessage(
+                            `Command delegation failed: ${
+                              error instanceof Error
+                                ? error.message
+                                : String(error)
+                            }`,
+                          ),
+                        ])
+                      })
                     return
                   }
                   if (typeof r !== 'string' && r.type === 'submit-prompt') {
