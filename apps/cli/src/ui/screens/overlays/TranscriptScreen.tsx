@@ -59,6 +59,7 @@ export function TranscriptScreen({
   const [savedPath, setSavedPath] = useState<string | null>(null)
   const [verbose, setVerbose] = useState(false)
   const isOpeningRef = useRef(false)
+  const isCopyingRef = useRef(false)
   const mountedRef = useRef(true)
 
   const lastMessagesRef = useRef<Message[] | null>(null)
@@ -85,6 +86,7 @@ export function TranscriptScreen({
     return () => {
       mountedRef.current = false
       isOpeningRef.current = false
+      isCopyingRef.current = false
     }
   }, [])
 
@@ -177,16 +179,27 @@ export function TranscriptScreen({
   }, [save, savedPath])
 
   const copyTranscript = useCallback(async () => {
+    if (isCopyingRef.current) return
+
+    isCopyingRef.current = true
+    setStatus('Copying transcript to clipboard…')
+
     try {
       const result = await copyTextToClipboard(rawLines.join('\n') + '\n')
+      if (!mountedRef.current) return
+
       if (result.method === 'osc52' && result.truncated) {
         setStatus('Copied transcript (OSC 52, truncated)')
       } else {
         setStatus('Copied transcript to clipboard')
       }
     } catch (error) {
+      if (!mountedRef.current) return
+
       const message = error instanceof Error ? error.message : String(error)
       setStatus(`Copy failed: ${message}`)
+    } finally {
+      isCopyingRef.current = false
     }
   }, [rawLines])
 
