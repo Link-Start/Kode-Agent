@@ -75,10 +75,14 @@ export async function exec(
     if (options?.stdin !== undefined && processRef.stdin) {
       try {
         processRef.stdin.write(options.stdin)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       try {
         processRef.stdin.end()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     const exitPromise = new Promise<

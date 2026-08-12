@@ -23,7 +23,9 @@ export function mergeAbortSignals(
   const abort = () => {
     try {
       controller.abort()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   for (const signal of active) {
@@ -35,7 +37,9 @@ export function mergeAbortSignals(
     unsubscribers.push(() => {
       try {
         signal.removeEventListener('abort', abort)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     })
   }
 

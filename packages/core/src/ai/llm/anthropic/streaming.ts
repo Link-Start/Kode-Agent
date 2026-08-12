@@ -54,7 +54,9 @@ export async function createAnthropicStreamingMessage(
   for await (const event of stream) {
     try {
       options?.onStreamEvent?.(event)
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     if (signal.aborted) {
       debugLogger.flow('STREAM_ABORTED', {

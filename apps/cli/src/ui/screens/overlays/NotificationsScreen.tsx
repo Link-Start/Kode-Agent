@@ -81,11 +81,21 @@ export function NotificationsScreen({
   const [scrollTop, setScrollTop] = useState(0)
   const [status, setStatus] = useState<string | null>(null)
   const [savedPath, setSavedPath] = useState<string | null>(null)
+  const isOpeningRef = useRef(false)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
     return subscribeNotifications(() => {
       setNotifs(getNotifications())
     })
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningRef.current = false
+    }
   }, [])
 
   const lines = useMemo(() => notifs.map(formatNotificationLine), [notifs])
@@ -137,13 +147,30 @@ export function NotificationsScreen({
   }, [])
 
   const openSaved = useCallback(async () => {
+    if (isOpeningRef.current) return
     const path = savedPath ?? save()
     if (!path) return
-    const result = await launchExternalEditorForFilePath(path)
-    if (result.ok === true) {
-      setStatus(`Opened in ${result.editorLabel}`)
-    } else {
-      setStatus(result.error.message || 'Failed to open file')
+
+    isOpeningRef.current = true
+    setStatus('Opening external editor…')
+
+    try {
+      const result = await launchExternalEditorForFilePath(path)
+      if (!mountedRef.current) return
+
+      if (result.ok === true) {
+        setStatus(`Opened in ${result.editorLabel}`)
+      } else {
+        setStatus(result.error.message || 'Failed to open file')
+      }
+    } catch {
+      if (mountedRef.current) {
+        setStatus(
+          'Unable to open the external editor. Check $EDITOR and try again.',
+        )
+      }
+    } finally {
+      isOpeningRef.current = false
     }
   }, [save, savedPath])
 

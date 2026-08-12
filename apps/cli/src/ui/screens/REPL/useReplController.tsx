@@ -38,21 +38,6 @@ import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { MACRO } from '#core/constants/macros'
 import { subscribeAgentReloads } from '@kode/agent/events'
 import { subscribeCustomCommandReloads } from '#cli-services/customCommands'
-import { HelpScreen } from '#ui-ink/screens/overlays/HelpScreen'
-import { ShortcutsScreen } from '#ui-ink/screens/overlays/ShortcutsScreen'
-import { ConfigScreen } from '#ui-ink/screens/overlays/ConfigScreen'
-import { OpenFileScreen } from '#ui-ink/screens/overlays/OpenFileScreen'
-import { ConsoleScreen } from '#ui-ink/screens/overlays/ConsoleScreen'
-import { NotificationsScreen } from '#ui-ink/screens/overlays/NotificationsScreen'
-import { TranscriptScreen } from '#ui-ink/screens/overlays/TranscriptScreen'
-import { CommandPaletteScreen } from '#ui-ink/screens/overlays/CommandPaletteScreen'
-import { TasksScreen } from '#ui-ink/screens/overlays/TasksScreen'
-import { WorkTasksScreen } from '#ui-ink/screens/overlays/WorkTasksScreen'
-import { HistorySearchScreen } from '#ui-ink/screens/overlays/HistorySearchScreen'
-import { ModelPickerScreen } from '#ui-ink/screens/overlays/ModelPickerScreen'
-import { ThinkingToggleScreen } from '#ui-ink/screens/overlays/ThinkingToggleScreen'
-import { ModelConfig } from '#ui-ink/components/ModelConfig'
-import { Doctor } from '#ui-ink/screens/Doctor'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { useToolKeypress } from '#ui-ink/hooks/useToolKeypress'
 import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
@@ -94,6 +79,8 @@ import type {
   SetForkConvoWithMessagesOnTheNextRender,
 } from '#ui-ink/types/conversationReset'
 import type { ToolKeypressHandler } from '@kode/tool-interface/Tool'
+import type { WrappedClient } from '#core/mcp/client'
+import type { Tool } from '#core/tooling/Tool'
 
 const EMPTY_MCP_CLIENTS = [] as NonNullable<REPLProps['mcpClients']>
 
@@ -122,7 +109,6 @@ export function useReplController(props: REPLProps) {
   const debug = props.debug ?? false
   const disableSlashCommands = props.disableSlashCommands ?? false
   const safeMode = Boolean(props.safeMode)
-  const mcpClients = props.mcpClients ?? EMPTY_MCP_CLIENTS
   const isDefaultModel = props.isDefaultModel ?? true
   const { rows: terminalRows, columns: terminalColumns } = useTerminalSize()
   const assistantStreamStoreRef = useRef<AssistantStreamStore | null>(null)
@@ -149,6 +135,45 @@ export function useReplController(props: REPLProps) {
   })
 
   const [commands, setCommands] = useState(() => props.commands)
+
+  const hasDeferredRuntime = Boolean(
+    props.toolsPromise || props.commandsPromise || props.mcpClientsPromise,
+  )
+  const [tools, setTools] = useState<Tool[]>(() => props.tools ?? [])
+  const [mcpClients, setMcpClients] = useState<WrappedClient[]>(() =>
+    props.mcpClients ?? EMPTY_MCP_CLIENTS,
+  )
+  const runtimeReadyRef = useRef<Promise<void>>(
+    hasDeferredRuntime ? new Promise<void>(() => {}) : Promise.resolve(),
+  )
+
+  useEffect(() => {
+    if (!hasDeferredRuntime) return undefined
+    let cancelled = false
+    void Promise.all([
+      props.toolsPromise ?? Promise.resolve(undefined),
+      props.commandsPromise ?? Promise.resolve(undefined),
+      props.mcpClientsPromise ?? Promise.resolve(undefined),
+    ])
+      .then(([nextTools, nextCommands, nextMcpClients]) => {
+        if (cancelled) return
+        if (nextTools) setTools(nextTools)
+        if (nextCommands) setCommands(nextCommands)
+        if (nextMcpClients) setMcpClients(nextMcpClients)
+      })
+      .catch(error => {
+        if (cancelled) return
+        logError(error)
+      })
+      .finally(() => {
+        if (cancelled) return
+        runtimeReadyRef.current = Promise.resolve()
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'test') return undefined
@@ -270,7 +295,14 @@ export function useReplController(props: REPLProps) {
     },
     [],
   )
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoadingState] = useState(false)
+  const isLoadingRef = useRef(false)
+  const setIsLoading = useCallback((nextIsLoading: boolean) => {
+    isLoadingRef.current = nextIsLoading
+    setIsLoadingState(current =>
+      current === nextIsLoading ? current : nextIsLoading,
+    )
+  }, [])
   const [cancelRequestKey, setCancelRequestKey] = useState(0)
   type ToolView = {
     jsx: React.ReactNode | null
@@ -497,7 +529,8 @@ export function useReplController(props: REPLProps) {
     [setToolViewStackWithClear],
   )
 
-  const openTasksScreen = useCallback(() => {
+  const openTasksScreen = useCallback(async () => {
+    const { TasksScreen } = await import('#ui-ink/screens/overlays/TasksScreen')
     openToolView({
       jsx: <TasksScreen onDone={dismissToolView} />,
       shouldHidePromptInput: true,
@@ -505,7 +538,10 @@ export function useReplController(props: REPLProps) {
     })
   }, [dismissToolView, openToolView])
 
-  const openWorkTasksScreen = useCallback(() => {
+  const openWorkTasksScreen = useCallback(async () => {
+    const { WorkTasksScreen } = await import(
+      '#ui-ink/screens/overlays/WorkTasksScreen'
+    )
     openToolView({
       jsx: <WorkTasksScreen onDone={dismissToolView} />,
       shouldHidePromptInput: true,
@@ -523,7 +559,10 @@ export function useReplController(props: REPLProps) {
   const scheduleDispatchingRef = useRef(false)
   const dispatchedUnstartedGoalRunIdsRef = useRef(new Set<string>())
 
-  const openHistorySearchScreen = useCallback(() => {
+  const openHistorySearchScreen = useCallback(async () => {
+    const { HistorySearchScreen } = await import(
+      '#ui-ink/screens/overlays/HistorySearchScreen'
+    )
     openToolView({
       jsx: (
         <HistorySearchScreen
@@ -581,14 +620,12 @@ export function useReplController(props: REPLProps) {
                 onModeChange: setInputMode,
                 setCursorOffset: () => {},
                 onSubmitCountChange: setSubmitCount,
-                onQuery: async (...args) => {
-                  await onQueryRef.current?.(...args)
-                },
+                onQuery: onQueryRefWithRuntimeGate,
                 setToolJSX: setToolJSXWithClear,
                 commands,
                 forkNumber,
                 messageLogName: props.messageLogName,
-                tools: props.tools,
+                tools,
                 verbose,
                 disableSlashCommands,
                 permissionMode: toolPermissionContext.mode,
@@ -618,7 +655,7 @@ export function useReplController(props: REPLProps) {
     isLoading,
     openToolView,
     props.messageLogName,
-    props.tools,
+    tools,
     safeMode,
     setAbortController,
     setForkConvoWithMessagesOnTheNextRender,
@@ -628,7 +665,7 @@ export function useReplController(props: REPLProps) {
   ])
 
   useKeypress(
-    (inputChar, key) => {
+    async (inputChar, key) => {
       const hasModal =
         Boolean(toolJSX) ||
         Boolean(toolUseConfirm) ||
@@ -647,11 +684,14 @@ export function useReplController(props: REPLProps) {
       if (hasModal) return undefined
 
       if (key.ctrl && inputChar === 't') {
-        openWorkTasksScreen()
+        void openWorkTasksScreen()
         return true
       }
 
       if (key.ctrl && inputChar === 'o') {
+        const { TranscriptScreen } = await import(
+          '#ui-ink/screens/overlays/TranscriptScreen'
+        )
         openToolView({
           jsx: (
             <TranscriptScreen
@@ -667,7 +707,7 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.ctrl && inputChar === 'r') {
-        openHistorySearchScreen()
+        void openHistorySearchScreen()
         return true
       }
 
@@ -679,6 +719,9 @@ export function useReplController(props: REPLProps) {
           messages.some(m => m.type === 'assistant') ||
           messages.some(m => m.type === 'user' && !(m as any)?.isMeta)
 
+        const { ThinkingToggleScreen } = await import(
+          '#ui-ink/screens/overlays/ThinkingToggleScreen'
+        )
         openToolView({
           jsx: (
             <ThinkingToggleScreen
@@ -698,6 +741,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.meta && inputChar === 'p') {
+        const { ModelPickerScreen } = await import(
+          '#ui-ink/screens/overlays/ModelPickerScreen'
+        )
         openToolView({
           jsx: (
             <ModelPickerScreen
@@ -712,27 +758,31 @@ export function useReplController(props: REPLProps) {
                 showToast(`Model: ${selectedModel?.name ?? modelName}`)
               }}
               onOpenModelConfig={() => {
-                setToolViewStackWithClear([
-                  ...toolViewStackRef.current.slice(0, -1),
-                  {
-                    jsx: (
-                      <ModelConfig
-                        onClose={() => {
-                          import('#core/utils/model').then(
-                            ({ reloadModelManager }) => {
-                              reloadModelManager()
-                              triggerModelConfigChange()
-                              showToast('Model settings updated')
-                              dismissToolView()
-                            },
-                          )
-                        }}
-                      />
-                    ),
-                    shouldHidePromptInput: true,
-                    displayMode: 'fullscreen',
+                void import('#ui-ink/components/ModelConfig').then(
+                  ({ ModelConfig }) => {
+                    setToolViewStackWithClear([
+                      ...toolViewStackRef.current.slice(0, -1),
+                      {
+                        jsx: (
+                          <ModelConfig
+                            onClose={() => {
+                              import('#core/utils/model').then(
+                                ({ reloadModelManager }) => {
+                                  reloadModelManager()
+                                  triggerModelConfigChange()
+                                  showToast('Model settings updated')
+                                  dismissToolView()
+                                },
+                              )
+                            }}
+                          />
+                        ),
+                        shouldHidePromptInput: true,
+                        displayMode: 'fullscreen',
+                      },
+                    ])
                   },
-                ])
+                )
               }}
             />
           ),
@@ -743,6 +793,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (inputChar === '?' && inputValue.trim().length === 0) {
+        const { ShortcutsScreen } = await import(
+          '#ui-ink/screens/overlays/ShortcutsScreen'
+        )
         openToolView({
           jsx: <ShortcutsScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -752,6 +805,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f1') {
+        const { HelpScreen } = await import(
+          '#ui-ink/screens/overlays/HelpScreen'
+        )
         openToolView({
           jsx: <HelpScreen commands={commands} onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -761,6 +817,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f2') {
+        const { ConfigScreen } = await import(
+          '#ui-ink/screens/overlays/ConfigScreen'
+        )
         openToolView({
           jsx: <ConfigScreen onClose={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -770,6 +829,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f3') {
+        const { OpenFileScreen } = await import(
+          '#ui-ink/screens/overlays/OpenFileScreen'
+        )
         openToolView({
           jsx: <OpenFileScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -779,6 +841,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f4') {
+        const { ConsoleScreen } = await import(
+          '#ui-ink/screens/overlays/ConsoleScreen'
+        )
         openToolView({
           jsx: <ConsoleScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -788,6 +853,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f5') {
+        const { NotificationsScreen } = await import(
+          '#ui-ink/screens/overlays/NotificationsScreen'
+        )
         openToolView({
           jsx: <NotificationsScreen onDone={dismissToolView} />,
           shouldHidePromptInput: true,
@@ -797,6 +865,9 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f6') {
+        const { TranscriptScreen } = await import(
+          '#ui-ink/screens/overlays/TranscriptScreen'
+        )
         openToolView({
           jsx: (
             <TranscriptScreen
@@ -811,16 +882,19 @@ export function useReplController(props: REPLProps) {
       }
 
       if (key.name === 'f8') {
-        openTasksScreen()
+        void openTasksScreen()
         return true
       }
 
       if (key.name === 'f7') {
+        const { CommandPaletteScreen } = await import(
+          '#ui-ink/screens/overlays/CommandPaletteScreen'
+        )
         openToolView({
           jsx: (
             <CommandPaletteScreen
               commands={commands}
-              onDone={action => {
+              onDone={async action => {
                 if (!action) {
                   dismissToolView()
                   return
@@ -839,6 +913,9 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'help') {
+                  const { HelpScreen } = await import(
+                    '#ui-ink/screens/overlays/HelpScreen'
+                  )
                   openToolView({
                     jsx: (
                       <HelpScreen
@@ -853,6 +930,9 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'config') {
+                  const { ConfigScreen } = await import(
+                    '#ui-ink/screens/overlays/ConfigScreen'
+                  )
                   openToolView({
                     jsx: <ConfigScreen onClose={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -862,6 +942,9 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'open') {
+                  const { OpenFileScreen } = await import(
+                    '#ui-ink/screens/overlays/OpenFileScreen'
+                  )
                   openToolView({
                     jsx: <OpenFileScreen onDone={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -871,6 +954,9 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'console') {
+                  const { ConsoleScreen } = await import(
+                    '#ui-ink/screens/overlays/ConsoleScreen'
+                  )
                   openToolView({
                     jsx: <ConsoleScreen onDone={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -880,6 +966,9 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'notifications') {
+                  const { NotificationsScreen } = await import(
+                    '#ui-ink/screens/overlays/NotificationsScreen'
+                  )
                   openToolView({
                     jsx: <NotificationsScreen onDone={dismissToolView} />,
                     shouldHidePromptInput: true,
@@ -889,6 +978,9 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'transcript') {
+                  const { TranscriptScreen } = await import(
+                    '#ui-ink/screens/overlays/TranscriptScreen'
+                  )
                   openToolView({
                     jsx: (
                       <TranscriptScreen
@@ -903,8 +995,11 @@ export function useReplController(props: REPLProps) {
                 }
 
                 if (action === 'doctor') {
+                  const { Doctor } = await import('#ui-ink/screens/Doctor')
                   openToolView({
-                    jsx: <Doctor onDone={dismissToolView} doctorMode={true} />,
+                    jsx: (
+                      <Doctor onDone={dismissToolView} doctorMode={true} />
+                    ),
                     shouldHidePromptInput: true,
                     displayMode: 'fullscreen',
                   })
@@ -919,6 +1014,9 @@ export function useReplController(props: REPLProps) {
                   }
                   setIsLoading(false)
 
+                  const { ModelConfig } = await import(
+                    '#ui-ink/components/ModelConfig'
+                  )
                   openToolView({
                     jsx: (
                       <ModelConfig
@@ -982,11 +1080,12 @@ export function useReplController(props: REPLProps) {
   }, [])
 
   const onCancel = useCallback(() => {
-    if (!isLoading) return
+    if (!isLoadingRef.current) return
+    const activeAbortController = abortControllerRef.current
     setCancelRequestKey(prev => prev + 1)
     setIsLoading(false)
-    if (abortController) {
-      assistantStreamStore.endTurn(abortController)
+    if (activeAbortController) {
+      assistantStreamStore.endTurn(activeAbortController)
     }
     if (toolUseConfirm) {
       toolUseConfirm.onAbort()
@@ -994,28 +1093,33 @@ export function useReplController(props: REPLProps) {
       showToast('Interrupted')
       return
     }
-    if (abortController && !abortController.signal.aborted) {
-      abortController.abort()
+    if (activeAbortController && !activeAbortController.signal.aborted) {
+      activeAbortController.abort()
     }
     setAbortController(null)
     showToast('Interrupted')
   }, [
-    abortController,
     assistantStreamStore,
-    isLoading,
     setAbortController,
+    setIsLoading,
     showToast,
     toolUseConfirm,
   ])
+
+  const getIsLoading = useCallback(() => isLoadingRef.current, [])
+  const getAbortSignal = useCallback(
+    () => abortControllerRef.current?.signal,
+    [],
+  )
 
   useCancelRequest(
     setToolJSXWithClear,
     setToolUseConfirm,
     setBinaryFeedbackContext,
     onCancel,
-    isLoading,
+    getIsLoading,
     isMessageSelectorVisible,
-    abortController?.signal,
+    getAbortSignal,
   )
 
   useEffect(() => {
@@ -1174,7 +1278,7 @@ export function useReplController(props: REPLProps) {
     messageLogName: props.messageLogName,
     thinkingMode:
       sessionThinkingMode ?? getGlobalConfigCached().thinkingMode ?? 'auto',
-    tools: props.tools,
+    tools,
     mcpClients,
     verbose,
     safeMode,
@@ -1192,6 +1296,17 @@ export function useReplController(props: REPLProps) {
   useEffect(() => {
     onQueryRef.current = onQuery
   }, [onQuery])
+
+  const onQueryRefWithRuntimeGate = useCallback(
+    async (
+      newMessages: MessageType[],
+      passedAbortController?: AbortController,
+    ) => {
+      await runtimeReadyRef.current
+      await onQueryRef.current?.(newMessages, passedAbortController)
+    },
+    [],
+  )
 
   // A durable /loop wakes only when this interactive session is genuinely
   // idle. The schedule is atomically claimed before it becomes an ordinary
@@ -1252,7 +1367,7 @@ export function useReplController(props: REPLProps) {
       showToast(
         `${schedule.kind === 'interval' ? 'Scheduled loop' : 'Goal run'}: ${schedule.prompt}`,
       )
-      void onQuery([createUserMessage(schedule.prompt)])
+      void onQueryRefWithRuntimeGate([createUserMessage(schedule.prompt)])
         .catch(error => logError(error))
         .finally(() => {
           scheduleDispatchingRef.current = false
@@ -1271,7 +1386,8 @@ export function useReplController(props: REPLProps) {
     inputValue,
     isLoading,
     isMessageSelectorVisible,
-    onQuery,
+    onQueryRefWithRuntimeGate,
+    setIsLoading,
     showToast,
     toolJSX,
     toolUseConfirm,
@@ -1282,7 +1398,7 @@ export function useReplController(props: REPLProps) {
     commands,
     forkNumber,
     messageLogName: props.messageLogName,
-    tools: props.tools,
+    tools,
     mcpClients,
     verbose,
     safeMode,
@@ -1295,8 +1411,10 @@ export function useReplController(props: REPLProps) {
     setAbortController,
     clearAbortController,
     setHaveShownCostDialog,
-    onQuery,
+    onQuery: onQueryRefWithRuntimeGate,
   })
+  const onInitRef = useRef(onInit)
+  onInitRef.current = onInit
 
   useCostSummary()
 
@@ -1345,13 +1463,20 @@ export function useReplController(props: REPLProps) {
   useLogStartupTime()
 
   useEffect(() => {
-    onInit()
+    let cancelled = false
+    void runtimeReadyRef.current.then(() => {
+      if (cancelled) return
+      onInitRef.current()
+    })
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const transcript = useTranscriptItems({
     messages,
-    tools: props.tools,
+    tools,
     verbose,
     debug,
     toolJSX,
@@ -1505,11 +1630,11 @@ export function useReplController(props: REPLProps) {
         forkNumber,
         messageLogName: props.messageLogName,
         initialPrompt: props.initialPrompt,
-        tools: props.tools,
+        tools,
         disableSlashCommands,
         isDisabled: apiKeyStatus !== 'valid',
         isLoading,
-        onQuery,
+        onQuery: onQueryRefWithRuntimeGate,
         debug,
         verbose,
         messages,
@@ -1551,10 +1676,11 @@ export function useReplController(props: REPLProps) {
       onQuery,
       props.initialPrompt,
       props.messageLogName,
-      props.tools,
+      tools,
       restorePastes,
       setAbortController,
       setForkConvoWithMessagesOnTheNextRender,
+      setIsLoading,
       setToolJSXWithClear,
       submitCount,
       uiRefreshCounter,
@@ -1590,7 +1716,7 @@ export function useReplController(props: REPLProps) {
     isLoading,
     verbose,
     normalizedMessages: transcript.normalizedMessages,
-    tools: props.tools,
+    tools,
     erroredToolUseIDs: transcript.erroredToolUseIDs,
     inProgressToolUseIDs: transcript.inProgressToolUseIDs,
     unresolvedToolUseIDs: transcript.unresolvedToolUseIDs,

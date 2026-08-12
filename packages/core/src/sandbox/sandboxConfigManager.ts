@@ -75,7 +75,9 @@ export class SandboxConfigManager {
     for (const p of this.watchPaths) {
       try {
         unwatchFile(p)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
     this.watchPaths = []
   }

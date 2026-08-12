@@ -113,7 +113,9 @@ export async function saveAgent(
     if (throwIfExists && (existsSync(filePath) || existsSync(legacyPath))) {
       try {
         unlinkSync(tempFile)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       throw new Error(`Agent file already exists: ${filePath}`)
     }
 
