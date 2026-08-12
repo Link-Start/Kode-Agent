@@ -14,6 +14,7 @@ export type CodexRecommendedSettings = {
 export type CodexAuthService = {
   getStatus(): Promise<CodexLoginStatus>
   startLogin(): Promise<void>
+  getAvailableModels?: () => Promise<CodexRecommendedSettings[]>
   getRecommendedSettings(): Promise<CodexRecommendedSettings>
   applyRecommendedSettings(settings: CodexRecommendedSettings): Promise<void>
 }
@@ -247,9 +248,7 @@ function parseRecommendedModel(
   }
 }
 
-export function selectCodexRecommendedSettings(
-  result: unknown,
-): CodexRecommendedSettings {
+export function selectCodexModels(result: unknown): CodexRecommendedSettings[] {
   if (!isRecord(result) || !Array.isArray(result.data)) {
     throw new Error('Codex did not return a model catalog')
   }
@@ -268,13 +267,23 @@ export function selectCodexRecommendedSettings(
       } => candidate.settings !== null,
     )
 
-  const recommended =
-    models.find(candidate => candidate.isDefault)?.settings ??
-    models[0]?.settings
-  if (!recommended) {
+  const defaultModel = models.find(candidate => candidate.isDefault)?.settings
+  const availableModels = [
+    ...(defaultModel ? [defaultModel] : []),
+    ...models
+      .map(candidate => candidate.settings)
+      .filter(model => model.model !== defaultModel?.model),
+  ]
+  if (availableModels.length === 0) {
     throw new Error('Codex did not return a usable recommended model')
   }
-  return recommended
+  return availableModels
+}
+
+export function selectCodexRecommendedSettings(
+  result: unknown,
+): CodexRecommendedSettings {
+  return selectCodexModels(result)[0]!
 }
 
 function validateRecommendedSettings(
@@ -295,6 +304,13 @@ export function createCodexAuthService(
   return {
     getStatus: getCodexLoginStatus,
     startLogin: startCodexLogin,
+    async getAvailableModels() {
+      const result = await request('model/list', {
+        limit: 100,
+        includeHidden: false,
+      })
+      return selectCodexModels(result)
+    },
     async getRecommendedSettings() {
       const result = await request('model/list', {
         limit: 100,

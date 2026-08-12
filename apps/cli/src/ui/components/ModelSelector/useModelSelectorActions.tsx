@@ -53,6 +53,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         contextLength: state.contextLength,
         reasoningEffort: state.reasoningEffort ?? undefined,
         requestStrategy: state.requestStrategy,
+        activateAsMain: state.activateAsMain,
       })
     } catch (error) {
       state.setValidationError(
@@ -91,6 +92,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
         modelId,
         isOnboarding: Boolean(props.isOnboarding),
         targetPointer: props.targetPointer,
+        activateAsMain: state.activateAsMain,
       })
     } catch (error) {
       state.setValidationError(

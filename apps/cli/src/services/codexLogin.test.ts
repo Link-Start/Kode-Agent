@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   createCodexAuthService,
   parseCodexLoginStatus,
+  selectCodexModels,
   selectCodexRecommendedSettings,
 } from './codexLogin'
 
@@ -105,6 +106,42 @@ describe('selectCodexRecommendedSettings', () => {
     expect(() => selectCodexRecommendedSettings({ models: [] })).toThrow(
       'model catalog',
     )
+  })
+})
+
+describe('selectCodexModels', () => {
+  test('places the account default first and preserves other safe models', () => {
+    expect(
+      selectCodexModels({
+        data: [
+          {
+            model: 'gpt-fast',
+            displayName: 'GPT Fast',
+            isDefault: false,
+            defaultReasoningEffort: 'low',
+            supportedReasoningEfforts: [{ reasoningEffort: 'low' }],
+          },
+          {
+            model: 'gpt-main',
+            displayName: 'GPT Main',
+            isDefault: true,
+            defaultReasoningEffort: 'medium',
+            supportedReasoningEfforts: [{ reasoningEffort: 'medium' }],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        model: 'gpt-main',
+        displayName: 'GPT Main',
+        reasoningEffort: 'medium',
+      },
+      {
+        model: 'gpt-fast',
+        displayName: 'GPT Fast',
+        reasoningEffort: 'low',
+      },
+    ])
   })
 })
 

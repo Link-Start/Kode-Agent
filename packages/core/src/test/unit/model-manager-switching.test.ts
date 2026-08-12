@@ -249,6 +249,49 @@ describe('ModelManager model switching', () => {
     })
   })
 
+  test('persists a saved OAuth profile without replacing an existing main pointer', async () => {
+    const current = makeProfile({
+      name: 'Current model',
+      modelName: 'current-model',
+      contextLength: 128_000,
+      createdAt: 1,
+    })
+    const config: any = {
+      modelProfiles: [current],
+      modelPointers: {
+        main: current.modelName,
+        task: current.modelName,
+        compact: current.modelName,
+        quick: current.modelName,
+      },
+    }
+    const manager = new ModelManager(config)
+
+    await manager.upsertModel(
+      {
+        name: 'Codex OAuth GPT',
+        provider: 'codex-oauth',
+        modelName: 'codex-oauth:gpt-runtime-default',
+        externalModelId: 'gpt-runtime-default',
+        apiKey: '',
+        maxTokens: 8192,
+        contextLength: 128_000,
+        reasoningEffort: 'medium',
+      },
+      { activateAsMain: false },
+    )
+
+    expect(config.modelPointers.main).toBe(current.modelName)
+    expect(manager.getAllConfiguredModels()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          modelName: 'codex-oauth:gpt-runtime-default',
+          externalModelId: 'gpt-runtime-default',
+        }),
+      ]),
+    )
+  })
+
   test('blocks a legacy plaintext-only profile and uses its env reference at runtime', () => {
     const legacyProfile = makeProfile({
       name: 'Legacy Model',

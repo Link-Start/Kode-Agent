@@ -68,8 +68,20 @@ export const providers = {
     baseURL: 'https://api.mistral.ai/v1',
   },
   xai: {
-    name: 'xAI',
+    name: 'xAI (Grok API)',
     baseURL: 'https://api.x.ai/v1',
+  },
+  'github-copilot': {
+    name: 'GitHub Copilot (OAuth)',
+    baseURL: '',
+  },
+  'grok-build': {
+    name: 'Grok Build (OAuth)',
+    baseURL: '',
+  },
+  'codex-oauth': {
+    name: 'Codex / ChatGPT (OAuth)',
+    baseURL: '',
   },
   groq: {
     name: 'Groq',
