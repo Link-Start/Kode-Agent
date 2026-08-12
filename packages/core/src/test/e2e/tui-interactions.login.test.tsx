@@ -70,6 +70,38 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     expect(done).toBe(true)
   })
 
+  test('checks browser login immediately when Enter is pressed while waiting', async () => {
+    let loginStarted = false
+
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {}}
+          pollIntervalMs={60_000}
+          codexAuth={{
+            getStatus: async () =>
+              loginStarted
+                ? { kind: 'authenticated' as const }
+                : { kind: 'unauthenticated' as const },
+            startLogin: async () => {
+              loginStarted = true
+            },
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Codex is not signed in yet.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Browser sign-in started.')
+
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Codex is signed in.')
+
+    expect(loginStarted).toBe(true)
+  })
+
   test('opens the OpenAI API-key setup directly from the login selector', async () => {
     const h = createInkTestHarness(
       <KeypressProvider>

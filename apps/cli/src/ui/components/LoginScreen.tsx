@@ -160,7 +160,16 @@ export function LoginScreen({
 
     if (codexFlowState === 'waiting') {
       if (key.escape) setCodexFlowState('selection')
-      if (key.return) void refreshCodexStatus()
+      if (key.return) {
+        void refreshCodexStatus().then(nextStatus => {
+          if (nextStatus.kind === 'authenticated') {
+            setCodexFlowState('complete')
+          } else if (nextStatus.kind === 'unavailable') {
+            setCodexError('Codex CLI could not be reached while signing in.')
+            setCodexFlowState('error')
+          }
+        })
+      }
       return true
     }
 
