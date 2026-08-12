@@ -30,9 +30,14 @@ afterEach(async () => {
 })
 
 describe('TUI E2E regression (Ink render): login selector', () => {
-  test('starts the supported Codex browser login and detects completion', async () => {
+  test('offers and applies runtime-recommended settings after browser login', async () => {
     let loginStarted = false
     let done = false
+    const appliedSettings: Array<{
+      model: string
+      displayName: string
+      reasoningEffort: string
+    }> = []
 
     const h = createInkTestHarness(
       <KeypressProvider>
@@ -49,6 +54,14 @@ describe('TUI E2E regression (Ink render): login selector', () => {
             startLogin: async () => {
               loginStarted = true
             },
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async settings => {
+              appliedSettings.push(settings)
+            },
           }}
         />
       </KeypressProvider>,
@@ -60,14 +73,99 @@ describe('TUI E2E regression (Ink render): login selector', () => {
     expect(h.getOutput()).toContain('OpenAI API key (GPT-5-Codex)')
 
     h.stdin.write('\r')
-    await waitForOutput(h, 'Codex is signed in.')
+    await waitForOutput(h, "Use Codex's recommended model settings?")
 
     expect(loginStarted).toBe(true)
-    expect(h.getOutput()).toContain('Codex is signed in.')
+    expect(done).toBe(false)
+    expect(h.getOutput()).toContain(
+      'GPT Runtime Default (gpt-runtime-default) · medium reasoning',
+    )
+
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Codex is signed in.')
+    expect(appliedSettings).toEqual([
+      {
+        model: 'gpt-runtime-default',
+        displayName: 'GPT Runtime Default',
+        reasoningEffort: 'medium',
+      },
+    ])
 
     h.stdin.write('\r')
     await h.wait(20)
     expect(done).toBe(true)
+  })
+
+  test('keeps existing Codex settings when the recommendation is declined', async () => {
+    let applyCount = 0
+
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {}}
+          codexAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {
+              applyCount += 1
+            },
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Codex is already signed in.')
+    h.stdin.write('\r')
+    await waitForOutput(h, "Use Codex's recommended model settings?")
+    h.stdin.write('\u001B[B')
+    await h.wait(50)
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Existing Codex model settings were kept.')
+
+    expect(applyCount).toBe(0)
+  })
+
+  test('reports an atomic apply failure and allows an explicit retry', async () => {
+    let applyCount = 0
+
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <LoginScreen
+          onDone={() => {}}
+          codexAuth={{
+            getStatus: async () => ({ kind: 'authenticated' as const }),
+            startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {
+              applyCount += 1
+              if (applyCount === 1) throw new Error('simulated write failure')
+            },
+          }}
+        />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Codex is already signed in.')
+    h.stdin.write('\r')
+    await waitForOutput(h, "Use Codex's recommended model settings?")
+    h.stdin.write('\r')
+    await waitForOutput(h, 'settings update could not be confirmed')
+    expect(applyCount).toBe(1)
+
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Codex is signed in.')
+    expect(applyCount).toBe(2)
   })
 
   test('opens the OpenAI API-key setup directly from the login selector', async () => {
@@ -78,6 +176,12 @@ describe('TUI E2E regression (Ink render): login selector', () => {
           codexAuth={{
             getStatus: async () => ({ kind: 'authenticated' as const }),
             startLogin: async () => {},
+            getRecommendedSettings: async () => ({
+              model: 'gpt-runtime-default',
+              displayName: 'GPT Runtime Default',
+              reasoningEffort: 'medium',
+            }),
+            applyRecommendedSettings: async () => {},
           }}
         />
       </KeypressProvider>,

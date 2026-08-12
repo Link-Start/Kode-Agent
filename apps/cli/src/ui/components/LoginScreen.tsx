@@ -11,10 +11,19 @@ import {
   codexAuthService,
   type CodexAuthService,
   type CodexLoginStatus,
+  type CodexRecommendedSettings,
 } from '#cli-services/codexLogin'
 
 type LoginRoute = 'selection' | 'openai' | 'providers'
-type CodexFlowState = 'selection' | 'waiting' | 'complete' | 'error'
+type CodexFlowState =
+  | 'selection'
+  | 'waiting'
+  | 'loading-recommendation'
+  | 'recommendation'
+  | 'applying'
+  | 'apply-error'
+  | 'complete'
+  | 'error'
 
 type LoginOption = {
   id: 'codex' | 'openai' | 'providers'
@@ -76,6 +85,13 @@ export function LoginScreen({
   const [codexFlowState, setCodexFlowState] =
     React.useState<CodexFlowState>('selection')
   const [codexError, setCodexError] = React.useState<string | null>(null)
+  const [codexRecommendation, setCodexRecommendation] =
+    React.useState<CodexRecommendedSettings | null>(null)
+  const [useCodexRecommendation, setUseCodexRecommendation] =
+    React.useState(true)
+  const [codexRecommendationApplied, setCodexRecommendationApplied] =
+    React.useState<boolean | null>(null)
+  const activeCodexLoginIdRef = React.useRef(0)
 
   const refreshCodexStatus = React.useCallback(async () => {
     try {
@@ -91,6 +107,27 @@ export function LoginScreen({
     }
   }, [codexAuth])
 
+  const loadCodexRecommendation = React.useCallback(
+    async (loginId: number) => {
+      setCodexFlowState('loading-recommendation')
+      try {
+        const recommendation = await codexAuth.getRecommendedSettings()
+        if (activeCodexLoginIdRef.current !== loginId) return
+        setCodexRecommendation(recommendation)
+        setUseCodexRecommendation(true)
+        setCodexRecommendationApplied(null)
+        setCodexFlowState('recommendation')
+      } catch {
+        if (activeCodexLoginIdRef.current !== loginId) return
+        setCodexError(
+          'Codex is signed in, but its recommended model settings could not be loaded. No settings were changed.',
+        )
+        setCodexFlowState('error')
+      }
+    },
+    [codexAuth],
+  )
+
   React.useEffect(() => {
     void refreshCodexStatus()
   }, [refreshCodexStatus])
@@ -99,12 +136,13 @@ export function LoginScreen({
     if (codexFlowState !== 'waiting') return undefined
 
     let cancelled = false
+    const loginId = activeCodexLoginIdRef.current
     const checkForLogin = async () => {
       const nextStatus = await refreshCodexStatus()
       if (cancelled) return
 
       if (nextStatus.kind === 'authenticated') {
-        setCodexFlowState('complete')
+        await loadCodexRecommendation(loginId)
       } else if (nextStatus.kind === 'unavailable') {
         setCodexError('Codex CLI could not be reached while signing in.')
         setCodexFlowState('error')
@@ -126,13 +164,24 @@ export function LoginScreen({
       clearInterval(interval)
       clearTimeout(timeout)
     }
-  }, [codexFlowState, pollIntervalMs, refreshCodexStatus])
+  }, [
+    codexFlowState,
+    loadCodexRecommendation,
+    pollIntervalMs,
+    refreshCodexStatus,
+  ])
 
   const startCodexBrowserLogin = React.useCallback(async () => {
     if (checkingStatus) return
 
+    setCodexError(null)
+    setCodexRecommendation(null)
+    setCodexRecommendationApplied(null)
+    const loginId = activeCodexLoginIdRef.current + 1
+    activeCodexLoginIdRef.current = loginId
+
     if (codexStatus?.kind === 'authenticated') {
-      setCodexFlowState('complete')
+      await loadCodexRecommendation(loginId)
       return
     }
     if (codexStatus?.kind === 'unavailable') {
@@ -141,15 +190,40 @@ export function LoginScreen({
       return
     }
 
-    setCodexError(null)
     setCodexFlowState('waiting')
     try {
       await codexAuth.startLogin()
     } catch {
+      if (activeCodexLoginIdRef.current !== loginId) return
       setCodexError('Unable to start the Codex browser sign-in.')
       setCodexFlowState('error')
     }
-  }, [checkingStatus, codexAuth, codexStatus])
+  }, [checkingStatus, codexAuth, codexStatus, loadCodexRecommendation])
+
+  const keepCurrentCodexSettings = React.useCallback(() => {
+    setCodexRecommendationApplied(false)
+    setCodexFlowState('complete')
+  }, [])
+
+  const applyCodexRecommendation = React.useCallback(async () => {
+    if (!codexRecommendation) return
+
+    const loginId = activeCodexLoginIdRef.current
+    setCodexError(null)
+    setCodexFlowState('applying')
+    try {
+      await codexAuth.applyRecommendedSettings(codexRecommendation)
+      if (activeCodexLoginIdRef.current !== loginId) return
+      setCodexRecommendationApplied(true)
+      setCodexFlowState('complete')
+    } catch {
+      if (activeCodexLoginIdRef.current !== loginId) return
+      setCodexError(
+        'Codex is signed in, but the recommended settings update could not be confirmed. The write is atomic; verify the current defaults or retry.',
+      )
+      setCodexFlowState('apply-error')
+    }
+  }, [codexAuth, codexRecommendation])
 
   useKeypress((input, key) => {
     if (route !== 'selection') return undefined
@@ -159,8 +233,44 @@ export function LoginScreen({
     const isDown = key.downArrow || inputChar === 'j'
 
     if (codexFlowState === 'waiting') {
-      if (key.escape) setCodexFlowState('selection')
+      if (key.escape) {
+        activeCodexLoginIdRef.current += 1
+        setCodexFlowState('selection')
+      }
       if (key.return) void refreshCodexStatus()
+      return true
+    }
+
+    if (codexFlowState === 'loading-recommendation') {
+      if (key.escape) {
+        activeCodexLoginIdRef.current += 1
+        keepCurrentCodexSettings()
+      }
+      return true
+    }
+
+    if (codexFlowState === 'recommendation') {
+      if (key.escape) {
+        keepCurrentCodexSettings()
+        return true
+      }
+      if (isUp || isDown) {
+        setUseCodexRecommendation(current => !current)
+        return true
+      }
+      if (key.return) {
+        if (useCodexRecommendation) void applyCodexRecommendation()
+        else keepCurrentCodexSettings()
+        return true
+      }
+      return true
+    }
+
+    if (codexFlowState === 'applying') return true
+
+    if (codexFlowState === 'apply-error') {
+      if (key.return) void applyCodexRecommendation()
+      if (key.escape) keepCurrentCodexSettings()
       return true
     }
 
@@ -172,7 +282,11 @@ export function LoginScreen({
     if (codexFlowState === 'error') {
       if (key.return || key.escape) {
         setCodexError(null)
-        setCodexFlowState('selection')
+        if (codexStatus?.kind === 'authenticated') {
+          keepCurrentCodexSettings()
+        } else {
+          setCodexFlowState('selection')
+        }
       }
       return true
     }
@@ -275,14 +389,76 @@ export function LoginScreen({
           </Box>
         ) : null}
 
+        {codexFlowState === 'loading-recommendation' ? (
+          <Box flexDirection="column" gap={1}>
+            <Text color={theme.suggestion}>
+              Loading Codex's recommended model settings…
+            </Text>
+            <Text dimColor>Esc keeps the current Codex settings</Text>
+          </Box>
+        ) : null}
+
+        {codexFlowState === 'recommendation' && codexRecommendation ? (
+          <Box flexDirection="column" gap={1}>
+            <Text bold>Use Codex's recommended model settings?</Text>
+            <Text color={theme.secondaryText}>
+              {codexRecommendation.displayName} ({codexRecommendation.model}) ·{' '}
+              {codexRecommendation.reasoningEffort} reasoning
+            </Text>
+            <Box flexDirection="column">
+              <Text
+                color={
+                  useCodexRecommendation ? theme.text : theme.secondaryText
+                }
+                bold={useCodexRecommendation}
+              >
+                {useCodexRecommendation ? figures.pointer : ' '} Apply
+                recommended settings
+              </Text>
+              <Text
+                color={
+                  !useCodexRecommendation ? theme.text : theme.secondaryText
+                }
+                bold={!useCodexRecommendation}
+              >
+                {!useCodexRecommendation ? figures.pointer : ' '} Keep current
+                settings
+              </Text>
+            </Box>
+            <Text dimColor>
+              This updates Codex user defaults only. Kode model profiles and
+              OAuth credentials remain untouched.
+            </Text>
+            <Text dimColor>
+              ↑/↓ or j/k choose · Enter confirm · Esc keep current
+            </Text>
+          </Box>
+        ) : null}
+
+        {codexFlowState === 'applying' && codexRecommendation ? (
+          <Text color={theme.suggestion}>
+            Applying {codexRecommendation.displayName} with{' '}
+            {codexRecommendation.reasoningEffort} reasoning…
+          </Text>
+        ) : null}
+
+        {codexFlowState === 'apply-error' ? (
+          <Box flexDirection="column" gap={1}>
+            <Text color={theme.error}>{codexError}</Text>
+            <Text dimColor>Enter retries · Esc keeps current settings</Text>
+          </Box>
+        ) : null}
+
         {codexFlowState === 'complete' ? (
           <Box flexDirection="column" gap={1}>
             <Text color={theme.success}>
-              Codex is signed in. Press Enter to continue.
+              {codexRecommendationApplied && codexRecommendation
+                ? `Codex is signed in. ${codexRecommendation.displayName} with ${codexRecommendation.reasoningEffort} reasoning was saved as the Codex user default.`
+                : 'Codex is signed in. Existing Codex model settings were kept.'}
             </Text>
             <Text dimColor>
-              This confirms the installed Codex CLI session; it does not copy
-              credentials into Kode.
+              Press Enter to continue. Codex credentials were not copied into
+              Kode.
             </Text>
           </Box>
         ) : null}
@@ -290,7 +466,11 @@ export function LoginScreen({
         {codexFlowState === 'error' ? (
           <Box flexDirection="column" gap={1}>
             <Text color={theme.error}>{codexError}</Text>
-            <Text dimColor>Press Enter to return to login choices.</Text>
+            <Text dimColor>
+              {codexStatus?.kind === 'authenticated'
+                ? 'Press Enter to continue without changing settings.'
+                : 'Press Enter to return to login choices.'}
+            </Text>
           </Box>
         ) : null}
 
