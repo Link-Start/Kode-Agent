@@ -108,8 +108,11 @@ function summarizeTaskOutput(output: TaskOutput): {
   agentId: string
   summary: string
 } {
-  if (output.status !== 'completed') {
+  if (output.status === 'async_launched') {
     throw new Error('A batch task unexpectedly launched in the background.')
+  }
+  if (output.status === 'failed') {
+    throw new Error(output.error || 'The delegated agent failed.')
   }
   const summary = output.content
     .map(block => block.text)
@@ -282,8 +285,24 @@ export const TaskBatchTool = {
   isReadOnly(input?: Input) {
     return Boolean(input?.tasks.every(task => task.mode === 'read'))
   },
-  isConcurrencySafe() {
-    return true
+  workspaceMutationScope(input?: Input, output?: Output) {
+    const hasWriteTask = input?.tasks.some(task => task.mode === 'write')
+    const failedWriteTask = input?.tasks.some(
+      task =>
+        task.mode === 'write' &&
+        output?.tasks.some(
+          result => result.id === task.id.trim() && result.status === 'failed',
+        ),
+    )
+    // Before execution, a write batch is conservatively parent-owned. After
+    // successful child execution the delegated verification receipts own it;
+    // a failed writer may have left partial mutations for the parent to gate.
+    return hasWriteTask && (!output || failedWriteTask)
+      ? ('direct' as const)
+      : ('delegated' as const)
+  },
+  isConcurrencySafe(input?: Input) {
+    return Boolean(input?.tasks.every(task => task.mode === 'read'))
   },
   needsPermissions() {
     return false
@@ -384,7 +403,11 @@ export const TaskBatchTool = {
         kind: group.kind,
         taskIds: group.tasks.map(task => task.id),
       })),
-      tasks,
+      tasks: tasks.sort(
+        (left, right) =>
+          input.tasks.findIndex(task => task.id.trim() === left.id) -
+          input.tasks.findIndex(task => task.id.trim() === right.id),
+      ),
     }
     yield {
       type: 'result' as const,

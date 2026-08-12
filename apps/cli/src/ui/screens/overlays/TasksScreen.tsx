@@ -4,23 +4,29 @@ import { Box, Text } from 'ink'
 import {
   getBackgroundTaskOutputFilePath,
   killBackgroundTask,
-  listBackgroundTaskSnapshots,
+  listOwnedBackgroundTaskSnapshots,
   readBackgroundTaskOutputTailLines,
   type BackgroundAgentTaskSnapshot,
   type BackgroundShellTaskSnapshot,
   type BackgroundTaskSnapshot,
   type BackgroundTaskStatus,
 } from '#core/tasks/backgroundRegistry'
-import { getOriginalCwd } from '#core/utils/state'
+import {
+  BackgroundAgentGuidanceError,
+  guideBackgroundAgentTask,
+} from '#core/utils/backgroundTasks'
 import { getTheme } from '#core/utils/theme'
-import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
+import { getCwd } from '#core/utils/state'
 import { getAgentLogFilePath } from '#protocol/utils/kodeAgentSessionLog'
+import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { launchExternalEditorForFilePath } from '#cli-utils/externalEditor'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
 import { KEYPRESS_PRIORITY } from '#ui-ink/constants/keypressPriority'
 import { ScreenFrame } from '#ui-ink/primitives/layout/ScreenFrame'
 import { useScreenLayout } from '#ui-ink/primitives/layout/useScreenLayout'
 import { useScopedIndexState } from '#ui-ink/hooks/useScopedIndexState'
+import TextInput from '#ui-ink/components/TextInput'
+import { useTerminalSize } from '#ui-ink/hooks/useTerminalSize'
 
 const VIEWPORT_SAFE_MARGIN_ROWS = 1
 const INDICATOR_ROWS = 2
@@ -415,6 +421,7 @@ export function TasksScreen({
 }): React.ReactNode {
   const theme = getTheme()
   const layout = useScreenLayout()
+  const { columns } = useTerminalSize()
   const exitState = { pending: false, keyName: null as null } as const
   const didDoneRef = useRef(false)
 
@@ -432,6 +439,9 @@ export function TasksScreen({
   const [scrollTop, setScrollTop] = useState(0)
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null)
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all')
+  const [guidanceTargetId, setGuidanceTargetId] = useState<string | null>(null)
+  const [guidanceValue, setGuidanceValue] = useState('')
+  const [guidanceCursorOffset, setGuidanceCursorOffset] = useState(0)
   const userMovedSelectionRef = useRef(false)
   const isOpeningFileRef = useRef(false)
   const mountedRef = useRef(true)
@@ -463,7 +473,10 @@ export function TasksScreen({
 
   const allTasks = useMemo(() => {
     void tick
-    return listBackgroundTaskSnapshots()
+    return listOwnedBackgroundTaskSnapshots({
+      cwd: getCwd(),
+      sessionId: getKodeAgentSessionId(),
+    })
   }, [tick])
   const tasks = useMemo(
     () => __filterTaskSnapshotsForTests(allTasks, taskFilter),
@@ -572,13 +585,7 @@ export function TasksScreen({
   }, [selected])
 
   const openExternalFile = useCallback(
-    async ({
-      path,
-      label,
-    }: {
-      path: string
-      label: 'output' | 'log'
-    }) => {
+    async ({ path, label }: { path: string; label: 'output' | 'log' }) => {
       if (isOpeningFileRef.current) return
 
       isOpeningFileRef.current = true
@@ -617,11 +624,15 @@ export function TasksScreen({
 
   const openLog = useCallback(async () => {
     if (!selected || selected.kind !== 'agent') return
+    if (!selected.task.sessionId) {
+      setStatus('Task has no captured session log')
+      return
+    }
 
     await openExternalFile({
       path: getAgentLogFilePath({
-        cwd: getOriginalCwd(),
-        sessionId: getKodeAgentSessionId(),
+        cwd: selected.task.cwd,
+        sessionId: selected.task.sessionId,
         agentId: selected.id,
       }),
       label: 'log',
@@ -642,8 +653,50 @@ export function TasksScreen({
     setStatus(killed ? `Killed task: ${detailTarget.id}` : 'Task not running')
   }, [detailTarget])
 
+  const beginGuidance = useCallback((taskId: string | null) => {
+    if (!taskId) return
+    setGuidanceTargetId(taskId)
+    setGuidanceValue('')
+    setGuidanceCursorOffset(0)
+    setStatus(`Guiding ${taskId}; this applies at its next model turn`)
+  }, [])
+
+  const submitGuidance = useCallback(
+    (value: string) => {
+      if (!guidanceTargetId) return
+      try {
+        const guidance = guideBackgroundAgentTask({
+          agentId: guidanceTargetId,
+          body: value,
+        })
+        setStatus(
+          `Guidance ${guidance.guidanceId.slice(0, 8)} queued for ${guidanceTargetId}; application is not immediate`,
+        )
+        setGuidanceTargetId(null)
+        setGuidanceValue('')
+        setTick(t => t + 1)
+      } catch (error) {
+        setStatus(
+          error instanceof BackgroundAgentGuidanceError
+            ? error.message
+            : 'Unable to queue guidance for this agent.',
+        )
+      }
+    },
+    [guidanceTargetId],
+  )
+
   useKeypress(
     (input, key) => {
+      if (guidanceTargetId) {
+        if (key.escape || (key.ctrl && input === 'c')) {
+          setGuidanceTargetId(null)
+          setGuidanceValue('')
+          setStatus('Guidance cancelled')
+          return true
+        }
+        return undefined
+      }
       if (detailTarget) {
         if (key.leftArrow) {
           setDetailTarget(null)
@@ -652,6 +705,15 @@ export function TasksScreen({
 
         if (input === 'k') {
           killDetailTask()
+          return true
+        }
+
+        if (
+          input === 'g' &&
+          detailTask?.taskType === 'local_agent' &&
+          detailTask.status === 'running'
+        ) {
+          beginGuidance(detailTask.taskId)
           return true
         }
 
@@ -753,6 +815,15 @@ export function TasksScreen({
         return true
       }
 
+      if (
+        input === 'g' &&
+        selected?.kind === 'agent' &&
+        selected.task.status === 'running'
+      ) {
+        beginGuidance(selected.id)
+        return true
+      }
+
       if (input === 'o') {
         void openOutput()
         return true
@@ -786,7 +857,7 @@ export function TasksScreen({
   )
 
   const shortcutLine =
-    '↑/↓ select · ←/→ collapse · Enter view · f filter · k kill · o output · l log · Esc close'
+    '↑/↓ select · ←/→ collapse · Enter view · g guide agent · f filter · k kill · o output · l log · Esc close'
 
   const detailLines: string[] = []
   if (!selected) {
@@ -798,15 +869,24 @@ export function TasksScreen({
     detailLines.push(`output: ${getBackgroundTaskOutputFilePath(selected.id)}`)
   } else {
     detailLines.push(`Agent: ${selected.id} (${selected.task.status})`)
-    detailLines.push(`output: ${getBackgroundTaskOutputFilePath(selected.id)}`)
+    detailLines.push(
+      `turns: ${selected.task.turnCount ?? 0} · guidance: ${selected.task.pendingGuidanceCount ?? 0} pending / ${selected.task.appliedGuidanceCount ?? 0} applied`,
+    )
     if (!layout.tightLayout) {
-      detailLines.push(
-        `log: ${getAgentLogFilePath({
-          cwd: getOriginalCwd(),
-          sessionId: getKodeAgentSessionId(),
-          agentId: selected.id,
-        })}`,
-      )
+      detailLines.push(`workspace: ${selected.task.cwd}`)
+      if (selected.task.subagentType) {
+        detailLines.push(`type: ${selected.task.subagentType}`)
+      }
+      if (selected.task.model) detailLines.push(`model: ${selected.task.model}`)
+      if (selected.task.sessionId) {
+        detailLines.push(
+          `log: ${getAgentLogFilePath({
+            cwd: selected.task.cwd,
+            sessionId: selected.task.sessionId,
+            agentId: selected.id,
+          })}`,
+        )
+      }
     }
   }
 
@@ -855,6 +935,9 @@ export function TasksScreen({
     const footerActions = [
       '← to go back',
       'Esc/Enter/Space to close',
+      detailTask?.taskType === 'local_agent' && detailTask.status === 'running'
+        ? 'g to guide'
+        : null,
       detailTask?.status === 'running' ? 'k to kill' : null,
     ]
       .filter(Boolean)
@@ -889,6 +972,49 @@ export function TasksScreen({
               </Text>
               : {commandOrDescription ?? '(unknown)'}
             </Text>
+            {detailTask?.cwd ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Workspace</Text>: {detailTask.cwd}
+              </Text>
+            ) : null}
+            {detailTask?.taskType === 'local_agent' &&
+            detailTask.subagentType ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Agent type</Text>: {detailTask.subagentType}
+              </Text>
+            ) : null}
+            {detailTask?.taskType === 'local_agent' && detailTask.model ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Model</Text>: {detailTask.model}
+              </Text>
+            ) : null}
+            {detailTask?.taskType === 'local_agent' ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Control</Text>: {detailTask.turnCount ?? 0} turns ·{' '}
+                {detailTask.pendingGuidanceCount ?? 0} pending ·{' '}
+                {detailTask.appliedGuidanceCount ?? 0} applied
+              </Text>
+            ) : null}
+            {detailTask?.taskType === 'local_agent' &&
+            detailTask.lastActivityAt ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Last activity</Text>:{' '}
+                {formatRuntime(detailTask.lastActivityAt)} ago
+              </Text>
+            ) : null}
+            {detailTask?.taskType === 'local_agent' &&
+            detailTask.lastGuidance ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Latest guidance</Text>:{' '}
+                {detailTask.lastGuidance.status} ·{' '}
+                {firstLine(detailTask.lastGuidance.body, 100)}
+              </Text>
+            ) : null}
+            {detailTask?.sessionId ? (
+              <Text color={theme.text} wrap="truncate-end">
+                <Text bold>Session</Text>: {detailTask.sessionId}
+              </Text>
+            ) : null}
 
             <Box flexDirection="column" marginTop={1}>
               <Text bold color={theme.text}>
@@ -919,6 +1045,35 @@ export function TasksScreen({
               ) : null}
             </Box>
           </Box>
+
+          {guidanceTargetId ? (
+            <Box flexDirection="column" marginLeft={2} marginTop={layout.gap}>
+              <Text color={theme.secondaryText}>
+                Guidance for {guidanceTargetId} (next model turn; Esc cancels):
+              </Text>
+              <TextInput
+                value={guidanceValue}
+                onChange={value => {
+                  setGuidanceValue(value)
+                  setGuidanceCursorOffset(value.length)
+                }}
+                onSubmit={submitGuidance}
+                columns={Math.max(1, columns - layout.paddingX * 2 - 4)}
+                cursorOffset={guidanceCursorOffset}
+                onChangeCursorOffset={setGuidanceCursorOffset}
+                multiline={true}
+                focus={true}
+              />
+            </Box>
+          ) : null}
+
+          {status ? (
+            <Box marginLeft={2} marginTop={layout.gap}>
+              <Text color={theme.secondaryText} wrap="truncate-end">
+                {status}
+              </Text>
+            </Box>
+          ) : null}
 
           <Box marginLeft={2} marginTop={layout.gap}>
             <Text color={theme.secondaryText} wrap="truncate-end">
@@ -978,6 +1133,27 @@ export function TasksScreen({
             {bottomIndicator}
           </Text>
         </Box>
+
+        {guidanceTargetId ? (
+          <Box flexDirection="column" marginTop={layout.gap}>
+            <Text color={theme.secondaryText}>
+              Guidance for {guidanceTargetId} (next model turn; Esc cancels):
+            </Text>
+            <TextInput
+              value={guidanceValue}
+              onChange={value => {
+                setGuidanceValue(value)
+                setGuidanceCursorOffset(value.length)
+              }}
+              onSubmit={submitGuidance}
+              columns={Math.max(1, columns - layout.paddingX * 2 - 2)}
+              cursorOffset={guidanceCursorOffset}
+              onChangeCursorOffset={setGuidanceCursorOffset}
+              multiline={true}
+              focus={true}
+            />
+          </Box>
+        ) : null}
 
         <Box flexDirection="column" marginTop={layout.gap}>
           {detailLines.slice(0, detailRows).map((line, idx) => (

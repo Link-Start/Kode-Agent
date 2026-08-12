@@ -39,9 +39,7 @@ async function enterDescription(
   await waitFor(
     harness,
     () =>
-      harness
-        .getOutput()
-        .includes('Enter to open GitHub and create an issue.'),
+      harness.getOutput().includes('Enter to open GitHub and create an issue.'),
     'consent view',
   )
   await harness.wait(50)
@@ -77,11 +75,19 @@ describe('TUI E2E regression (Ink render): Bug report', () => {
     )
     harnessManager.track(h)
 
-    await waitFor(h, () => h.getOutput().includes('Submit Bug Report'), 'bug view')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Submit Bug Report'),
+      'bug view',
+    )
     await enterDescription(h)
     h.stdin.write('\r')
     h.stdin.write('\r')
-    await waitFor(h, () => h.getOutput().includes('Opening GitHub...'), 'opening status')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Opening GitHub...'),
+      'opening status',
+    )
 
     expect(launches).toBe(1)
 
@@ -108,12 +114,18 @@ describe('TUI E2E regression (Ink render): Bug report', () => {
     )
     harnessManager.track(h)
 
-    await waitFor(h, () => h.getOutput().includes('Submit Bug Report'), 'bug view')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Submit Bug Report'),
+      'bug view',
+    )
     await enterDescription(h)
     h.stdin.write('\r')
     await waitFor(h, () => results.length === 1, 'browser failure result')
 
-    expect(results[0]).toContain('Failed to open browser. Open this URL manually:')
+    expect(results[0]).toContain(
+      'Failed to open browser. Open this URL manually:',
+    )
     expect(results[0]).toContain('github.com')
   })
 })

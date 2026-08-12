@@ -28,16 +28,12 @@ import { createUserMessage, normalizeMessages } from '#core/utils/messages'
 import { getGlobalConfigCached, saveGlobalConfig } from '#core/utils/config'
 import { getNextAvailableLogForkNumber, logError } from '#core/utils/log'
 import { getCwd, getOriginalCwd } from '#core/utils/state'
-import {
-  claimDueSchedules,
-  getUnstartedGoalRunSchedule,
-  GoalService,
-  type ClaimedSchedule,
-} from '#core/goals'
+import { pollGoalSchedule, type ClaimedSchedule } from '#core/goals'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { MACRO } from '#core/constants/macros'
 import { subscribeAgentReloads } from '@kode/agent/events'
 import { subscribeCustomCommandReloads } from '#cli-services/customCommands'
+import { startSessionMessageNotifications } from '#cli-services/sessionMessages'
 import { HelpScreen } from '#ui-ink/screens/overlays/HelpScreen'
 import { ShortcutsScreen } from '#ui-ink/screens/overlays/ShortcutsScreen'
 import { ConfigScreen } from '#ui-ink/screens/overlays/ConfigScreen'
@@ -493,6 +489,22 @@ export function useReplController(props: REPLProps) {
     }
     toastTimeoutRef.current = setTimeout(() => setToast(null), 6000)
   }, [])
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'test') return undefined
+    return startSessionMessageNotifications({
+      cwd: getCwd(),
+      sessionId: getKodeAgentSessionId(),
+      onArrival: arrived => {
+        const sender = arrived[0]?.senderSessionId.slice(0, 8) ?? 'peer'
+        showToast(
+          arrived.length === 1
+            ? `New session message from ${sender} · open /sm`
+            : `${arrived.length} new session messages · open /sm`,
+        )
+      },
+    })
+  }, [forkNumber, showToast])
 
   const dismissToolView = useCallback(() => {
     const current = toolViewStackRef.current
@@ -1235,18 +1247,13 @@ export function useReplController(props: REPLProps) {
       try {
         const cwd = getCwd()
         const sessionId = getKodeAgentSessionId()
-        schedule = claimDueSchedules({
+        const result = pollGoalSchedule({
           cwd,
           sessionId,
           limit: 1,
-        })[0]
-        if (!schedule) {
-          schedule =
-            getUnstartedGoalRunSchedule(
-              new GoalService().findActiveGoal({ cwd, sessionId }),
-            ) ?? undefined
-          isUnstartedGoalRun = schedule !== undefined
-        }
+        })
+        schedule = result?.schedule
+        isUnstartedGoalRun = result?.source === 'unstarted'
       } catch (error) {
         logError(error)
         return

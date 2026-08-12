@@ -171,6 +171,8 @@ export function VoiceScreen({
         return
       }
       if (!submission) {
+        if (closedRef.current) return
+        closedRef.current = true
         onDone({
           type: 'submit-prompt',
           prompt,
@@ -182,7 +184,10 @@ export function VoiceScreen({
       setState({ kind: 'submitting' })
       try {
         const result = await submission.submit(prompt)
-        if (!closedRef.current) onDone(result)
+        if (!closedRef.current) {
+          closedRef.current = true
+          onDone(result)
+        }
       } catch (error) {
         if (closedRef.current) return
         setState({

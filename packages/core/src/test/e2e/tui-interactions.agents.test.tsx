@@ -174,13 +174,25 @@ describe('TUI E2E regression (Ink render): Agents', () => {
     await waitFor(h, () => h.getOutput().includes('plugin-reviewer'), 'list')
     h.clearOutput()
     h.stdin.write('\x1b[B')
-    await waitFor(h, () => h.getOutput().includes('plugin-reviewer'), 'plugin focus')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('plugin-reviewer'),
+      'plugin focus',
+    )
     h.clearOutput()
     h.stdin.write('\x1b[B')
-    await waitFor(h, () => h.getOutput().includes('flag-reviewer'), 'flag focus')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('flag-reviewer'),
+      'flag focus',
+    )
     h.clearOutput()
     h.stdin.write('\x1b[B')
-    await waitFor(h, () => h.getOutput().includes('builtin-reviewer'), 'built-in focus')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('builtin-reviewer'),
+      'built-in focus',
+    )
     h.stdin.write('\r')
     await waitFor(
       h,

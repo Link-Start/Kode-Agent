@@ -36,8 +36,20 @@ export const TaskTool = {
   isReadOnly() {
     return true
   },
+  workspaceMutationScope(_input?: Input, output?: Output) {
+    // The child pipeline owns mutation detection and verification. Requiring
+    // the parent to verify the Task invocation duplicates that gate and turns
+    // read-only Explore/Plan tasks into false workspace writes. A failed child
+    // may have left partial writes, so the parent takes verification ownership.
+    return output?.status === 'failed'
+      ? ('direct' as const)
+      : ('delegated' as const)
+  },
   isConcurrencySafe() {
-    return true
+    // A standalone Task has no declared read/write mode and may select an
+    // unrestricted agent. Serialize it at the parent scheduler boundary.
+    // Explicitly verified read-only parallelism is available via TaskBatch.
+    return false
   },
   needsPermissions() {
     return false
@@ -72,13 +84,16 @@ export const TaskTool = {
     }
 
     if (input.resume) {
-      const transcript = getAgentTranscript(input.resume)
+      const owner = {
+        agentId: input.resume,
+        cwd: getCwd(),
+        sessionId: getKodeAgentSessionId(),
+      }
+      const transcript = getAgentTranscript(owner)
       if (!transcript) {
         try {
           const disk = loadKodeAgentSidechainMessagesForResume({
-            cwd: getCwd(),
-            sessionId: getKodeAgentSessionId(),
-            agentId: input.resume,
+            ...owner,
           })
           if (disk.length === 0) {
             return {

@@ -67,6 +67,7 @@ import worktree from './builtin/worktree'
 import tasks from './builtin/tasks'
 import terminalSetup from './builtin/terminal-setup'
 import sandbox from './builtin/sandbox'
+import sessionMessage from './builtin/session-message'
 import agents from './agent/agents'
 import { PARITY_STUB_COMMANDS } from './builtin/parityStubs'
 import { getMCPCommands, getMcpListChangedVersion } from '#core/mcp/client'
@@ -147,6 +148,7 @@ const COMMANDS = memoize((): Command[] => [
   tasks,
   terminalSetup,
   sandbox,
+  sessionMessage,
   ...PARITY_STUB_COMMANDS,
   ...(isInteractiveLoginEnabled() ? [logout, login()] : []),
   ...INTERNAL_ONLY_COMMANDS,

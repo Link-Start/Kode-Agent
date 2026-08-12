@@ -142,7 +142,9 @@ export function allocateManagedWorktree(
         '--force',
         validation.path,
       ])
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     throw error
   }
 }

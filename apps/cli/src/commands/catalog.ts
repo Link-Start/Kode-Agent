@@ -56,8 +56,10 @@ export const COMMAND_CATEGORIES = [
       'resume',
       'rewind',
       'rollback',
+      'session-message',
       'tag',
       'transcript',
+      'voice',
     ],
   },
   {

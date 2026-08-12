@@ -331,7 +331,9 @@ export function createWebSocketHandlers(args: {
     if (decision.decision === 'allow_always') {
       try {
         await savePermission(params.tool, params.input, null, toolUseContext)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
 
     return { ok: true }
@@ -356,7 +358,9 @@ export function createWebSocketHandlers(args: {
     } finally {
       try {
         abortController.abort()
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       if (params.session.activeAbortController === abortController) {
         params.session.activeAbortController = null
       }
@@ -421,7 +425,9 @@ export function createWebSocketHandlers(args: {
         if (hasTurnSelector && !selectedTurn) return
         try {
           session.activeAbortController?.abort()
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
         denyAllPermissionRequests(session, 'Cancelled')
         return
       }
@@ -433,7 +439,9 @@ export function createWebSocketHandlers(args: {
             updatedInput: payload.updatedInput,
             rejectionMessage: payload.rejectionMessage,
           })
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
         return
       }
 
@@ -1069,7 +1077,9 @@ export function createWebSocketHandlers(args: {
       if (activeOperationOwners.get(session) === ws) {
         try {
           session.activeAbortController?.abort()
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
       removeSessionClient(session, ws)
       denyPermissionRequestsOwnedBy(session, ws, 'Disconnected')

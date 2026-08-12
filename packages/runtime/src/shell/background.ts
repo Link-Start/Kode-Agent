@@ -30,12 +30,12 @@ export function execInBackground(
   const abortController = new AbortController()
 
   const sandbox = options?.sandbox
+  const executionCwd =
+    (sandbox?.enabled === true && sandbox?.chdir) || options?.cwd || state.cwd
   const sandboxCmd =
     sandbox?.enabled === true
-      ? buildSandboxCommand({ command, sandbox, cwd: state.cwd })
+      ? buildSandboxCommand({ command, sandbox, cwd: executionCwd })
       : null
-  const executionCwd =
-    sandbox?.enabled === true && sandbox?.chdir ? sandbox.chdir : state.cwd
 
   if (sandbox?.enabled === true && sandbox?.require && !sandboxCmd) {
     throw new Error(

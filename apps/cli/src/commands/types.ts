@@ -42,19 +42,21 @@ export type LocalJSXCommand = {
   ): Promise<ReactNode>
 }
 
-/** A local interactive command can either render transcript output or submit a reviewed prompt. */
+/** A local JSX command can either render output or submit a normal REPL prompt. */
 export type LocalJSXCommandResult =
   | string
   | {
       type: 'submit-prompt'
       prompt: string
+      /** Marks the input as reviewed speech for turn-level clarification policy. */
       voiceInput?: boolean
+      /** Request best-effort TTS after the corresponding assistant turn. */
       voiceResponse?: boolean
     }
 
-// Local command tests and existing overlays often provide a string-only
-// callback. Keep that established callback shape assignable while allowing a
-// new overlay to submit a structured prompt.
+// The callback is intentionally bivariant for backwards-compatible commands
+// whose completion handler only accepts text. New interactive commands can
+// submit a prompt object without forcing every existing command to change.
 export type LocalJSXDoneCallback = {
   bivarianceHack(result?: LocalJSXCommandResult): void
 }['bivarianceHack']
