@@ -27,6 +27,33 @@ import type {
   AssistantStreamUpdateEvent,
 } from './assistantStreamStore'
 
+// REPL message arrays are immutable snapshots. Reusing their progress indexes
+// avoids rescanning long transcripts without retaining inactive conversations.
+const progressMessageIndexes = new WeakMap<MessageType[], Map<string, number>>()
+
+function buildProgressMessageIndexes(
+  messages: MessageType[],
+): Map<string, number> {
+  const indexes = new Map<string, number>()
+  for (const [index, message] of messages.entries()) {
+    if (message.type === 'progress' && !indexes.has(message.toolUseID)) {
+      indexes.set(message.toolUseID, index)
+    }
+  }
+  return indexes
+}
+
+function getProgressMessageIndexes(
+  messages: MessageType[],
+): Map<string, number> {
+  const cached = progressMessageIndexes.get(messages)
+  if (cached) return cached
+
+  const indexes = buildProgressMessageIndexes(messages)
+  progressMessageIndexes.set(messages, indexes)
+  return indexes
+}
+
 export function appendMessagesForReplState(
   oldMessages: MessageType[],
   newMessages: MessageType[],
@@ -34,25 +61,47 @@ export function appendMessagesForReplState(
   if (newMessages.length === 0) return oldMessages
 
   let next: MessageType[] | null = null
+  let progressIndexes: Map<string, number> | null = null
   const getNext = () => {
     next ??= [...oldMessages]
     return next
+  }
+  const getProgressIndexes = () => {
+    progressIndexes ??= getProgressMessageIndexes(next ?? oldMessages)
+    return progressIndexes
   }
 
   for (const message of newMessages) {
     if (message.type === 'progress') {
       const current = next ?? oldMessages
-      const existingIndex = current.findIndex(
-        item =>
-          item.type === 'progress' && item.toolUseID === message.toolUseID,
-      )
-      if (existingIndex >= 0) {
+      let existingIndex = getProgressIndexes().get(message.toolUseID)
+      const existingMessage =
+        existingIndex === undefined ? undefined : current[existingIndex]
+      if (
+        existingIndex !== undefined &&
+        (existingMessage?.type !== 'progress' ||
+          existingMessage.toolUseID !== message.toolUseID)
+      ) {
+        progressIndexes = buildProgressMessageIndexes(current)
+        progressMessageIndexes.set(current, progressIndexes)
+        existingIndex = progressIndexes.get(message.toolUseID)
+      }
+      if (existingIndex !== undefined) {
         getNext()[existingIndex] = message
         continue
       }
+
+      const nextMessages = getNext()
+      getProgressIndexes().set(message.toolUseID, nextMessages.length)
+      nextMessages.push(message)
+      continue
     }
 
     getNext().push(message)
+  }
+
+  if (next && progressIndexes) {
+    progressMessageIndexes.set(next, progressIndexes)
   }
 
   return next ?? oldMessages

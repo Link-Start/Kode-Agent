@@ -39,6 +39,16 @@ describe('appendMessagesForReplState', () => {
     expect(result).toEqual([first, second])
   })
 
+  test('replaces the earliest matching progress message when legacy duplicates exist', () => {
+    const first = makeProgress('tool-1', 'Waiting...')
+    const duplicate = makeProgress('tool-1', 'Stale duplicate')
+    const next = makeProgress('tool-1', 'Running...')
+
+    const result = appendMessagesForReplState([first, duplicate], [next])
+
+    expect(result).toEqual([next, duplicate])
+  })
+
   test('appends ordinary messages without cloning an empty update', () => {
     const user = createUserMessage('hello')
     const assistant = createAssistantMessage('done')
