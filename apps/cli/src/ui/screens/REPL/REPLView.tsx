@@ -189,6 +189,13 @@ export function REPLView({
   const mountedStaticOutputEpochRef = useRef<number | null>(null)
   const staticOutputKey = `static-${staticOutputEpoch}`
   const shouldRenderStartupHeaderInControls = shouldRenderStartupHeader
+  // Ink's Static owns an append cursor. Keep its item identity frozen while a
+  // fullscreen/permission surface obscures the REPL so reopening the normal
+  // layout appends only new output instead of replaying history from index 0.
+  const staticItemsForRenderRef = useRef<{
+    epoch: number
+    items: TranscriptItem[]
+  }>({ epoch: staticOutputEpoch, items: staticItems })
 
   const [mainControlsHeight, setMainControlsHeight] = useState(0)
   const [messageSelectorHeight, setMessageSelectorHeight] = useState(0)
@@ -298,10 +305,9 @@ export function REPLView({
       VIEWPORT_SAFE_MARGIN_ROWS,
   )
   const canShowTransientRegion =
-    !isLayoutMeasurementStale &&
-    !isLayoutMeasurementPending &&
     !isMicroViewport &&
-    transientMaxHeight > 0
+    transientMaxHeight > 0 &&
+    (isLoading || (!isLayoutMeasurementStale && !isLayoutMeasurementPending))
   const showRequestStatus =
     !isMicroViewport &&
     !toolJSX &&
@@ -333,19 +339,29 @@ export function REPLView({
               ? 'Working… Esc cancel'
               : null
   const hasStaticOutput = staticItems.length > 0
+  const isStaticOutputObscured = isFullScreenToolView || hasToolUseConfirm
+  if (staticItemsForRenderRef.current.epoch !== staticOutputEpoch) {
+    staticItemsForRenderRef.current = {
+      epoch: staticOutputEpoch,
+      items: isStaticOutputObscured ? [] : staticItems,
+    }
+  } else if (!isStaticOutputObscured) {
+    staticItemsForRenderRef.current = {
+      epoch: staticOutputEpoch,
+      items: staticItems,
+    }
+  }
+  const staticItemsForRender = staticItemsForRenderRef.current.items
   const shouldMountStaticOutputNormally =
     !isMinimizedViewport &&
     !isMicroViewport &&
-    !isFullScreenToolView &&
-    !toolUseConfirm &&
+    !isStaticOutputObscured &&
     hasStaticOutput
   if (shouldMountStaticOutputNormally) {
     mountedStaticOutputEpochRef.current = staticOutputEpoch
   }
   const shouldPreserveStaticOutputInConstrainedViewport =
-    (isMinimizedViewport || isMicroViewport) &&
-    !isFullScreenToolView &&
-    !toolUseConfirm &&
+    (isMinimizedViewport || isMicroViewport || isStaticOutputObscured) &&
     hasStaticOutput &&
     mountedStaticOutputEpochRef.current === staticOutputEpoch
   const shouldRenderStaticOutput =
@@ -361,7 +377,7 @@ export function REPLView({
         >
           <Box ref={rootUiRef} flexDirection="column" width="100%">
             {shouldRenderStaticOutput && (
-              <Static key={staticOutputKey} items={staticItems}>
+              <Static key={staticOutputKey} items={staticItemsForRender}>
                 {(item: TranscriptItem) => item.jsx}
               </Static>
             )}
@@ -386,7 +402,7 @@ export function REPLView({
             width="100%"
           >
             {shouldRenderStaticOutput && (
-              <Static key={staticOutputKey} items={staticItems}>
+              <Static key={staticOutputKey} items={staticItemsForRender}>
                 {(item: TranscriptItem) => item.jsx}
               </Static>
             )}
@@ -416,10 +432,20 @@ export function REPLView({
       >
         {isFullScreenToolView && toolJSX ? (
           <Box ref={rootUiRef} flexDirection="column" width="100%">
+            {shouldRenderStaticOutput && (
+              <Static key={staticOutputKey} items={staticItemsForRender}>
+                {(item: TranscriptItem) => item.jsx}
+              </Static>
+            )}
             {toolJSX.jsx}
           </Box>
         ) : toolUseConfirm ? (
           <Box ref={rootUiRef} flexDirection="column" width="100%">
+            {shouldRenderStaticOutput && (
+              <Static key={staticOutputKey} items={staticItemsForRender}>
+                {(item: TranscriptItem) => item.jsx}
+              </Static>
+            )}
             <PermissionRequest
               toolUseConfirm={toolUseConfirm}
               onDone={() => setToolUseConfirm(null)}
@@ -429,7 +455,7 @@ export function REPLView({
         ) : (
           <Box ref={rootUiRef} flexDirection="column" width="100%">
             {shouldRenderStaticOutput && (
-              <Static key={staticOutputKey} items={staticItems}>
+              <Static key={staticOutputKey} items={staticItemsForRender}>
                 {(item: TranscriptItem) => item.jsx}
               </Static>
             )}
@@ -439,6 +465,7 @@ export function REPLView({
               transientItems={transientItems}
               maxHeight={transientMaxHeight}
               isVisible={canShowTransientRegion}
+              isActive={isLoading}
               debug={debug}
             />
 

@@ -494,7 +494,7 @@ export function useReplController(props: REPLProps) {
     pastedImages: PastedImageAttachment[]
   }>({ pastedTexts: [], pastedImages: [] })
   const [sessionThinkingMode, setSessionThinkingMode] = useState<
-    'enabled' | 'auto' | null
+    'auto' | 'enabled' | 'disabled' | null
   >(null)
   const [submitCount, setSubmitCount] = useState(0)
   const [isMessageSelectorVisible, setIsMessageSelectorVisible] =
@@ -678,14 +678,14 @@ export function useReplController(props: REPLProps) {
         setToolUseConfirm(null)
         setBinaryFeedbackContext(null)
         onCancel()
-        return true
+        return undefined
       }
 
       if (hasModal) return undefined
 
       if (key.ctrl && inputChar === 't') {
         void openWorkTasksScreen()
-        return true
+        return undefined
       }
 
       if (key.ctrl && inputChar === 'o') {
@@ -703,33 +703,32 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.ctrl && inputChar === 'r') {
         void openHistorySearchScreen()
-        return true
+        return undefined
       }
 
       if (key.meta && inputChar === 't') {
         const effectiveThinkingMode =
           sessionThinkingMode ?? getGlobalConfigCached().thinkingMode ?? 'auto'
-        const currentValue = effectiveThinkingMode === 'enabled'
         const isMidConversation =
           messages.some(m => m.type === 'assistant') ||
           messages.some(m => m.type === 'user' && !(m as any)?.isMeta)
 
-        const { ThinkingToggleScreen } = await import(
+        const { ThinkingToggleScreen, getThinkingModeLabel } = await import(
           '#ui-ink/screens/overlays/ThinkingToggleScreen'
         )
         openToolView({
           jsx: (
             <ThinkingToggleScreen
-              currentValue={currentValue}
+              currentMode={effectiveThinkingMode}
               isMidConversation={isMidConversation}
-              onSelect={enabled => {
-                setSessionThinkingMode(enabled ? 'enabled' : 'auto')
-                showToast(`Thinking: ${enabled ? 'ON' : 'OFF'}`)
+              onSelect={mode => {
+                setSessionThinkingMode(mode)
+                showToast(`Thinking: ${getThinkingModeLabel(mode)}`)
               }}
               onDone={dismissToolView}
             />
@@ -737,7 +736,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.meta && inputChar === 'p') {
@@ -789,7 +788,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (inputChar === '?' && inputValue.trim().length === 0) {
@@ -801,7 +800,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f1') {
@@ -813,7 +812,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f2') {
@@ -825,7 +824,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f3') {
@@ -837,7 +836,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f4') {
@@ -849,7 +848,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f5') {
@@ -861,7 +860,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f6') {
@@ -878,12 +877,12 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       if (key.name === 'f8') {
         void openTasksScreen()
-        return true
+        return undefined
       }
 
       if (key.name === 'f7') {
@@ -1044,7 +1043,7 @@ export function useReplController(props: REPLProps) {
           shouldHidePromptInput: true,
           displayMode: 'fullscreen',
         })
-        return true
+        return undefined
       }
 
       return undefined

@@ -187,6 +187,10 @@ export function createRoutes(args: {
       const goalSchedulesResponse = await routeGoalSchedules(req, {
         cwd: args.cwd,
         listWorkspaces: args.listWorkspaces,
+        sessionExists: ({ cwd, sessionId }) =>
+          sessionService
+            .list({ cwd })
+            .some(session => session.sessionId === sessionId),
       })
       if (goalSchedulesResponse) return goalSchedulesResponse
 

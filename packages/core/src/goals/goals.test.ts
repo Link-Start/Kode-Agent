@@ -1,11 +1,13 @@
-import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { afterEach, describe, expect, spyOn, test } from 'bun:test'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
   GoalService,
+  GoalScheduler,
   GoalStorage,
+  MAX_GOAL_CONTINUATIONS,
   claimDueSchedules,
   evaluateActiveGoalAfterTurn,
   getUnstartedGoalRunSchedule,
@@ -117,6 +119,34 @@ describe('durable goals', () => {
         now: 1_400,
       }),
     ).toHaveLength(1)
+  })
+
+  test('exhausts an interval instead of persisting an unsafe timestamp', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(1))
+    const goal = service.createGoal({
+      id: 'goal-overflow-safe',
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-overflow-safe',
+      objective: 'Keep persisted timestamps safe',
+      schedule: {
+        kind: 'interval',
+        prompt: 'Run once before the timestamp overflows.',
+        everyMs: Number.MAX_SAFE_INTEGER,
+        anchorAt: 1,
+      },
+    })
+
+    expect(
+      service.claimDueSchedules({
+        cwd: goal.cwd,
+        sessionId: goal.sessionId,
+        now: 1,
+      }),
+    ).toHaveLength(1)
+    const running = service.getGoal(goal.id)
+    expect(running?.schedule.nextRunAt).toBeNull()
+    expect(running?.status).toBe('running')
   })
 
   test('consumes a one-off schedule exactly once unless an interrupted lease is recovered', () => {
@@ -282,6 +312,87 @@ describe('durable goals', () => {
     expect(completed.goal?.status).toBe('completed')
   })
 
+  test('forwards bounded verification evidence to a goal evaluator', async () => {
+    const root = makeRoot()
+    const cwd = join(root, 'workspace')
+    startGoal({
+      rootDir: root,
+      cwd,
+      sessionId: 'session-evidence',
+      objective: 'Run a checked release step',
+    })
+    const verificationEvidence = [
+      {
+        version: 1 as const,
+        kind: 'test' as const,
+        status: 'passed' as const,
+        toolUseId: 'verify-1',
+        commandDigest: 'a'.repeat(16),
+        outputDigest: 'b'.repeat(16),
+        recordedAt: '2026-08-10T00:00:00.000Z',
+      },
+    ]
+    let observedEvidence: unknown
+
+    const result = await evaluateActiveGoalAfterTurn({
+      rootDir: root,
+      cwd,
+      sessionId: 'session-evidence',
+      assistantText: 'The focused test passed.',
+      verificationEvidence,
+      evaluate: async input => {
+        observedEvidence = input.verificationEvidence
+        return { action: 'complete', reason: 'Evidence received.' }
+      },
+    })
+
+    expect(observedEvidence).toEqual(verificationEvidence)
+    expect(result.action).toBe('complete')
+  })
+
+  test('bounds evaluator output and fails closed on an invalid decision', async () => {
+    const root = makeRoot()
+    const cwd = join(root, 'workspace')
+    const service = new GoalService({ rootDir: root })
+    const first = service.startGoal({
+      cwd,
+      sessionId: 'session-invalid-decision',
+      objective: 'Reject an invalid evaluator action',
+    })
+    const invalid = await evaluateActiveGoalAfterTurn({
+      rootDir: root,
+      cwd,
+      sessionId: first.sessionId,
+      assistantText: 'Work is ambiguous.',
+      evaluate: async () => ({ action: 'invented' }) as never,
+    })
+    expect(invalid).toMatchObject({
+      action: 'paused',
+      reason: 'Goal evaluator returned an invalid decision.',
+    })
+
+    const second = service.startGoal({
+      cwd,
+      sessionId: 'session-bounded-decision',
+      objective: 'Bound evaluator output',
+    })
+    const completed = await evaluateActiveGoalAfterTurn({
+      rootDir: root,
+      cwd,
+      sessionId: second.sessionId,
+      assistantText: 'Done.',
+      evaluate: async () => ({
+        action: 'complete',
+        reason: 'x'.repeat(10_000),
+      }),
+    })
+    expect(completed.action).toBe('complete')
+    expect(completed.reason).toHaveLength(4_000)
+    expect(service.storage.listEvents(second.id).at(-1)?.message).toHaveLength(
+      4_000,
+    )
+  })
+
   test('exposes an unstarted direct goal to an interactive dispatcher', () => {
     const root = makeRoot()
     const goal = startGoal({
@@ -411,5 +522,299 @@ describe('durable goals', () => {
     expect(() =>
       service.completeGoal(goal.id, { runId: 'not-running' }),
     ).toThrow('cannot transition from scheduled to completed')
+
+    const running = service.startGoal({
+      cwd: join(root, 'workspace-2'),
+      sessionId: 'session-terminal',
+      objective: 'Keep completion terminal',
+    })
+    service.completeGoal(running.id, {
+      runId: running.activeRun?.id ?? '',
+      now: 1_001,
+    })
+    expect(() => service.cancelGoal(running.id)).toThrow(
+      'cannot transition from completed to cancelled',
+    )
+    expect(() => service.resumeGoal(running.id)).toThrow(
+      'cannot transition from completed to scheduled',
+    )
+  })
+
+  test('rejects unsafe execution limits and oversized acceptance input', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(1_000))
+    const base = {
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-limits',
+      objective: 'Bound unattended execution',
+      schedule: { kind: 'once' as const, prompt: 'Do bounded work.' },
+    }
+
+    expect(() =>
+      service.createGoal({
+        ...base,
+        loop: { maxIterations: MAX_GOAL_CONTINUATIONS + 1 },
+      }),
+    ).toThrow(`between 1 and ${MAX_GOAL_CONTINUATIONS}`)
+    expect(() =>
+      service.createGoal({
+        ...base,
+        acceptanceCriteria: ['x'.repeat(1_001)],
+      }),
+    ).toThrow('cannot exceed 1000 characters')
+    expect(() =>
+      service.createGoal({
+        ...base,
+        schedule: { kind: 'once', prompt: 'Invalid time.', runAt: -1 },
+      }),
+    ).toThrow('runAt must be a safe integer')
+    expect(() =>
+      makeService(root, new TestClock(1.5)).createGoal({
+        ...base,
+        schedule: { kind: 'once', prompt: 'Fractional clock.' },
+      }),
+    ).toThrow('timestamp must be a non-negative safe integer')
+    expect(service.listGoals()).toHaveLength(0)
+  })
+
+  test('caps configured leases and refuses timestamp overflow', () => {
+    const root = makeRoot()
+    const service = new GoalService({
+      rootDir: root,
+      clock: new TestClock(1_000),
+      leaseDurationMs: Number.MAX_VALUE,
+      idFactory: () => 'lease-run',
+    })
+    const goal = service.startGoal({
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-lease-cap',
+      objective: 'Keep leases representable',
+    })
+    expect(goal.lease?.expiresAt).toBe(1_000 + 24 * 60 * 60 * 1_000)
+
+    const overflow = new GoalService({
+      rootDir: root,
+      clock: new TestClock(Number.MAX_SAFE_INTEGER),
+      idFactory: () => 'overflow-run',
+    })
+    expect(() =>
+      overflow.startGoal({
+        cwd: join(root, 'workspace-2'),
+        sessionId: 'session-lease-overflow',
+        objective: 'Reject an overflowing lease',
+      }),
+    ).toThrow('Goal lease exceeds the supported timestamp range')
+    expect(overflow.getGoal('overflow-run')?.status).toBe('scheduled')
+  })
+
+  test('fails closed when persisted running-state identities are inconsistent', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(1_000))
+    const goal = service.startGoal({
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-corrupt',
+      objective: 'Do not load a zombie GoalRun',
+    })
+    const path = service.storage.getGoalFilePath(goal.id)
+    const persisted = JSON.parse(readFileSync(path, 'utf8')) as Record<
+      string,
+      unknown
+    >
+    delete persisted.lease
+    writeFileSync(path, JSON.stringify(persisted), 'utf8')
+
+    expect(service.getGoal(goal.id)).toBeNull()
+    expect(
+      service.findActiveGoal({ cwd: goal.cwd, sessionId: goal.sessionId }),
+    ).toBeNull()
+  })
+
+  test('polls recovery, claim, and direct dispatch from one goal snapshot', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(1_000))
+    for (let index = 0; index < 20; index += 1) {
+      service.createGoal({
+        id: `background-${index}`,
+        cwd: join(root, 'workspace'),
+        sessionId: `other-${index}`,
+        objective: `Background ${index}`,
+        schedule: {
+          kind: 'once',
+          prompt: `Background ${index}`,
+          runAt: 10_000,
+        },
+      })
+    }
+    const scans = spyOn(service.storage, 'listGoals')
+    const scheduler = new GoalScheduler(service)
+
+    expect(
+      scheduler.tick({
+        cwd: join(root, 'workspace'),
+        sessionId: 'target',
+        now: 1_000,
+      }),
+    ).toEqual([])
+    expect(scans).toHaveBeenCalledTimes(1)
+  })
+
+  test('edits an idle goal definition with revision fencing and preserves routing identity', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(10_000))
+    const created = service.createScheduledForControlPlane({
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-edit',
+      objective: 'Initial objective',
+      acceptanceCriteria: ['Initial criterion'],
+      maxIterations: 4,
+      schedule: { kind: 'once', runAt: 20_000 },
+    })!
+
+    const updated = service.updateScheduleForControlPlane({
+      cwd: created.cwd,
+      sessionId: created.sessionId,
+      scheduleId: created.schedule.id,
+      expectedRevision: created.revision,
+      objective: 'Ship the complete goal workflow',
+      acceptanceCriteria: ['Focused tests pass', 'Build succeeds'],
+      maxIterations: 12,
+      schedule: { kind: 'once', runAt: 30_000 },
+      now: 10_100,
+    })
+
+    expect(updated.ok).toBe(true)
+    if (!updated.ok) return
+    expect(updated.goal).toMatchObject({
+      objective: 'Ship the complete goal workflow',
+      acceptanceCriteria: ['Focused tests pass', 'Build succeeds'],
+      loop: { maxIterations: 12 },
+      status: 'scheduled',
+    })
+    expect(updated.goal.schedule).toMatchObject({
+      id: created.schedule.id,
+      goalId: created.id,
+      prompt: 'Ship the complete goal workflow',
+      runAt: 30_000,
+      nextRunAt: 30_000,
+    })
+    expect(service.storage.listEvents(created.id).at(-1)).toMatchObject({
+      type: 'updated',
+      revision: updated.goal.revision,
+    })
+
+    expect(
+      service.updateScheduleForControlPlane({
+        cwd: created.cwd,
+        sessionId: created.sessionId,
+        scheduleId: created.schedule.id,
+        expectedRevision: created.revision,
+        objective: 'Overwrite a newer edit',
+      }),
+    ).toEqual({ ok: false, reason: 'revision_conflict' })
+  })
+
+  test('refuses live edits, queues run-now without bypassing claim, and retries failed work', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(1_000))
+    const future = service.createGoal({
+      id: 'goal-run-now',
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-run-now',
+      objective: 'Run through the normal scheduler',
+      schedule: { kind: 'once', prompt: 'Normal scheduler', runAt: 50_000 },
+    })
+    const requested = service.transitionScheduleForControlPlane({
+      cwd: future.cwd,
+      sessionId: future.sessionId,
+      scheduleId: future.schedule.id,
+      expectedRevision: future.revision,
+      action: 'run_now',
+      now: 1_100,
+    })
+    expect(requested.ok).toBe(true)
+    if (!requested.ok) return
+    expect(requested.goal.status).toBe('scheduled')
+    expect(requested.goal.activeRun).toBeUndefined()
+    expect(requested.goal.schedule.retryAt).toBe(1_100)
+
+    expect(
+      service.claimDueSchedules({
+        cwd: future.cwd,
+        sessionId: future.sessionId,
+        now: 1_100,
+      }),
+    ).toHaveLength(1)
+    const running = service.getGoal(future.id)!
+    expect(
+      service.updateScheduleForControlPlane({
+        cwd: running.cwd,
+        sessionId: running.sessionId,
+        scheduleId: running.schedule.id,
+        expectedRevision: running.revision,
+        objective: 'Unsafe live rewrite',
+      }),
+    ).toEqual({ ok: false, reason: 'active_run' })
+
+    const failed = service.failGoal(running.id, {
+      runId: running.activeRun?.id,
+      reason: 'Focused test failed.',
+      now: 1_200,
+    })!
+    const retried = service.transitionScheduleForControlPlane({
+      cwd: failed.cwd,
+      sessionId: failed.sessionId,
+      scheduleId: failed.schedule.id,
+      expectedRevision: failed.revision,
+      action: 'retry',
+      now: 1_300,
+    })
+    expect(retried.ok).toBe(true)
+    if (!retried.ok) return
+    expect(retried.goal).toMatchObject({ status: 'scheduled' })
+    expect(retried.goal.schedule.retryAt).toBe(1_300)
+    expect(
+      service.storage
+        .listEvents(failed.id)
+        .slice(-2)
+        .map(event => event.type),
+    ).toEqual(['failed', 'retried'])
+  })
+
+  test('returns only the latest bounded schedule events in chronological order', () => {
+    const root = makeRoot()
+    const service = makeService(root, new TestClock(1_000))
+    let goal = service.createGoal({
+      id: 'goal-event-tail',
+      cwd: join(root, 'workspace'),
+      sessionId: 'session-event-tail',
+      objective: 'Keep event reads bounded',
+      schedule: { kind: 'once', prompt: 'Read a bounded tail', runAt: 50_000 },
+    })
+    for (let index = 0; index < 12; index += 1) {
+      const result = service.transitionScheduleForControlPlane({
+        cwd: goal.cwd,
+        sessionId: goal.sessionId,
+        scheduleId: goal.schedule.id,
+        expectedRevision: goal.revision,
+        action: 'run_now',
+        reason: `Request ${index}`,
+        now: 2_000 + index,
+      })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      goal = result.goal
+    }
+
+    const recent = service.listScheduleEventsForControlPlane({
+      cwd: goal.cwd,
+      sessionId: goal.sessionId,
+      scheduleId: goal.schedule.id,
+      limit: 3,
+    })
+    expect(recent?.map(event => event.message)).toEqual([
+      'Request 9',
+      'Request 10',
+      'Request 11',
+    ])
   })
 })

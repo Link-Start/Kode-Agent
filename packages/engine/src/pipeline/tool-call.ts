@@ -10,6 +10,17 @@ import {
 } from '../messages/create'
 import { maybePersistOversizedToolResult } from '#core/utils/toolResultPersistence'
 import {
+  attachVerificationReceipt,
+  createVerificationReceipt,
+  formatVerificationSystemMessage,
+} from '../verification/receipt'
+import {
+  canObserveWorkspaceMutationDuringCall,
+  finalizeWorkspaceMutationReceipt,
+  resolveWorkspaceMutationScope,
+} from '../verification/mutation'
+import { captureWorkspaceFingerprint } from '../verification/workspaceFingerprint'
+import {
   getHookTranscriptPath,
   queueHookAdditionalContexts,
   queueHookSystemMessages,
@@ -320,6 +331,40 @@ export async function* checkPermissionsAndCallTool(
     }
   }
 
+  const workspaceAwareTools = [
+    tool,
+    ...(context.options?.tools ?? []).filter(candidate => candidate !== tool),
+  ]
+  const declaredMutationScope = resolveWorkspaceMutationScope({
+    name: tool.name,
+    input: normalizedInput,
+    tools: workspaceAwareTools,
+  })
+  const observesMutationDuringCall = canObserveWorkspaceMutationDuringCall({
+    name: tool.name,
+    declaredScope: declaredMutationScope,
+  })
+  const workspaceFingerprintBefore = observesMutationDuringCall
+    ? captureWorkspaceFingerprint(getCwd())
+    : null
+  const mutationReceipt = (output?: unknown) => {
+    const completedMutationScope = resolveWorkspaceMutationScope({
+      name: tool.name,
+      input: normalizedInput,
+      output,
+      tools: workspaceAwareTools,
+    })
+    return finalizeWorkspaceMutationReceipt({
+      toolUseId: toolUseID,
+      declaredScope: completedMutationScope,
+      beforeFingerprint: workspaceFingerprintBefore,
+      afterFingerprint:
+        completedMutationScope === 'direct' && observesMutationDuringCall
+          ? captureWorkspaceFingerprint(getCwd())
+          : null,
+    })
+  }
+
   try {
     const generator = tool.call(normalizedInput as never, {
       ...context,
@@ -329,6 +374,23 @@ export async function* checkPermissionsAndCallTool(
     for await (const result of generator) {
       switch (result.type) {
         case 'result': {
+          const workspaceMutation = mutationReceipt(result.data)
+          const verificationReceipt = createVerificationReceipt({
+            toolName: tool.name,
+            isTrustedExecutionTool: tool.isTrustedExecutionTool === true,
+            toolUseId: toolUseID,
+            input: normalizedInput,
+            output: result.data,
+          })
+          const data = attachVerificationReceipt(
+            result.data,
+            verificationReceipt,
+          )
+          if (verificationReceipt) {
+            queueHookSystemMessages(context, [
+              formatVerificationSystemMessage(verificationReceipt),
+            ])
+          }
           const rawContent =
             result.resultForAssistant ??
             tool.renderResultForAssistant(result.data as never)
@@ -345,7 +407,7 @@ export async function* checkPermissionsAndCallTool(
           const postOutcome = await runPostToolUseHooks({
             toolName: tool.name,
             toolInput: normalizedInput,
-            toolResult: result.data,
+            toolResult: data,
             toolUseId: toolUseID,
             permissionMode: context.options?.toolPermissionContext?.mode,
             cwd: getCwd(),
@@ -380,8 +442,9 @@ export async function* checkPermissionsAndCallTool(
               },
             ],
             {
-              data: result.data,
+              data,
               resultForAssistant: content,
+              metadata: { workspaceMutation },
               ...(newMessages.length > 0 ? { newMessages } : {}),
               ...(result.contextModifier
                 ? { contextModifier: result.contextModifier }
@@ -410,14 +473,22 @@ export async function* checkPermissionsAndCallTool(
     const content = formatError(error)
     logError(error)
 
-    yield createUserMessage([
+    const workspaceMutation = mutationReceipt()
+    yield createUserMessage(
+      [
+        {
+          type: 'tool_result',
+          content,
+          is_error: true,
+          tool_use_id: toolUseID,
+        },
+      ],
       {
-        type: 'tool_result',
-        content,
-        is_error: true,
-        tool_use_id: toolUseID,
+        data: {},
+        resultForAssistant: content,
+        metadata: { workspaceMutation },
       },
-    ])
+    )
   }
 }
 

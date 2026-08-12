@@ -3,6 +3,7 @@ import {
   type ClaimedSchedule,
   type ClaimDueSchedulesInput,
   type Goal,
+  type GoalSchedulePollResult,
 } from './types'
 
 /**
@@ -53,6 +54,20 @@ export function claimDueSchedules(
   return service.claimDueSchedules(input)
 }
 
+/** One-scan polling primitive for interactive and daemon scheduler hot paths. */
+export function pollGoalSchedule(
+  input: ClaimDueSchedulesInput,
+): GoalSchedulePollResult | null {
+  const service = new GoalService({
+    rootDir: input.rootDir,
+    clock: {
+      now: () => (typeof input.now === 'number' ? input.now : Date.now()),
+    },
+    leaseDurationMs: input.leaseDurationMs,
+  })
+  return service.pollDueSchedule(input)
+}
+
 /**
  * Stateful convenience for pollers. `tick` is synchronous and single-flight;
  * a UI can safely call it from an interval without spawning work itself.
@@ -66,23 +81,8 @@ export class GoalScheduler {
     if (this.ticking) return []
     this.ticking = true
     try {
-      const now =
-        typeof input.now === 'number' ? input.now : this.service.clock.now()
-      this.service.recoverInterruptedGoals({
-        now,
-        cwd: input.cwd,
-        sessionId: input.sessionId,
-      })
-      const claimed = this.service.claimDueSchedules({ ...input, now })
-      if (claimed.length > 0) return claimed
-
-      const unstarted = getUnstartedGoalRunSchedule(
-        this.service.findActiveGoal({
-          cwd: input.cwd,
-          sessionId: input.sessionId,
-        }),
-      )
-      return unstarted ? [unstarted] : []
+      const result = this.service.pollDueSchedule(input)
+      return result ? [result.schedule] : []
     } finally {
       this.ticking = false
     }

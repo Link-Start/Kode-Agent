@@ -20,6 +20,7 @@ import { queryLLM } from '#core/ai/llm'
 import { getModelManager } from '#core/utils/model'
 import { logMCPError } from '#core/utils/log'
 import { createAnthropicUsage } from '@kode/protocol/anthropic'
+import { isExperimentalMcpSamplingEnabled } from '#config/experimental'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,7 +97,7 @@ export function isMcpSamplingEnabled(): boolean {
   ) {
     return samplingEnabledOverrideForTests
   }
-  return samplingEnabled
+  return samplingEnabled && isExperimentalMcpSamplingEnabled()
 }
 
 export function setMcpSamplingEnabled(enabled: boolean): void {

@@ -1,9 +1,11 @@
 import { BunShell } from '#runtime/shell'
+import { resolve } from 'node:path'
 import type { BackgroundProcess } from '#runtime/shell/types'
 import {
   appendTaskOutput,
   getTaskOutputFilePath,
   readTaskOutput,
+  readTaskOutputTail,
   readTaskOutputTailLines,
   touchTaskOutputFile,
 } from '#runtime/taskOutputStore'
@@ -13,6 +15,7 @@ import {
   listBackgroundAgentTaskSnapshots,
   waitForBackgroundAgentTask,
   type BackgroundAgentTask,
+  type BackgroundAgentGuidance,
 } from '#core/utils/backgroundTasks'
 
 export type BackgroundTaskType = 'local_bash' | 'local_agent'
@@ -49,6 +52,11 @@ export type BackgroundAgentTaskSnapshot = BackgroundTaskSnapshotBase & {
   error?: string
   resultText?: string
   retrieved?: boolean
+  lastActivityAt?: number
+  turnCount: number
+  pendingGuidanceCount: number
+  appliedGuidanceCount: number
+  lastGuidance?: BackgroundAgentGuidance
 }
 
 export type BackgroundTaskSnapshot =
@@ -94,6 +102,8 @@ function toShellTaskSnapshot(
 function toAgentTaskSnapshot(
   task: BackgroundAgentTask,
 ): BackgroundAgentTaskSnapshot {
+  const guidance = task.guidance ?? []
+  const lastGuidance = guidance.at(-1)
   return {
     taskId: task.agentId,
     taskType: 'local_agent',
@@ -112,6 +122,14 @@ function toAgentTaskSnapshot(
     error: task.error,
     resultText: task.resultText,
     retrieved: task.retrieved,
+    lastActivityAt: task.lastActivityAt,
+    turnCount: task.turnCount ?? 0,
+    pendingGuidanceCount: guidance.filter(
+      item => item.status === 'queued' || item.status === 'claimed',
+    ).length,
+    appliedGuidanceCount: guidance.filter(item => item.status === 'applied')
+      .length,
+    ...(lastGuidance ? { lastGuidance: { ...lastGuidance } } : {}),
   }
 }
 
@@ -121,6 +139,36 @@ export function listBackgroundTaskSnapshots(): BackgroundTaskSnapshot[] {
     ...listBackgroundAgentTaskSnapshots().map(toAgentTaskSnapshot),
     ...shell.listBackgroundShells().map(toShellTaskSnapshot),
   ]
+}
+
+export function isBackgroundTaskOwnedBy(args: {
+  task: BackgroundTaskSnapshot
+  cwd: string
+  sessionId: string
+}): boolean {
+  if (resolve(args.task.cwd) !== resolve(args.cwd)) return false
+  // Missing ownership metadata must fail closed. Current task launch paths
+  // always capture the session, and exposing a legacy task by workspace alone
+  // would let another daemon session inspect or control it by guessing its ID.
+  return Boolean(args.task.sessionId && args.task.sessionId === args.sessionId)
+}
+
+export function listOwnedBackgroundTaskSnapshots(args: {
+  cwd: string
+  sessionId: string
+}): BackgroundTaskSnapshot[] {
+  return listBackgroundTaskSnapshots().filter(task =>
+    isBackgroundTaskOwnedBy({ task, ...args }),
+  )
+}
+
+export function getOwnedBackgroundTaskSnapshot(args: {
+  taskId: string
+  cwd: string
+  sessionId: string
+}): BackgroundTaskSnapshot | null {
+  const task = getBackgroundTaskSnapshot(args.taskId)
+  return task && isBackgroundTaskOwnedBy({ task, ...args }) ? task : null
 }
 
 export function summarizeBackgroundTaskSnapshots(
@@ -189,6 +237,13 @@ export function appendBackgroundTaskOutput(
 
 export function readBackgroundTaskOutput(taskId: string): string {
   return readTaskOutput(taskId)
+}
+
+export function readBackgroundTaskOutputTail(
+  taskId: string,
+  maxBytes: number,
+): { content: string; wasTruncated: boolean } {
+  return readTaskOutputTail(taskId, maxBytes)
 }
 
 export function readBackgroundTaskOutputTailLines(

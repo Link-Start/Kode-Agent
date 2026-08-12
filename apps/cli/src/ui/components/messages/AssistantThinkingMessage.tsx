@@ -20,7 +20,7 @@ type Props = {
 export function AssistantThinkingMessage({
   param: { thinking },
   addMargin = false,
-  shouldAnimate = true,
+  shouldAnimate = false,
 }: Props): React.ReactNode {
   const [progressFrame, setProgressFrame] = useState(0)
   const isScreenReaderEnabled = useIsScreenReaderEnabled()

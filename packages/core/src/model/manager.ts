@@ -212,6 +212,7 @@ export class ModelManager {
 
   async addModel(
     config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
+    options?: { activateAsMain?: boolean },
   ): Promise<string> {
     config = normalizeModelConfig(config)
     const existingByModelName = this.modelProfiles.find(
@@ -245,7 +246,7 @@ export class ModelManager {
         quick: config.modelName,
       }
       this.config.defaultModelName = config.modelName
-    } else {
+    } else if (options?.activateAsMain !== false) {
       if (!this.config.modelPointers) {
         this.config.modelPointers = {
           ...DEFAULT_MODEL_POINTERS,
@@ -262,6 +263,7 @@ export class ModelManager {
 
   async upsertModel(
     config: Omit<ModelProfile, 'createdAt' | 'isActive'>,
+    options?: { activateAsMain?: boolean },
   ): Promise<string> {
     config = normalizeModelConfig(config)
     const existingIndex = this.modelProfiles.findIndex(
@@ -269,7 +271,7 @@ export class ModelManager {
     )
 
     if (existingIndex === -1) {
-      return this.addModel(config)
+      return this.addModel(config, options)
     }
 
     const existingByName = this.modelProfiles.find(
@@ -296,6 +298,12 @@ export class ModelManager {
     }
 
     this.modelProfiles[existingIndex] = updatedModel
+    if (options?.activateAsMain) {
+      if (!this.config.modelPointers) {
+        this.config.modelPointers = { ...DEFAULT_MODEL_POINTERS }
+      }
+      this.config.modelPointers.main = config.modelName
+    }
     this.saveConfig()
     return config.modelName
   }

@@ -5,6 +5,7 @@ import clear from './builtin/clear'
 import checkpoint from './builtin/checkpoint'
 import compact from './builtin/compact'
 import config from './builtin/config'
+import extensions from './builtin/extensions'
 import cost from './builtin/cost'
 import ctx_viz from './debug/ctx_viz'
 import addDir from './builtin/add-dir'
@@ -18,6 +19,7 @@ import files from './builtin/files'
 import exportCommand from './builtin/export'
 import skills from './builtin/skills'
 import init from './builtin/init'
+import inspect from './builtin/inspect'
 import listen from './debug/listen'
 import messages_debug from './debug/messages_debug'
 import login from './builtin/login'
@@ -33,6 +35,7 @@ import outputStyle from './builtin/output-style'
 import permissions from './builtin/permissions'
 import theme from './builtin/theme'
 import vim from './builtin/vim'
+import voice from './builtin/voice'
 import * as model from './builtin/model'
 import modelstatus from './builtin/modelstatus'
 import note from './builtin/note'
@@ -53,6 +56,8 @@ import rename from './builtin/rename'
 import resume from './builtin/resume'
 import rollback from './builtin/rollback'
 import runs from './builtin/runs'
+import session from './builtin/session'
+import settings from './builtin/settings'
 import rewind from './builtin/rewind'
 import status from './builtin/status'
 import statusline from './builtin/statusline'
@@ -61,11 +66,12 @@ import capabilities from './builtin/capabilities'
 import tag from './builtin/tag'
 import goal from './builtin/goal'
 import watch from './builtin/watch'
-import work from './builtin/work'
+import work, { workBoard } from './builtin/work'
 import worktree from './builtin/worktree'
 import tasks from './builtin/tasks'
 import terminalSetup from './builtin/terminal-setup'
 import sandbox from './builtin/sandbox'
+import sessionMessage from './builtin/session-message'
 import agents from './agent/agents'
 import { PARITY_STUB_COMMANDS } from './builtin/parityStubs'
 import { getMCPCommands, getMcpListChangedVersion } from '#core/mcp/client'
@@ -94,12 +100,14 @@ const COMMANDS = memoize((): Command[] => [
   doctor,
   exit,
   exportCommand,
+  extensions,
   gateDump,
   help,
   hooks,
   files,
   skills,
   init,
+  inspect,
   lsp,
   loop,
   learning,
@@ -109,6 +117,7 @@ const COMMANDS = memoize((): Command[] => [
   permissions,
   theme,
   vim,
+  voice,
   statusline,
   capabilities,
   mcp,
@@ -130,6 +139,8 @@ const COMMANDS = memoize((): Command[] => [
   resume,
   rollback,
   runs,
+  session,
+  settings,
   rewind,
   status,
   supervisor,
@@ -141,10 +152,12 @@ const COMMANDS = memoize((): Command[] => [
   review,
   watch,
   work,
+  workBoard,
   worktree,
   tasks,
   terminalSetup,
   sandbox,
+  sessionMessage,
   ...PARITY_STUB_COMMANDS,
   ...(isInteractiveLoginEnabled() ? [logout, login()] : []),
   ...INTERNAL_ONLY_COMMANDS,

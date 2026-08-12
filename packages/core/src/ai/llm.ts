@@ -5,6 +5,9 @@ import type { AssistantMessage, UserMessage } from '#core/query'
 import { resolveToolDescription, type Tool } from '#core/tooling/Tool'
 import { queryOpenAI } from '#core/ai/llm/openai'
 import { queryAnthropicNative } from '#core/ai/llm/anthropic'
+import { queryCodexOAuth } from '#core/ai/llm/codexOAuth'
+import { queryGitHubCopilot } from '#core/ai/llm/githubCopilot'
+import { queryGrokBuild } from '#core/ai/llm/grokBuild'
 import { getGlobalConfig, type ModelProfile } from '#core/utils/config'
 import { withVCR } from '#core/services/vcr'
 import {
@@ -515,6 +518,45 @@ async function queryLLMWithPromptCaching(
         : getCLISyspromptPrefix()
 
     try {
+      // OAuth runtimes resolve credentials in their own official clients. Do
+      // not route these profiles through the API-key/OpenAI compatibility path.
+      if (provider === 'codex-oauth') {
+        if (!modelProfile)
+          throw new Error('Codex OAuth model profile is missing')
+        return await queryCodexOAuth(
+          messages,
+          effectiveSystemPrompt,
+          maxThinkingTokens,
+          effectiveTools,
+          signal,
+          { modelProfile, toolUseContext },
+        )
+      }
+      if (provider === 'github-copilot') {
+        if (!modelProfile)
+          throw new Error('GitHub Copilot model profile is missing')
+        return await queryGitHubCopilot(
+          messages,
+          effectiveSystemPrompt,
+          maxThinkingTokens,
+          effectiveTools,
+          signal,
+          { modelProfile, toolUseContext },
+        )
+      }
+      if (provider === 'grok-build') {
+        if (!modelProfile)
+          throw new Error('Grok Build model profile is missing')
+        return await queryGrokBuild(
+          messages,
+          effectiveSystemPrompt,
+          maxThinkingTokens,
+          effectiveTools,
+          signal,
+          { modelProfile, toolUseContext },
+        )
+      }
+
       // Use native Anthropic SDK for Anthropic and some Anthropic-compatible providers
       if (
         provider === 'anthropic' ||

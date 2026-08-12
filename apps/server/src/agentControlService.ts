@@ -102,6 +102,9 @@ function toProtocolAgent(agent: ManagedAgent): DaemonManagedAgent {
     output.permissionMode = agent.permissionMode
   }
   if (agent.forkContext === true) output.forkContext = true
+  if (agent.maxExecutionTimeMs !== undefined) {
+    output.maxExecutionTimeMs = agent.maxExecutionTimeMs
+  }
   if (agent.color !== undefined) output.color = agent.color
   return output
 }
@@ -121,6 +124,9 @@ function toStorageInput(input: DaemonAgentDefinition): ManagedAgentInput {
     output.permissionMode = input.permissionMode
   }
   if (input.forkContext === true) output.forkContext = true
+  if (input.maxExecutionTimeMs !== undefined) {
+    output.maxExecutionTimeMs = input.maxExecutionTimeMs
+  }
   if (input.color !== undefined) output.color = input.color
   return output
 }
@@ -143,6 +149,7 @@ function changedFields(
       'model',
       'permissionMode',
       'forkContext',
+      'maxExecutionTimeMs',
       'color',
     ].filter(key => key in next)
   }
@@ -157,6 +164,7 @@ function changedFields(
     'model',
     'permissionMode',
     'forkContext',
+    'maxExecutionTimeMs',
     'color',
   ]
   return keys.filter(key => {

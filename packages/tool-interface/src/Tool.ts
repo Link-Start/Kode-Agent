@@ -4,6 +4,26 @@ import type { PermissionMode, ToolPermissionContext } from './permissions'
 
 export type ToolRenderOutput = unknown
 
+/**
+ * Describes who owns verification for a tool that can affect project files.
+ *
+ * - `none`: the tool does not write the project workspace.
+ * - `direct`: the current agent may have changed the workspace and must verify.
+ * - `delegated`: a nested execution owns its own mutation/verification gate.
+ */
+export type WorkspaceMutationScope = 'none' | 'direct' | 'delegated'
+
+export type WorkspaceMutationReceipt = Readonly<{
+  version: 1
+  toolUseId: string
+  scope: WorkspaceMutationScope
+  basis: 'declared' | 'observed' | 'delegated'
+}>
+
+export type ToolResultMetadata = Readonly<{
+  workspaceMutation?: WorkspaceMutationReceipt
+}>
+
 export type ToolKeypress = Readonly<{
   ctrl: boolean
   meta: boolean
@@ -18,6 +38,16 @@ export type ToolKeypressHandler = (
 export type AssistantStreamUpdate =
   | {
       type: 'start'
+      agentId?: string
+      requestId?: string
+    }
+  | {
+      /**
+       * Provider-supplied reasoning that the provider also returns as an
+       * assistant thinking block. Consumers must not fabricate thinking data.
+       */
+      type: 'thinking_delta'
+      delta: string
       agentId?: string
       requestId?: string
     }
@@ -56,6 +86,10 @@ export interface ToolUseContext {
     permissionMode?: PermissionMode
     toolPermissionContext?: ToolPermissionContext
     lastUserPrompt?: string
+    /** True only for a user turn submitted from the reviewed voice UI. */
+    voiceTurn?: boolean
+    /** Internal capability granted by TaskBatch after validating a voice brief. */
+    voiceIntentPrepared?: boolean
     getCustomSystemPromptAdditions?: () => string[]
     openMessageSelector?: () => void
     onStreamEvent?: (event: unknown) => void
@@ -134,6 +168,12 @@ export interface ToolMetadata<
   name: string
   maxResultSizeChars?: number
   isMcp?: boolean
+  /**
+   * Marks a built-in execution tool whose result data is produced by the local
+   * runtime, rather than by an extension or an MCP server. The engine uses
+   * this boundary before creating durable execution receipts.
+   */
+  isTrustedExecutionTool?: boolean
   description?: string | ((input?: z.infer<TInput>) => Promise<string>)
   inputSchema: TInput
   inputJSONSchema?: Record<string, unknown>
@@ -142,6 +182,15 @@ export interface ToolMetadata<
   cachedDescription?: string
   isEnabled: () => Promise<boolean>
   isReadOnly: (input?: z.infer<TInput>) => boolean
+  /**
+   * Optional workspace-specific classification. This is intentionally
+   * separate from `isReadOnly`: task bookkeeping or sending a message changes
+   * application state without changing project files.
+   */
+  workspaceMutationScope?: (
+    input?: z.infer<TInput>,
+    output?: TOutput,
+  ) => WorkspaceMutationScope
   isConcurrencySafe: (input?: z.infer<TInput>) => boolean
   needsPermissions: (input?: z.infer<TInput>) => boolean
   requiresUserInteraction?: (input?: z.infer<TInput>) => boolean

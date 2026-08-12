@@ -9,6 +9,10 @@ import type { Tool } from '#core/tooling/Tool'
 import type { ask as askImpl } from '#cli-utils/ask'
 
 import { finishHeadlessRun, startHeadlessRun } from './headlessRunTelemetry'
+import {
+  buildHeadlessToolPermissionContext,
+  InvalidHeadlessPermissionModeError,
+} from './headlessPermissionContext'
 
 export type RunPrintModeArgs = {
   prompt: string | undefined
@@ -226,6 +230,26 @@ export async function runPrintMode({
       maxBudgetUsd,
     })
     try {
+      const { loadToolPermissionContextFromDisk } =
+        await import('#core/utils/permissions/toolPermissionSettings')
+      const toolPermissionContext = buildHeadlessToolPermissionContext({
+        baseContext: loadToolPermissionContextFromDisk({
+          projectDir: cwd,
+          includeKodeProjectConfig: true,
+          isBypassPermissionsModeAvailable:
+            !safe ||
+            Boolean(allowDangerouslySkipPermissions) ||
+            Boolean(dangerouslySkipPermissions),
+        }),
+        safe,
+        allowedTools,
+        disallowedTools,
+        addDir,
+        permissionMode,
+        dangerouslySkipPermissions,
+        inputFormat: normalizedInputFormat,
+        hasPermissionPromptTool: Boolean(normalizedPermissionPromptTool),
+      })
       const { resultText: response, totalCost } = await ask({
         commands,
         hasPermissionsToUseTool,
@@ -242,6 +266,10 @@ export async function runPrintMode({
         maxBudgetUsd,
         initialMessages,
         persistSession: sessionPersistence !== false,
+        toolPermissionContext,
+        shouldAvoidPermissionPrompts: true,
+        model,
+        mcpClients,
       })
 
       const budgetExceeded =
@@ -265,6 +293,15 @@ export async function runPrintMode({
       process.stdout.write(`${response}\n`)
       process.exit(0)
     } catch (error) {
+      if (error instanceof InvalidHeadlessPermissionModeError) {
+        finishHeadlessRun(headlessRun, {
+          isError: true,
+          resultSubtype: 'error_invalid_permission_mode',
+          error,
+        })
+        console.error(`Error: ${error.message}`)
+        process.exit(1)
+      }
       const { MaxBudgetUsdExceededError } =
         await import('#core/errors/maxBudgetUsd')
       const { MaxTurnsExceededError } = await import('#core/errors/maxTurns')

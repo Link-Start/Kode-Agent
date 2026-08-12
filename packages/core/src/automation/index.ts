@@ -37,3 +37,17 @@ export {
   type SupervisorRunStrategy,
   type TaskSupervisorOptions,
 } from './supervisor'
+
+export {
+  executeAgentPlan,
+  executeAgentPlanEvents,
+  planAgentExecution,
+  type AgentExecutionEvent,
+  type AgentExecutionGroup,
+  type AgentExecutionOutcome,
+  type AgentExecutionPlan,
+  type AgentWorkItem,
+  type AgentWorkMode,
+  type ExecuteAgentPlanOptions,
+  type PlanAgentExecutionOptions,
+} from './agentOrchestration'

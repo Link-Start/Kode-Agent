@@ -39,7 +39,7 @@ export function execPromotable(
   const sandbox = options?.sandbox
   const shouldAttemptSandbox = sandbox?.enabled === true
   const executionCwd =
-    shouldAttemptSandbox && sandbox?.chdir ? sandbox.chdir : state.cwd
+    (shouldAttemptSandbox && sandbox?.chdir) || options?.cwd || state.cwd
 
   if (abortSignal?.aborted) {
     return {
@@ -58,7 +58,7 @@ export function execPromotable(
   }
 
   const sandboxCmd = shouldAttemptSandbox
-    ? buildSandboxCommand({ command, sandbox: sandbox!, cwd: state.cwd })
+    ? buildSandboxCommand({ command, sandbox: sandbox!, cwd: executionCwd })
     : null
   if (shouldAttemptSandbox && sandbox?.require && !sandboxCmd) {
     return {

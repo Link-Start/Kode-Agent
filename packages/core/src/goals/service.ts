@@ -5,27 +5,41 @@ import { appendGoalEvent } from './events'
 import { GoalStorage } from './storage'
 import {
   GOAL_SCHEMA_VERSION,
+  MAX_GOAL_ACCEPTANCE_CRITERIA,
+  MAX_GOAL_CONTINUATION_PROMPT_CHARS,
+  MAX_GOAL_CONTINUATIONS,
+  MAX_GOAL_CRITERION_CHARS,
+  MAX_GOAL_ID_CHARS,
+  MAX_GOAL_OBJECTIVE_CHARS,
+  MAX_GOAL_PROMPT_CHARS,
+  MAX_GOAL_REASON_CHARS,
   systemClock,
   type ClaimDueSchedulesInput,
   type ClaimedSchedule,
   type Clock,
   type ControlPlaneGoalScheduleTransitionInput,
   type ControlPlaneGoalScheduleTransitionResult,
+  type ControlPlaneGoalScheduleUpdateInput,
+  type ControlPlaneGoalScheduleUpdateResult,
   type CreateGoalInput,
   type CreateScheduledGoalControlPlaneInput,
   type Goal,
+  type GoalEvent,
   type GoalLease,
   type GoalServiceOptions,
+  type GoalSchedulePollResult,
   type GoalStatus,
   type GoalTurnEvaluation,
   type GoalTurnEvaluationResult,
   type GoalTurnEvaluator,
+  type GoalVerificationEvidence,
   type RecoverInterruptedGoalsInput,
   type Schedule,
   type ScheduleInput,
 } from './types'
 
 const DEFAULT_LEASE_DURATION_MS = 10 * 60 * 1000
+const MAX_LEASE_DURATION_MS = 24 * 60 * 60 * 1000
 const DEFAULT_MAX_ITERATIONS = 8
 const DEFAULT_CONTINUATION_PROMPT =
   'Continue working toward the active goal. Re-check every acceptance criterion and collect concrete evidence before declaring completion.'
@@ -42,19 +56,43 @@ const TRANSITIONS: Record<GoalStatus, ReadonlySet<GoalStatus>> = {
   ]),
   awaiting_approval: new Set(['scheduled', 'paused', 'cancelled']),
   paused: new Set(['scheduled', 'cancelled']),
-  completed: new Set(['scheduled', 'cancelled']),
+  completed: new Set(),
   failed: new Set(['scheduled', 'paused', 'cancelled']),
   cancelled: new Set(),
 }
 
-function cleanText(value: string, name: string): string {
+function cleanText(value: string, name: string, maxChars?: number): string {
   const text = String(value ?? '').trim()
   if (!text) throw new Error(`${name} cannot be empty.`)
+  if (maxChars !== undefined && text.length > maxChars) {
+    throw new Error(`${name} cannot exceed ${maxChars} characters.`)
+  }
   return text
 }
 
 function cleanCriteria(values: string[] | undefined): string[] {
-  return (values ?? []).map(value => String(value).trim()).filter(Boolean)
+  if (values === undefined) return []
+  if (!Array.isArray(values)) {
+    throw new Error('Goal acceptanceCriteria must be an array.')
+  }
+  const criteria = values.map((value, index) =>
+    cleanText(
+      value,
+      `Goal acceptance criterion ${index + 1}`,
+      MAX_GOAL_CRITERION_CHARS,
+    ),
+  )
+  if (criteria.length > MAX_GOAL_ACCEPTANCE_CRITERIA) {
+    throw new Error(
+      `Goal acceptanceCriteria cannot contain more than ${MAX_GOAL_ACCEPTANCE_CRITERIA} items.`,
+    )
+  }
+  return criteria
+}
+
+function cleanOptionalReason(value: string | undefined): string | undefined {
+  if (value === undefined || !value.trim()) return undefined
+  return cleanText(value, 'Goal reason', MAX_GOAL_REASON_CHARS)
 }
 
 function clone<T>(value: T): T {
@@ -65,7 +103,21 @@ function normaliseLeaseDuration(value: number | undefined): number {
   if (!Number.isFinite(value) || (value ?? 0) <= 0) {
     return DEFAULT_LEASE_DURATION_MS
   }
-  return Math.max(1_000, Math.floor(value!))
+  return Math.min(MAX_LEASE_DURATION_MS, Math.max(1_000, Math.floor(value!)))
+}
+
+function normaliseMaxIterations(value: number | undefined): number {
+  const selected = value ?? DEFAULT_MAX_ITERATIONS
+  if (
+    !Number.isSafeInteger(selected) ||
+    selected < 1 ||
+    selected > MAX_GOAL_CONTINUATIONS
+  ) {
+    throw new Error(
+      `Goal maxIterations must be an integer between 1 and ${MAX_GOAL_CONTINUATIONS}.`,
+    )
+  }
+  return selected
 }
 
 function dueAt(schedule: Schedule): number | null {
@@ -78,11 +130,30 @@ function nextFixedIntervalAt(
   scheduledAt: number,
   everyMs: number,
   now: number,
-): number {
+): number | null {
   const firstNext = scheduledAt + everyMs
-  if (firstNext > now) return firstNext
+  if (firstNext > now) {
+    return Number.isSafeInteger(firstNext) ? firstNext : null
+  }
   const skipped = Math.floor((now - scheduledAt) / everyMs) + 1
-  return scheduledAt + skipped * everyMs
+  const next = scheduledAt + skipped * everyMs
+  return Number.isSafeInteger(next) ? next : null
+}
+
+function nextDeferredIntervalAt(now: number, everyMs: number): number {
+  const next = now + everyMs
+  if (!Number.isSafeInteger(next)) {
+    throw new Error('Interval schedule exceeds the supported timestamp range.')
+  }
+  return next
+}
+
+function futureTimestamp(now: number, delayMs: number, name: string): number {
+  const value = now + delayMs
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`${name} exceeds the supported timestamp range.`)
+  }
+  return value
 }
 
 function transitionAllowed(from: GoalStatus, to: GoalStatus): boolean {
@@ -140,6 +211,101 @@ function parseEvaluationText(text: string): GoalTurnEvaluation | null {
   return null
 }
 
+function normaliseEvaluationDecision(value: unknown): GoalTurnEvaluation {
+  if (!value || typeof value !== 'object') {
+    return {
+      action: 'paused',
+      reason: 'Goal evaluator returned an invalid decision.',
+    }
+  }
+  const record = value as Record<string, unknown>
+  if (
+    !['continue', 'complete', 'paused', 'none'].includes(String(record.action))
+  ) {
+    return {
+      action: 'paused',
+      reason: 'Goal evaluator returned an invalid decision.',
+    }
+  }
+  const reason =
+    typeof record.reason === 'string' && record.reason.trim()
+      ? record.reason.trim().slice(0, MAX_GOAL_REASON_CHARS)
+      : undefined
+  const continuationPrompt =
+    typeof record.continuationPrompt === 'string' &&
+    record.continuationPrompt.trim()
+      ? record.continuationPrompt
+          .trim()
+          .slice(0, MAX_GOAL_CONTINUATION_PROMPT_CHARS)
+      : undefined
+  return {
+    action: record.action as GoalTurnEvaluation['action'],
+    ...(reason ? { reason } : {}),
+    ...(continuationPrompt ? { continuationPrompt } : {}),
+  }
+}
+
+function requiredVerificationKinds(
+  goal: Goal,
+): GoalVerificationEvidence['kind'][] {
+  const requirements = [goal.objective, ...goal.acceptanceCriteria].join('\n')
+  const required = new Set<GoalVerificationEvidence['kind']>()
+  if (
+    /\b(?:test(?:s|ed|ing)?|jest|vitest|pytest|mocha|ava)\b|测试/i.test(
+      requirements,
+    )
+  ) {
+    required.add('test')
+  }
+  if (
+    /\b(?:type\s*check|typecheck|tsc|pyright|mypy)\b|类型检查/i.test(
+      requirements,
+    )
+  ) {
+    required.add('typecheck')
+  }
+  if (
+    /\b(?:lint|eslint|oxlint|biome|ruff)\b|静态检查|代码检查/i.test(
+      requirements,
+    )
+  ) {
+    required.add('lint')
+  }
+  if (/\b(?:build|compile|tsup|vite build)\b|构建|编译/i.test(requirements)) {
+    required.add('build')
+  }
+  return Array.from(required)
+}
+
+function enforceRequiredVerificationEvidence(
+  goal: Goal,
+  evidence: GoalVerificationEvidence[],
+  decision: GoalTurnEvaluation,
+): GoalTurnEvaluation {
+  if (decision.action !== 'complete') return decision
+
+  const passedKinds = new Set(
+    evidence
+      .filter(
+        receipt =>
+          receipt.status === 'passed' &&
+          Date.parse(receipt.recordedAt) >= goal.createdAt,
+      )
+      .map(receipt => receipt.kind),
+  )
+  const missingKinds = requiredVerificationKinds(goal).filter(
+    kind => !passedKinds.has(kind),
+  )
+  if (missingKinds.length === 0) return decision
+
+  const labels = missingKinds.join(', ')
+  return {
+    action: 'continue',
+    reason: `Completion requires fresh passed verification evidence for: ${labels}.`,
+    continuationPrompt: `Run the required ${labels} verification after the latest source change and collect its result before completing the goal.`,
+  }
+}
+
 export async function defaultGoalTurnEvaluator(
   input: Parameters<GoalTurnEvaluator>[0],
 ): Promise<GoalTurnEvaluation> {
@@ -155,20 +321,26 @@ export async function defaultGoalTurnEvaluator(
       'Assess the assistant response only against the goal and acceptance criteria.',
       'Return exactly one JSON object: {"action":"continue"|"complete"|"paused"|"none","reason":"...","continuationPrompt":"..."}.',
       'Use complete only when every criterion has concrete evidence. Use continue when more work is needed and give a concise continuationPrompt. Use paused for ambiguity, missing evidence, unsafe action, or evaluator uncertainty.',
+      'Verification evidence is engine-generated and only proves the exact recorded command after the latest detected write. Never invent a passing execution result from assistant text. A failed, blocked, interrupted, or started receipt is not passing evidence. Do not require a receipt when an acceptance criterion does not need command execution.',
     ],
     userPrompt: JSON.stringify({
       objective: input.goal.objective,
       acceptanceCriteria: input.goal.acceptanceCriteria,
       assistantText: input.assistantText,
+      verificationEvidence: input.verificationEvidence ?? [],
     }),
   })
   const text = extractTextContent(response.message.content)
-  return (
-    parseEvaluationText(text) ??
-    ({
+  const decision = normaliseEvaluationDecision(
+    parseEvaluationText(text) ?? {
       action: 'paused',
       reason: 'Goal evaluator did not return a valid decision.',
-    } satisfies GoalTurnEvaluation)
+    },
+  )
+  return enforceRequiredVerificationEvidence(
+    input.goal,
+    input.verificationEvidence ?? [],
+    decision,
   )
 }
 
@@ -186,9 +358,11 @@ export class GoalService {
   }
 
   private now(value?: number): number {
-    return typeof value === 'number' && Number.isFinite(value)
-      ? value
-      : this.clock.now()
+    const selected = value ?? this.clock.now()
+    if (!Number.isSafeInteger(selected) || selected < 0) {
+      throw new Error('Goal timestamp must be a non-negative safe integer.')
+    }
+    return selected
   }
 
   private revise(goal: Goal, now: number, patch: Partial<Goal>): Goal {
@@ -216,6 +390,7 @@ export class GoalService {
       runId?: string
     } = {},
   ): Goal | null {
+    const message = cleanOptionalReason(options.message)
     const now = this.now(options.now)
     const changed = this.storage.mutateGoal(goalId, current => {
       if (!transitionAllowed(current.status, target)) {
@@ -243,15 +418,23 @@ export class GoalService {
       at: now,
       from: changed.before.status,
       to: target,
-      message: options.message,
+      message,
     })
     return changed.goal
   }
 
   createGoal(input: CreateGoalInput): Goal {
     const now = this.now()
-    const id = cleanText(input.id ?? this.idFactory(), 'Goal ID')
-    const objective = cleanText(input.objective, 'Goal objective')
+    const id = cleanText(
+      input.id ?? this.idFactory(),
+      'Goal ID',
+      MAX_GOAL_ID_CHARS,
+    )
+    const objective = cleanText(
+      input.objective,
+      'Goal objective',
+      MAX_GOAL_OBJECTIVE_CHARS,
+    )
     const cwd = resolve(cleanText(input.cwd, 'Goal cwd'))
     const sessionId = cleanText(input.sessionId, 'Goal sessionId')
     const schedule = this.createSchedule({
@@ -262,12 +445,14 @@ export class GoalService {
       now,
     })
     const loop = {
-      maxIterations: Math.max(
-        1,
-        Math.floor(input.loop?.maxIterations ?? DEFAULT_MAX_ITERATIONS),
-      ),
-      continuationPrompt:
-        input.loop?.continuationPrompt?.trim() || DEFAULT_CONTINUATION_PROMPT,
+      maxIterations: normaliseMaxIterations(input.loop?.maxIterations),
+      continuationPrompt: input.loop?.continuationPrompt
+        ? cleanText(
+            input.loop.continuationPrompt,
+            'Goal continuationPrompt',
+            MAX_GOAL_CONTINUATION_PROMPT_CHARS,
+          )
+        : DEFAULT_CONTINUATION_PROMPT,
     }
     const goal: Goal = {
       schemaVersion: GOAL_SCHEMA_VERSION,
@@ -298,7 +483,11 @@ export class GoalService {
   ): Goal | null {
     const cwd = resolve(cleanText(input.cwd, 'Goal cwd'))
     const sessionId = cleanText(input.sessionId, 'Goal sessionId')
-    const objective = cleanText(input.objective, 'Goal objective')
+    const objective = cleanText(
+      input.objective,
+      'Goal objective',
+      MAX_GOAL_OBJECTIVE_CHARS,
+    )
     const acceptanceCriteria = cleanCriteria(input.acceptanceCriteria)
     const now = this.now()
     const schedule: ScheduleInput =
@@ -319,7 +508,7 @@ export class GoalService {
             anchorAt:
               input.schedule.anchorAt !== undefined
                 ? input.schedule.anchorAt
-                : now + Math.max(1, Math.floor(input.schedule.everyMs)),
+                : nextDeferredIntervalAt(now, input.schedule.everyMs),
           }
 
     return this.storage.withScopeLock({ cwd, sessionId }, () => {
@@ -330,6 +519,10 @@ export class GoalService {
         objective,
         acceptanceCriteria,
         schedule,
+        loop:
+          input.maxIterations !== undefined
+            ? { maxIterations: input.maxIterations }
+            : undefined,
       })
     })
   }
@@ -348,13 +541,18 @@ export class GoalService {
     if (
       !Number.isSafeInteger(input.expectedRevision) ||
       input.expectedRevision < 1 ||
-      !['pause', 'resume', 'cancel'].includes(input.action)
+      !['pause', 'resume', 'retry', 'run_now', 'cancel'].includes(input.action)
     ) {
       return { ok: false, reason: 'invalid_request' }
     }
 
     const now = this.now(input.now)
-    const message = input.reason?.trim()
+    let message: string | undefined
+    try {
+      message = cleanOptionalReason(input.reason)
+    } catch {
+      return { ok: false, reason: 'invalid_request' }
+    }
     return this.storage.withScopeLock({ cwd, sessionId }, () => {
       const selected = this.storage
         .listGoals()
@@ -373,7 +571,7 @@ export class GoalService {
           >['reason']
         | null = null
       const changed = this.storage.mutateGoal<{
-        event: 'paused' | 'released' | 'cancelled'
+        event: 'paused' | 'resumed' | 'retried' | 'run_requested' | 'cancelled'
         message?: string
       }>(selected.id, current => {
         if (
@@ -424,10 +622,41 @@ export class GoalService {
             schedule,
             pausedReason: undefined,
           })
-          return { goal, result: { event: 'released' as const, message } }
+          return { goal, result: { event: 'resumed' as const, message } }
         }
 
-        if (current.status !== 'scheduled' && current.status !== 'paused') {
+        if (input.action === 'retry') {
+          if (current.status !== 'failed') {
+            failure = 'invalid_state'
+            return null
+          }
+          const goal = this.revise(current, now, {
+            status: 'scheduled',
+            schedule: { ...current.schedule, retryAt: now },
+            pausedReason: undefined,
+          })
+          return { goal, result: { event: 'retried' as const, message } }
+        }
+
+        if (input.action === 'run_now') {
+          if (current.status !== 'scheduled') {
+            failure = 'invalid_state'
+            return null
+          }
+          const goal = this.revise(current, now, {
+            schedule: { ...current.schedule, retryAt: now },
+          })
+          return {
+            goal,
+            result: { event: 'run_requested' as const, message },
+          }
+        }
+
+        if (
+          current.status !== 'scheduled' &&
+          current.status !== 'paused' &&
+          current.status !== 'failed'
+        ) {
           failure = 'invalid_state'
           return null
         }
@@ -449,6 +678,222 @@ export class GoalService {
       })
       return { ok: true, goal: changed.goal }
     })
+  }
+
+  /**
+   * Updates an idle goal definition with optimistic concurrency. A live lease
+   * or GoalRun always wins: callers must pause the run before editing it.
+   */
+  updateScheduleForControlPlane(
+    input: ControlPlaneGoalScheduleUpdateInput,
+  ): ControlPlaneGoalScheduleUpdateResult {
+    let cwd: string
+    let sessionId: string
+    let scheduleId: string
+    let objective: string | undefined
+    let acceptanceCriteria: string[] | undefined
+    let maxIterations: number | undefined
+    try {
+      cwd = resolve(cleanText(input.cwd, 'Goal cwd'))
+      sessionId = cleanText(input.sessionId, 'Goal sessionId')
+      scheduleId = cleanText(input.scheduleId, 'Schedule ID')
+      objective =
+        input.objective === undefined
+          ? undefined
+          : cleanText(
+              input.objective,
+              'Goal objective',
+              MAX_GOAL_OBJECTIVE_CHARS,
+            )
+      acceptanceCriteria =
+        input.acceptanceCriteria === undefined
+          ? undefined
+          : cleanCriteria(input.acceptanceCriteria)
+      maxIterations =
+        input.maxIterations === undefined
+          ? undefined
+          : normaliseMaxIterations(input.maxIterations)
+      if (
+        !Number.isSafeInteger(input.expectedRevision) ||
+        input.expectedRevision < 1 ||
+        (objective === undefined &&
+          acceptanceCriteria === undefined &&
+          maxIterations === undefined &&
+          input.schedule === undefined)
+      ) {
+        return { ok: false, reason: 'invalid_request' }
+      }
+      if (input.schedule?.kind === 'once') {
+        if (
+          input.schedule.runAt !== undefined &&
+          (!Number.isSafeInteger(input.schedule.runAt) ||
+            input.schedule.runAt < 0)
+        ) {
+          return { ok: false, reason: 'invalid_request' }
+        }
+      } else if (input.schedule?.kind === 'interval') {
+        if (
+          !Number.isSafeInteger(input.schedule.everyMs) ||
+          input.schedule.everyMs <= 0 ||
+          (input.schedule.anchorAt !== undefined &&
+            (!Number.isSafeInteger(input.schedule.anchorAt) ||
+              input.schedule.anchorAt < 0))
+        ) {
+          return { ok: false, reason: 'invalid_request' }
+        }
+      }
+    } catch {
+      return { ok: false, reason: 'invalid_request' }
+    }
+
+    const now = this.now(input.now)
+    return this.storage.withScopeLock({ cwd, sessionId }, () => {
+      const selected = this.storage
+        .listGoals()
+        .find(
+          goal =>
+            goal.cwd === cwd &&
+            goal.sessionId === sessionId &&
+            goal.schedule.id === scheduleId,
+        )
+      if (!selected) return { ok: false, reason: 'not_found' }
+
+      let failure:
+        | Exclude<ControlPlaneGoalScheduleUpdateResult, { ok: true }>['reason']
+        | null = null
+      const changed = this.storage.mutateGoal<string[]>(
+        selected.id,
+        current => {
+          if (
+            current.cwd !== cwd ||
+            current.sessionId !== sessionId ||
+            current.schedule.id !== scheduleId
+          ) {
+            failure = 'not_found'
+            return null
+          }
+          if (current.revision !== input.expectedRevision) {
+            failure = 'revision_conflict'
+            return null
+          }
+          if (
+            current.lease ||
+            current.activeRun ||
+            current.status === 'running' ||
+            current.status === 'awaiting_approval'
+          ) {
+            failure = 'active_run'
+            return null
+          }
+          if (
+            current.status !== 'scheduled' &&
+            current.status !== 'paused' &&
+            current.status !== 'failed'
+          ) {
+            failure = 'invalid_state'
+            return null
+          }
+
+          const nextObjective = objective ?? current.objective
+          let schedule: Schedule = {
+            ...current.schedule,
+            prompt: nextObjective,
+          }
+          if (input.schedule) {
+            const lastClaimedAt = current.schedule.lastClaimedAt
+            try {
+              const scheduleInput: ScheduleInput =
+                input.schedule.kind === 'once'
+                  ? {
+                      kind: 'once',
+                      prompt: nextObjective,
+                      runAt: input.schedule.runAt ?? now,
+                    }
+                  : {
+                      kind: 'interval',
+                      prompt: nextObjective,
+                      everyMs: input.schedule.everyMs,
+                      anchorAt:
+                        input.schedule.anchorAt ??
+                        nextDeferredIntervalAt(now, input.schedule.everyMs),
+                    }
+              schedule = this.createSchedule({
+                input: scheduleInput,
+                goalId: current.id,
+                cwd,
+                sessionId,
+                now,
+              })
+              schedule.id = current.schedule.id
+              if (lastClaimedAt !== undefined)
+                schedule.lastClaimedAt = lastClaimedAt
+            } catch {
+              failure = 'invalid_request'
+              return null
+            }
+          }
+
+          const fields: string[] = []
+          if (objective !== undefined) fields.push('objective')
+          if (acceptanceCriteria !== undefined)
+            fields.push('acceptanceCriteria')
+          if (maxIterations !== undefined) fields.push('maxIterations')
+          if (input.schedule !== undefined) fields.push('schedule')
+          const goal = this.revise(current, now, {
+            objective: nextObjective,
+            acceptanceCriteria:
+              acceptanceCriteria ?? current.acceptanceCriteria,
+            schedule,
+            loop: {
+              ...current.loop,
+              maxIterations: maxIterations ?? current.loop.maxIterations,
+            },
+          })
+          return { goal, result: fields }
+        },
+      )
+      if (!changed) return { ok: false, reason: failure ?? 'not_found' }
+
+      this.emit({
+        goal: changed.goal,
+        type: 'updated',
+        at: now,
+        from: changed.before.status,
+        to: changed.goal.status,
+        message: `Updated ${changed.result.join(', ')}.`,
+        data: { fields: changed.result },
+      })
+      return { ok: true, goal: changed.goal }
+    })
+  }
+
+  /** Returns a bounded, session-scoped event journal for one schedule. */
+  listScheduleEventsForControlPlane(input: {
+    cwd: string
+    sessionId: string
+    scheduleId: string
+    limit: number
+  }): GoalEvent[] | null {
+    const cwd = resolve(cleanText(input.cwd, 'Goal cwd'))
+    const sessionId = cleanText(input.sessionId, 'Goal sessionId')
+    const scheduleId = cleanText(input.scheduleId, 'Schedule ID')
+    if (
+      !Number.isSafeInteger(input.limit) ||
+      input.limit < 1 ||
+      input.limit > 100
+    ) {
+      throw new Error('Goal event limit must be an integer between 1 and 100.')
+    }
+    const selected = this.storage
+      .listGoals()
+      .find(
+        goal =>
+          goal.cwd === cwd &&
+          goal.sessionId === sessionId &&
+          goal.schedule.id === scheduleId,
+      )
+    if (!selected) return null
+    return this.storage.listEvents(selected.id, { limit: input.limit })
   }
 
   /**
@@ -513,7 +958,11 @@ export class GoalService {
     sessionId: string
     now: number
   }): Schedule {
-    const prompt = cleanText(args.input.prompt, 'Schedule prompt')
+    const prompt = cleanText(
+      args.input.prompt,
+      'Schedule prompt',
+      MAX_GOAL_PROMPT_CHARS,
+    )
     const base = {
       id: `schedule-${args.goalId}`,
       goalId: args.goalId,
@@ -522,18 +971,28 @@ export class GoalService {
       prompt,
     }
     if (args.input.kind === 'once') {
-      const runAt = Number.isFinite(args.input.runAt)
-        ? Math.floor(args.input.runAt!)
-        : args.now
+      if (
+        args.input.runAt !== undefined &&
+        (!Number.isSafeInteger(args.input.runAt) || args.input.runAt < 0)
+      ) {
+        throw new Error('Once schedule runAt must be a safe integer.')
+      }
+      const runAt = args.input.runAt ?? args.now
       return { ...base, kind: 'once', runAt, nextRunAt: runAt }
     }
-    const everyMs = Math.floor(args.input.everyMs)
-    if (!Number.isFinite(everyMs) || everyMs <= 0) {
-      throw new Error('Interval schedule everyMs must be a positive number.')
+    const everyMs = args.input.everyMs
+    if (!Number.isSafeInteger(everyMs) || everyMs <= 0) {
+      throw new Error(
+        'Interval schedule everyMs must be a positive safe integer.',
+      )
     }
-    const anchorAt = Number.isFinite(args.input.anchorAt)
-      ? Math.floor(args.input.anchorAt!)
-      : args.now
+    if (
+      args.input.anchorAt !== undefined &&
+      (!Number.isSafeInteger(args.input.anchorAt) || args.input.anchorAt < 0)
+    ) {
+      throw new Error('Interval schedule anchorAt must be a safe integer.')
+    }
+    const anchorAt = args.input.anchorAt ?? args.now
     return {
       ...base,
       kind: 'interval',
@@ -551,11 +1010,13 @@ export class GoalService {
     return this.storage.listGoals()
   }
 
-  findActiveGoal(args: { cwd: string; sessionId: string }): Goal | null {
+  private findActiveGoalFrom(
+    goals: Goal[],
+    args: { cwd: string; sessionId: string },
+  ): Goal | null {
     const cwd = resolve(args.cwd)
     return (
-      this.storage
-        .listGoals()
+      goals
         .filter(
           goal =>
             goal.cwd === cwd &&
@@ -566,6 +1027,10 @@ export class GoalService {
           (a, b) => b.updatedAt - a.updatedAt || b.revision - a.revision,
         )[0] ?? null
     )
+  }
+
+  findActiveGoal(args: { cwd: string; sessionId: string }): Goal | null {
+    return this.findActiveGoalFrom(this.storage.listGoals(), args)
   }
 
   /**
@@ -583,6 +1048,7 @@ export class GoalService {
 
   private claimDueSchedulesUnlocked(
     input: ClaimDueSchedulesInput,
+    goals: Goal[] = this.storage.listGoals(),
   ): ClaimedSchedule[] {
     const now = this.now(input.now)
     const cwd = resolve(input.cwd)
@@ -590,15 +1056,14 @@ export class GoalService {
     const ownerId = input.ownerId?.trim() || `scheduler:${sessionId}`
     // The engine evaluates one final answer per session. Claiming another goal
     // while one is active would strand the older run behind findActiveGoal().
-    if (this.findActiveGoal({ cwd, sessionId })) return []
+    if (this.findActiveGoalFrom(goals, { cwd, sessionId })) return []
     const limit = Number.isFinite(input.limit)
       ? Math.max(1, Math.min(1, Math.floor(input.limit!)))
       : 1
     const leaseDurationMs = normaliseLeaseDuration(
       input.leaseDurationMs ?? this.leaseDurationMs,
     )
-    const candidates = this.storage
-      .listGoals()
+    const candidates = goals
       .filter(
         goal =>
           goal.status === 'scheduled' &&
@@ -655,7 +1120,7 @@ export class GoalService {
           ownerId,
           runId,
           acquiredAt: now,
-          expiresAt: now + leaseDurationMs,
+          expiresAt: futureTimestamp(now, leaseDurationMs, 'Goal lease'),
         }
         const next = this.revise(current, now, {
           status: 'running',
@@ -711,7 +1176,7 @@ export class GoalService {
         goal: this.revise(current, now, {
           lease: {
             ...current.lease,
-            expiresAt: now + this.leaseDurationMs,
+            expiresAt: futureTimestamp(now, this.leaseDurationMs, 'Goal lease'),
           },
         }),
         result: undefined,
@@ -721,11 +1186,18 @@ export class GoalService {
   }
 
   recoverInterruptedGoals(input: RecoverInterruptedGoalsInput = {}): Goal[] {
+    return this.recoverInterruptedGoalsFrom(input, this.storage.listGoals())
+  }
+
+  private recoverInterruptedGoalsFrom(
+    input: RecoverInterruptedGoalsInput,
+    goals: Goal[],
+  ): Goal[] {
     const now = this.now(input.now)
     const cwd = input.cwd ? resolve(input.cwd) : undefined
     const sessionId = input.sessionId?.trim() || undefined
     const recovered: Goal[] = []
-    for (const candidate of this.storage.listGoals()) {
+    for (const candidate of goals) {
       if (
         candidate.status !== 'running' ||
         !candidate.lease ||
@@ -773,15 +1245,64 @@ export class GoalService {
     return recovered
   }
 
+  /**
+   * Poll one session from a single durable snapshot. Recovery, claiming, and
+   * direct-run discovery share the workspace/session lock, avoiding repeated
+   * full-directory scans on the one-second scheduler hot path.
+   */
+  pollDueSchedule(
+    input: ClaimDueSchedulesInput,
+  ): GoalSchedulePollResult | null {
+    const cwd = resolve(input.cwd)
+    const sessionId = cleanText(input.sessionId, 'Goal sessionId')
+    const now = this.now(input.now)
+    return this.storage.withScopeLock({ cwd, sessionId }, () => {
+      const initial = this.storage.listGoals()
+      const recovered = this.recoverInterruptedGoalsFrom(
+        { now, cwd, sessionId },
+        initial,
+      )
+      const recoveredById = new Map(recovered.map(goal => [goal.id, goal]))
+      const snapshot = initial.map(goal => recoveredById.get(goal.id) ?? goal)
+      const claimed = this.claimDueSchedulesUnlocked(
+        { ...input, cwd, sessionId, now, limit: 1 },
+        snapshot,
+      )[0]
+      if (claimed) return { schedule: claimed, source: 'claimed' }
+
+      const activeSnapshot = this.findActiveGoalFrom(snapshot, {
+        cwd,
+        sessionId,
+      })
+      const active = activeSnapshot
+        ? this.storage.getGoal(activeSnapshot.id)
+        : null
+      if (
+        !active ||
+        active.status !== 'running' ||
+        active.schedule.kind !== 'once' ||
+        active.activeRun?.turnCount !== 0 ||
+        active.lease?.runId !== active.activeRun.id
+      ) {
+        return null
+      }
+      return {
+        schedule: { ...active.schedule, runId: active.activeRun.id },
+        source: 'unstarted',
+      }
+    })
+  }
+
   completeGoal(
     goalId: string,
     options: { now?: number; reason?: string; runId: string },
   ): Goal | null {
     const now = this.now(options.now)
+    const reason = cleanOptionalReason(options.reason)
     return this.transition(goalId, 'completed', {
       now,
       event: 'completed',
-      message: options.reason,
+      message: reason,
       runId: options.runId,
       patch: {
         completedAt: now,
@@ -796,15 +1317,17 @@ export class GoalService {
     goalId: string,
     options: { now?: number; reason?: string; runId?: string } = {},
   ): Goal | null {
+    const reason =
+      cleanOptionalReason(options.reason) ?? 'Paused by goal policy.'
     return this.transition(goalId, 'paused', {
       now: options.now,
       event: 'paused',
-      message: options.reason,
+      message: reason,
       runId: options.runId,
       patch: {
         lease: undefined,
         activeRun: undefined,
-        pausedReason: options.reason?.trim() || 'Paused by goal policy.',
+        pausedReason: reason,
       },
     })
   }
@@ -814,17 +1337,22 @@ export class GoalService {
     options: { now?: number; reason: string; runId?: string },
   ): Goal | null {
     const now = this.now(options.now)
+    const reason = cleanText(
+      options.reason,
+      'Failure reason',
+      MAX_GOAL_REASON_CHARS,
+    )
     return this.transition(goalId, 'failed', {
       now,
       event: 'failed',
-      message: options.reason,
+      message: reason,
       runId: options.runId,
       patch: {
         lease: undefined,
         activeRun: undefined,
         lastError: {
           code: 'goal_failed',
-          message: cleanText(options.reason, 'Failure reason'),
+          message: reason,
           at: now,
         },
       },
@@ -835,14 +1363,15 @@ export class GoalService {
     goalId: string,
     options: { now?: number; reason?: string } = {},
   ): Goal | null {
+    const reason = cleanOptionalReason(options.reason) ?? 'Cancelled by user.'
     return this.transition(goalId, 'cancelled', {
       now: options.now,
       event: 'cancelled',
-      message: options.reason,
+      message: reason,
       patch: {
         lease: undefined,
         activeRun: undefined,
-        pausedReason: options.reason?.trim() || 'Cancelled by user.',
+        pausedReason: reason,
       },
     })
   }
@@ -851,14 +1380,19 @@ export class GoalService {
     goalId: string,
     options: { now?: number; reason: string; runId?: string },
   ): Goal | null {
+    const reason = cleanText(
+      options.reason,
+      'Approval reason',
+      MAX_GOAL_REASON_CHARS,
+    )
     return this.transition(goalId, 'awaiting_approval', {
       now: options.now,
       event: 'approval_requested',
-      message: options.reason,
+      message: reason,
       runId: options.runId,
       patch: {
         lease: undefined,
-        pausedReason: cleanText(options.reason, 'Approval reason'),
+        pausedReason: reason,
       },
     })
   }
@@ -868,6 +1402,7 @@ export class GoalService {
     options: { now?: number; reason?: string } = {},
   ): Goal | null {
     const now = this.now(options.now)
+    const reason = cleanOptionalReason(options.reason)
     const changed = this.storage.mutateGoal(goalId, current => {
       if (!transitionAllowed(current.status, 'scheduled')) {
         throw new Error(
@@ -900,7 +1435,7 @@ export class GoalService {
       at: now,
       from: changed.before.status,
       to: changed.goal.status,
-      message: options.reason,
+      message: reason,
     })
     return changed.goal
   }
@@ -910,6 +1445,7 @@ export class GoalService {
     options: { now?: number; reason?: string; runId: string },
   ): Goal | null {
     const now = this.now(options.now)
+    const reason = cleanOptionalReason(options.reason)
     const changed = this.storage.mutateGoal(goalId, current => {
       if (
         current.status !== 'running' ||
@@ -932,7 +1468,14 @@ export class GoalService {
       const next = this.revise(current, now, {
         activeRun: { ...current.activeRun, turnCount },
         lease: current.lease
-          ? { ...current.lease, expiresAt: now + this.leaseDurationMs }
+          ? {
+              ...current.lease,
+              expiresAt: futureTimestamp(
+                now,
+                this.leaseDurationMs,
+                'Goal lease',
+              ),
+            }
           : undefined,
       })
       return { goal: next, result: 'continued' as const }
@@ -944,8 +1487,7 @@ export class GoalService {
       at: now,
       from: changed.before.status,
       to: changed.goal.status,
-      message:
-        changed.result === 'limit' ? changed.goal.pausedReason : options.reason,
+      message: changed.result === 'limit' ? changed.goal.pausedReason : reason,
     })
     return changed.goal
   }
@@ -959,6 +1501,7 @@ export class GoalService {
     goalId: string,
     options: { now?: number; reason?: string; runId: string },
   ): Goal | null {
+    const reason = cleanOptionalReason(options.reason)
     const goal = this.getGoal(goalId)
     if (!goal || goal.status !== 'running') return null
     if (goal.schedule.kind === 'once') {
@@ -966,14 +1509,14 @@ export class GoalService {
         now: options.now,
         runId: options.runId,
         reason:
-          options.reason ??
+          reason ??
           'One-off goal finished without a completion decision; review before resuming.',
       })
     }
     return this.transition(goalId, 'scheduled', {
       now: options.now,
       event: 'released',
-      message: options.reason,
+      message: reason,
       runId: options.runId,
       patch: { lease: undefined, activeRun: undefined },
     })
@@ -984,6 +1527,7 @@ export async function evaluateActiveGoalAfterTurn(args: {
   cwd: string
   sessionId: string
   assistantText: string
+  verificationEvidence?: GoalVerificationEvidence[]
   signal?: AbortSignal
   evaluate?: GoalTurnEvaluator
   now?: number
@@ -1067,17 +1611,20 @@ export async function evaluateActiveGoalAfterTurn(args: {
 
   let decision: GoalTurnEvaluation
   try {
-    decision = await (args.evaluate ?? defaultGoalTurnEvaluator)({
-      goal,
-      cwd: args.cwd,
-      sessionId: args.sessionId,
-      assistantText: args.assistantText,
-      signal: args.signal,
-    })
+    decision = normaliseEvaluationDecision(
+      await (args.evaluate ?? defaultGoalTurnEvaluator)({
+        goal,
+        cwd: args.cwd,
+        sessionId: args.sessionId,
+        assistantText: args.assistantText,
+        verificationEvidence: args.verificationEvidence,
+        signal: args.signal,
+      }),
+    )
   } catch (error) {
     const reason =
       error instanceof Error
-        ? error.message
+        ? error.message.slice(0, MAX_GOAL_REASON_CHARS)
         : 'Goal evaluator failed unexpectedly.'
     const paused = service.pauseGoal(goal.id, { now, reason, runId })
     if (!paused) return staleResult()

@@ -42,7 +42,7 @@ describe('GoalScheduleRunner', () => {
         rootDir,
         clock: { now: () => 1_000 },
       })
-      service.createGoal({
+      const goal = service.createGoal({
         cwd: '/workspace',
         sessionId: 'session-1',
         objective: 'Check CI',
@@ -66,6 +66,7 @@ describe('GoalScheduleRunner', () => {
       await runner.tick()
       await runner.tick()
       expect(delivered).toEqual(['Check CI and report changes.'])
+      expect(service.getGoal(goal.id)).toMatchObject({ status: 'scheduled' })
     } finally {
       rmSync(rootDir, { recursive: true, force: true })
     }
@@ -100,7 +101,7 @@ describe('GoalScheduleRunner', () => {
     }
   })
 
-  test('dispatches a direct goal once before its first completed turn', async () => {
+  test('pauses a direct goal when dispatch returns without a terminal decision', async () => {
     const rootDir = mkdtempSync(join(tmpdir(), 'kode-goal-direct-runner-'))
     try {
       const service = new GoalService({
@@ -131,7 +132,46 @@ describe('GoalScheduleRunner', () => {
       await runner.tick()
 
       expect(delivered).toEqual(['Start immediately'])
-      expect(service.getGoal(goal.id)?.activeRun?.turnCount).toBe(1)
+      expect(service.getGoal(goal.id)).toMatchObject({
+        status: 'paused',
+        pausedReason:
+          'Scheduled turn returned without a terminal goal decision.',
+      })
+      expect(service.getGoal(goal.id)?.activeRun).toBeUndefined()
+    } finally {
+      rmSync(rootDir, { recursive: true, force: true })
+    }
+  })
+
+  test('does not overwrite a terminal decision applied by dispatch', async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), 'kode-goal-runner-terminal-'))
+    try {
+      const service = new GoalService({
+        rootDir,
+        clock: { now: () => 1_000 },
+      })
+      const goal = service.startGoal({
+        cwd: '/workspace',
+        sessionId: 'session-1',
+        objective: 'Finish safely',
+        now: 1_000,
+      })
+      const runner = new GoalScheduleRunner({
+        service,
+        listSessions: () => [session()],
+        canDispatch: () => true,
+        dispatch: async ({ schedule }) => {
+          service.completeGoal(schedule.goalId, {
+            runId: schedule.runId,
+            now: 1_001,
+            reason: 'All checks passed.',
+          })
+        },
+      })
+
+      await runner.tick()
+
+      expect(service.getGoal(goal.id)).toMatchObject({ status: 'completed' })
     } finally {
       rmSync(rootDir, { recursive: true, force: true })
     }

@@ -7,6 +7,7 @@ import * as markdown from '#core/utils/markdown'
 import {
   AssistantStreamPreview,
   getBoundedAssistantStreamPreviewText,
+  getLivePreviewHeightBudget,
 } from './AssistantStreamPreview'
 import { createAssistantStreamStore } from './assistantStreamStore'
 
@@ -48,6 +49,7 @@ test('does not reserve a blank viewport before the first token', async () => {
         transientItems={[]}
         maxHeight={8}
         isVisible
+        isActive={false}
         debug={false}
       />
       <Text>below</Text>
@@ -88,6 +90,16 @@ test('does not split a surrogate pair at the preview boundary', () => {
   expect(preview).not.toContain('\uFFFD')
 })
 
+test('keeps the combined thinking and text preview within a one-row viewport', () => {
+  expect(
+    getLivePreviewHeightBudget({
+      hasThinking: true,
+      hasText: true,
+      maxHeight: 1,
+    }),
+  ).toEqual({ thinking: 0, text: 1 })
+})
+
 test('renders the first text delta in the preview', async () => {
   const store = createAssistantStreamStore()
   const turn = new AbortController()
@@ -100,11 +112,42 @@ test('renders the first text delta in the preview', async () => {
       transientItems={[]}
       maxHeight={8}
       isVisible
+      isActive={false}
       debug={false}
     />,
   )
 
   expect(output).toContain('streamed text')
+})
+
+test('renders provider thinking separately from answer text', async () => {
+  const store = createAssistantStreamStore({ frameIntervalMs: 1 })
+  const turn = new AbortController()
+  store.beginTurn(turn)
+  store.handleUpdate(turn, {
+    type: 'thinking_delta',
+    delta: 'Inspect the active rendering path first.',
+  })
+  store.handleUpdate(turn, {
+    type: 'text_delta',
+    delta: 'The rendering path is stable now.',
+  })
+  await new Promise(resolve => setTimeout(resolve, 10))
+
+  const output = await renderToText(
+    <AssistantStreamPreview
+      store={store}
+      transientItems={[]}
+      maxHeight={8}
+      isVisible
+      isActive={false}
+      debug={false}
+    />,
+  )
+
+  expect(output).toContain('Thinking')
+  expect(output).toContain('Inspect the active rendering path first.')
+  expect(output).toContain('The rendering path is stable now.')
 })
 
 test('does not reparse the accumulated markdown on every live delta', async () => {
@@ -128,6 +171,7 @@ test('does not reparse the accumulated markdown on every live delta', async () =
       transientItems={[]}
       maxHeight={8}
       isVisible
+      isActive={false}
       debug={false}
     />,
     {
@@ -138,9 +182,9 @@ test('does not reparse the accumulated markdown on every live delta', async () =
 
   try {
     await new Promise(resolve => setTimeout(resolve, 0))
-    store.handleUpdate(turn, { type: 'text_delta', delta: '**stream' })
+    store.handleUpdate(turn, { type: 'thinking_delta', delta: '**plan' })
     await new Promise(resolve => setTimeout(resolve, 10))
-    store.handleUpdate(turn, { type: 'text_delta', delta: ' text**' })
+    store.handleUpdate(turn, { type: 'text_delta', delta: 'streamed text' })
     await new Promise(resolve => setTimeout(resolve, 10))
 
     expect(applyMarkdownSpy).not.toHaveBeenCalled()
