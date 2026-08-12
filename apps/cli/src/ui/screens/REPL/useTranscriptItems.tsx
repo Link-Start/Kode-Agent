@@ -69,8 +69,8 @@ export function useTranscriptItems(args: {
   )
 
   const inProgressToolUseIDs = useMemo(
-    () => getInProgressToolUseIDs(normalizedMessages),
-    [normalizedMessages],
+    () => getInProgressToolUseIDs(normalizedMessages, unresolvedToolUseIDs),
+    [normalizedMessages, unresolvedToolUseIDs],
   )
 
   const erroredToolUseIDs = useMemo(
