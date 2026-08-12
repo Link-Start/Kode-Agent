@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text } from 'ink'
 import figures from 'figures'
 
@@ -176,8 +176,20 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
   const [isCheckingConnectivity, setIsCheckingConnectivity] = useState(false)
   const [isCheckingTools, setIsCheckingTools] = useState(false)
   const [toolStatuses, setToolStatuses] = useState<Record<string, string>>({})
+  const isCheckingConnectivityRef = useRef(false)
+  const connectivityCheckIdRef = useRef(0)
+  const mountedRef = useRef(true)
 
   const tab = TAB_ORDER[Math.min(Math.max(0, tabIndex), TAB_ORDER.length - 1)]
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      connectivityCheckIdRef.current += 1
+      isCheckingConnectivityRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (tab !== 'Tools') return undefined
@@ -261,7 +273,8 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
         return true
       }
       if ((inputChar === 'c' || inputChar === 'C') && tab === 'Status') {
-        if (isCheckingConnectivity) return true
+        if (isCheckingConnectivityRef.current || isCheckingConnectivity)
+          return true
         const model = getModelManager().getModel('main')
         if (!model) {
           setConnectivity({
@@ -271,6 +284,12 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
           } as ConnectionTestResult)
           return true
         }
+        const checkId = connectivityCheckIdRef.current + 1
+        connectivityCheckIdRef.current = checkId
+        const isCurrent = () =>
+          mountedRef.current && connectivityCheckIdRef.current === checkId
+
+        isCheckingConnectivityRef.current = true
         setIsCheckingConnectivity(true)
         const providerBaseUrl = model.baseURL ?? ''
         const customBaseUrl = model.baseURL ?? ''
@@ -286,11 +305,19 @@ export function StatusScreen({ context, onDone }: Props): React.ReactNode {
             requestStrategy: model.requestStrategy ?? 'auto',
           },
           {
-            onProgress: result => setConnectivity(result),
+            onProgress: result => {
+              if (isCurrent()) setConnectivity(result)
+            },
           },
         )
-          .then(result => setConnectivity(result))
-          .finally(() => setIsCheckingConnectivity(false))
+          .then(result => {
+            if (isCurrent()) setConnectivity(result)
+          })
+          .finally(() => {
+            if (connectivityCheckIdRef.current !== checkId) return
+            isCheckingConnectivityRef.current = false
+            if (mountedRef.current) setIsCheckingConnectivity(false)
+          })
         return true
       }
       if (key.upArrow || inputChar === 'k') {
