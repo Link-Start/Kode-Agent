@@ -47,6 +47,7 @@ import { useTranscriptItems, type TranscriptItem } from './useTranscriptItems'
 import { useRequestToolUsePermission } from './useRequestToolUsePermission'
 import { useReplQuery } from './useReplQuery'
 import { useReplInit } from './useReplInit'
+import { transitionToolUseConfirmQueue } from './toolUseConfirmQueue'
 import { buildPromptInputProps } from './promptInputProps'
 import { useMessageSelectorSelect } from './useMessageSelectorSelect'
 import { buildStartupHeaderIdentityKey } from './startupHeaderIdentity'
@@ -473,9 +474,38 @@ export function useReplController(props: REPLProps) {
     },
     [setToolViewStackWithClear],
   )
-  const [toolUseConfirm, setToolUseConfirm] = useState<ToolUseConfirm | null>(
-    null,
+  const [pendingToolUseConfirms, setPendingToolUseConfirms] = useState<
+    ToolUseConfirm[]
+  >([])
+  // The head of the queue is what the permission dialog renders. While the
+  // engine runs concurrency-safe tools in parallel, multiple requests can
+  // arrive at once; later ones are queued behind the head instead of
+  // clobbering the single dialog slot.
+  const toolUseConfirm = pendingToolUseConfirms[0] ?? null
+  const setToolUseConfirm = useCallback(
+    (confirm: ToolUseConfirm | null) => {
+      setPendingToolUseConfirms(prev =>
+        transitionToolUseConfirmQueue(prev, confirm),
+      )
+    },
+    [],
   )
+  const allowAllPendingToolUseConfirms = useCallback(() => {
+    setPendingToolUseConfirms(prev => {
+      for (const confirm of prev) {
+        confirm.onAllow('temporary')
+      }
+      return []
+    })
+  }, [])
+  const rejectAllPendingToolUseConfirms = useCallback(() => {
+    setPendingToolUseConfirms(prev => {
+      for (const confirm of prev) {
+        confirm.onReject()
+      }
+      return []
+    })
+  }, [])
   const [messages, setMessages] = useState<MessageType[]>(
     props.initialMessages ?? [],
   )
@@ -556,6 +586,16 @@ export function useReplController(props: REPLProps) {
 
   const apiKeyStatusRef = useRef<VerificationStatus>('loading')
   const onQueryRef = useRef<ReplOnQueryFn | null>(null)
+  const onQueryRefWithRuntimeGate = useCallback(
+    async (
+      newMessages: MessageType[],
+      passedAbortController?: AbortController,
+    ) => {
+      await runtimeReadyRef.current
+      await onQueryRef.current?.(newMessages, passedAbortController)
+    },
+    [],
+  )
   const scheduleDispatchingRef = useRef(false)
   const dispatchedUnstartedGoalRunIdsRef = useRef(new Set<string>())
 
@@ -653,6 +693,7 @@ export function useReplController(props: REPLProps) {
     dismissToolView,
     forkNumber,
     isLoading,
+    onQueryRefWithRuntimeGate,
     openToolView,
     props.messageLogName,
     tools,
@@ -1248,7 +1289,9 @@ export function useReplController(props: REPLProps) {
     }
   }, [])
 
-  const canUseTool = useCanUseTool(setToolUseConfirm, {
+  const canUseTool = useCanUseTool(
+    confirm => setToolUseConfirm(confirm),
+    {
     onPermissionRuleWarnings: warnings => {
       const first = warnings[0]
       const example = first
@@ -1295,17 +1338,6 @@ export function useReplController(props: REPLProps) {
   useEffect(() => {
     onQueryRef.current = onQuery
   }, [onQuery])
-
-  const onQueryRefWithRuntimeGate = useCallback(
-    async (
-      newMessages: MessageType[],
-      passedAbortController?: AbortController,
-    ) => {
-      await runtimeReadyRef.current
-      await onQueryRef.current?.(newMessages, passedAbortController)
-    },
-    [],
-  )
 
   // A durable /loop wakes only when this interactive session is genuinely
   // idle. The schedule is atomically claimed before it becomes an ordinary
@@ -1672,7 +1704,7 @@ export function useReplController(props: REPLProps) {
       inputValue,
       isLoading,
       messages,
-      onQuery,
+      onQueryRefWithRuntimeGate,
       props.initialPrompt,
       props.messageLogName,
       tools,
@@ -1709,6 +1741,9 @@ export function useReplController(props: REPLProps) {
     toolJSX,
     toolUseConfirm,
     setToolUseConfirm,
+    pendingToolUseConfirmCount: pendingToolUseConfirms.length,
+    allowAllPendingToolUseConfirms,
+    rejectAllPendingToolUseConfirms,
     toast,
     binaryFeedbackContext,
     setBinaryFeedbackContext,

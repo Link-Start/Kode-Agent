@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { hasPermissionsToUseTool } from '#core/permissions'
 import type { CanUseToolFn } from '#core/permissions/canUseTool'
 import { BashTool, inputSchema } from '#tools/tools/system/BashTool/BashTool'
@@ -17,7 +17,7 @@ import { resolveToolDescription } from '#core/tooling/Tool'
 type SetState<T> = React.Dispatch<React.SetStateAction<T>>
 
 function useCanUseTool(
-  setToolUseConfirm: SetState<ToolUseConfirm | null>,
+  setToolUseConfirm: (confirm: ToolUseConfirm | null) => void,
   options?: {
     onPermissionRuleWarnings?: (
       warnings: UnreachablePermissionRuleWarning[],

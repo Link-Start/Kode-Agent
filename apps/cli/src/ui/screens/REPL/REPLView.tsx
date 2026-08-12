@@ -34,7 +34,7 @@ import { AssistantStreamPreview } from './AssistantStreamPreview'
 import type { AssistantStreamStore } from './assistantStreamStore'
 
 const VIEWPORT_SAFE_MARGIN_ROWS = 1
-const MEASURE_DEBOUNCE_MS = 400
+const MEASURE_DEBOUNCE_MS = 150
 
 export function getMessageSelectorLayoutSignature(
   isVisible: boolean,
@@ -57,6 +57,9 @@ export function REPLView({
   toolJSX,
   toolUseConfirm,
   setToolUseConfirm,
+  pendingToolUseConfirmCount,
+  allowAllPendingToolUseConfirms,
+  rejectAllPendingToolUseConfirms,
   toast,
   binaryFeedbackContext,
   setBinaryFeedbackContext,
@@ -93,6 +96,9 @@ export function REPLView({
   } | null
   toolUseConfirm: ToolUseConfirm | null
   setToolUseConfirm: (confirm: ToolUseConfirm | null) => void
+  pendingToolUseConfirmCount: number
+  allowAllPendingToolUseConfirms: () => void
+  rejectAllPendingToolUseConfirms: () => void
   toast: string | null
   binaryFeedbackContext: BinaryFeedbackContext | null
   setBinaryFeedbackContext: (ctx: BinaryFeedbackContext | null) => void
@@ -201,6 +207,7 @@ export function REPLView({
   const [messageSelectorHeight, setMessageSelectorHeight] = useState(0)
   const [isLayoutMeasurementPending, setIsLayoutMeasurementPending] =
     useState(false)
+  const stableControlsHeightRef = useRef(0)
   const layoutMeasureKey = useMemo(
     () =>
       [
@@ -297,10 +304,22 @@ export function REPLView({
 
   const isMinimizedViewport = normalizedRows <= 0
   const isMicroViewport = normalizedRows > 0 && normalizedRows <= 4
+  const stableControlsHeight = useMemo(() => {
+    const measuredHeight = mainControlsHeight
+    if (stableControlsHeightRef.current === 0) {
+      stableControlsHeightRef.current = measuredHeight
+    } else {
+      const diff = Math.abs(measuredHeight - stableControlsHeightRef.current)
+      if (diff > 4) {
+        stableControlsHeightRef.current = measuredHeight
+      }
+    }
+    return stableControlsHeightRef.current
+  }, [mainControlsHeight])
   const transientMaxHeight = Math.max(
     0,
     normalizedRows -
-      mainControlsHeight -
+      stableControlsHeight -
       messageSelectorHeight -
       VIEWPORT_SAFE_MARGIN_ROWS,
   )
@@ -450,6 +469,9 @@ export function REPLView({
               toolUseConfirm={toolUseConfirm}
               onDone={() => setToolUseConfirm(null)}
               verbose={verbose}
+              pendingCount={pendingToolUseConfirmCount}
+              onAllowAllPending={allowAllPendingToolUseConfirms}
+              onRejectAllPending={rejectAllPendingToolUseConfirms}
             />
           </Box>
         ) : (

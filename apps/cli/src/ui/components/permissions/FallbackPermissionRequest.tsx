@@ -159,7 +159,7 @@ export function FallbackPermissionRequest({
           </Box>
 
           <Text dimColor wrap="truncate-end">
-            Enter to confirm · Esc to reject
+            Enter to confirm · Esc to reject · y/n/a shortcuts
           </Text>
         </Box>
       </ScreenFrame>

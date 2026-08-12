@@ -108,6 +108,9 @@ function renderReplView(args: {
       toolJSX={args.toolJSX ?? null}
       toolUseConfirm={null}
       setToolUseConfirm={() => {}}
+      pendingToolUseConfirmCount={0}
+      allowAllPendingToolUseConfirms={() => {}}
+      rejectAllPendingToolUseConfirms={() => {}}
       toast={null}
       binaryFeedbackContext={null}
       setBinaryFeedbackContext={() => {}}

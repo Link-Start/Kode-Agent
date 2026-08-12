@@ -87,4 +87,40 @@ describe('generateSlashCommandSuggestions', () => {
       displayValue: '/release-check · Custom',
     })
   })
+
+  it('fuzzy-matches abbreviations and subsequences of command names', () => {
+    const suggestions = generateSlashCommandSuggestions({
+      commands: [
+        makeCommand('approved-tools'),
+        makeCommand('models'),
+        makeCommand('context'),
+      ],
+      prefix: 'aprv',
+    })
+
+    expect(suggestions.map(suggestion => suggestion.value)).toEqual([
+      'approved-tools',
+    ])
+  })
+
+  it('ranks exact and prefix matches above fuzzy matches', () => {
+    const suggestions = generateSlashCommandSuggestions({
+      commands: [makeCommand('model'), makeCommand('models')],
+      prefix: 'model',
+    })
+
+    expect(suggestions.map(suggestion => suggestion.value)).toEqual([
+      'model',
+      'models',
+    ])
+  })
+
+  it('does not flood the panel with single-character fuzzy matches', () => {
+    const suggestions = generateSlashCommandSuggestions({
+      commands: [makeCommand('alpha'), makeCommand('beta')],
+      prefix: 'a',
+    })
+
+    expect(suggestions.map(suggestion => suggestion.value)).toEqual(['alpha'])
+  })
 })

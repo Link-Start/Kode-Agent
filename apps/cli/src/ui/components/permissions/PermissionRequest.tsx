@@ -29,6 +29,8 @@ import { AskUserQuestionTool } from '#tools/tools/interaction/AskUserQuestionToo
 import { AskUserQuestionPermissionRequest } from './AskUserQuestionPermissionRequest/AskUserQuestionPermissionRequest'
 import type { ToolPermissionContextUpdate } from '#core/types/toolPermissionContext'
 import { useKeypress } from '#ui-ink/hooks/useKeypress'
+import { Box, Text } from 'ink'
+import { getTheme } from '#core/utils/theme'
 
 function permissionComponentForTool(tool: Tool) {
   switch (tool) {
@@ -62,6 +64,13 @@ export type PermissionRequestProps = {
   toolUseConfirm: ToolUseConfirm
   onDone(): void
   verbose: boolean
+  /**
+   * Number of additional permission requests waiting behind the current one.
+   * When > 0 a batch action bar is shown.
+   */
+  pendingCount?: number
+  onAllowAllPending?(): void
+  onRejectAllPending?(): void
 }
 
 export function toolUseConfirmGetPrefix(
@@ -99,6 +108,9 @@ export function PermissionRequest({
   toolUseConfirm,
   onDone,
   verbose,
+  pendingCount = 0,
+  onAllowAllPending,
+  onRejectAllPending,
 }: PermissionRequestProps): React.ReactNode {
   // Handle Ctrl+C and Esc (reject).
   useKeypress(
@@ -112,6 +124,19 @@ export function PermissionRequest({
       if (key.escape) {
         onDone()
         toolUseConfirm.onReject()
+        return true
+      }
+
+      // Batch actions only make sense while requests are queued behind the
+      // currently shown dialog. Ctrl+A resolves every pending request with a
+      // one-time allow; Ctrl+D rejects them all.
+      if (pendingCount > 1 && key.ctrl && input === 'a') {
+        onAllowAllPending?.()
+        return true
+      }
+
+      if (pendingCount > 1 && key.ctrl && input === 'd') {
+        onRejectAllPending?.()
         return true
       }
       return undefined
@@ -129,10 +154,20 @@ export function PermissionRequest({
   const PermissionComponent = permissionComponentForTool(toolUseConfirm.tool)
 
   return (
-    <PermissionComponent
-      toolUseConfirm={toolUseConfirm}
-      onDone={onDone}
-      verbose={verbose}
-    />
+    <>
+      {pendingCount > 1 ? (
+        <Box flexDirection="row" gap={1} paddingX={2} marginTop={1}>
+          <Text dimColor>{`${pendingCount - 1} more request${pendingCount - 1 > 1 ? 's' : ''} waiting`}</Text>
+          <Text color={getTheme().success}>Ctrl+A allow all</Text>
+          <Text dimColor>·</Text>
+          <Text color={getTheme().error}>Ctrl+D deny all</Text>
+        </Box>
+      ) : null}
+      <PermissionComponent
+        toolUseConfirm={toolUseConfirm}
+        onDone={onDone}
+        verbose={verbose}
+      />
+    </>
   )
 }

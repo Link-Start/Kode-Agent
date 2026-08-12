@@ -3,6 +3,7 @@ import {
   compareCommandsForDiscovery,
   getCommandCategory,
 } from '#cli-commands/catalog'
+import { matchAdvanced } from './advancedFuzzyMatcher'
 import type { UnifiedSuggestion } from './types'
 
 function buildCommandDescription(cmd: Command): string {
@@ -29,6 +30,18 @@ function getCommandMatchRank(command: Command, prefix: string): number | null {
     )
   ) {
     return 2
+  }
+  // Fuzzy fallback over the command name and its aliases, so abbreviations
+  // and subsequences (e.g. "aprv" -> "approved-tools") still match. Skipped
+  // for single-character prefixes to avoid flooding the panel with matches.
+  if (
+    normalizedPrefix.length >= 2 &&
+    (matchAdvanced(name, normalizedPrefix).matched ||
+      command.aliases?.some(alias =>
+        matchAdvanced(alias, normalizedPrefix).matched,
+      ))
+  ) {
+    return 3
   }
   return null
 }

@@ -34,4 +34,31 @@ describe('generateFileSuggestions', () => {
       'apple-file.txt',
     ])
   })
+
+  test('fuzzy-matches file names that do not share a prefix', () => {
+    const cwd = makeTempDir()
+    writeFileSync(join(cwd, 'package.json'), '')
+    writeFileSync(join(cwd, 'README.md'), '')
+
+    const suggestions = generateFileSuggestions({ prefix: 'pkg', cwd })
+
+    expect(suggestions.map(item => item.value)).toContain('package.json')
+  })
+
+  test('keeps prefix matches ahead of fuzzy matches and skips single chars', () => {
+    const cwd = makeTempDir()
+    writeFileSync(join(cwd, 'pack.json'), '')
+    writeFileSync(join(cwd, 'package-lock.json'), '')
+    writeFileSync(join(cwd, 'dist.txt'), '')
+
+    const suggestions = generateFileSuggestions({ prefix: 'pack', cwd })
+
+    const values = suggestions.map(item => item.value)
+    expect(values.indexOf('pack.json')).toBeLessThan(
+      values.indexOf('package-lock.json'),
+    )
+
+    const singleChar = generateFileSuggestions({ prefix: 'd', cwd })
+    expect(singleChar.map(item => item.value)).toEqual(['dist.txt'])
+  })
 })
