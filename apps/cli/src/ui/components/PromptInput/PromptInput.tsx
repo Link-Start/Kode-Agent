@@ -247,13 +247,6 @@ export function PromptInput({
 
   const theme = getTheme()
   const tokenUsage = useThrottledTokenUsage(messages)
-  const totalCostUSD = useMemo(() => {
-    let total = 0
-    for (const message of messages) {
-      if (message.type === 'assistant') total += message.costUSD
-    }
-    return total
-  }, [messages])
 
   const modelInfo = useMemo(() => {
     void submitCount
@@ -273,6 +266,7 @@ export function PromptInput({
     () => getPromptStatusLineUsage(messages),
     [messages],
   )
+  const totalCostUSD = statusLineUsage.totalCostUSD
 
   const statusLineInput = useMemo(() => {
     void submitCount
