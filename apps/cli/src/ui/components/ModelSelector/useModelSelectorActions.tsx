@@ -96,6 +96,7 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
   }
 
   const handleBack = () => {
+    modelFlow.cancelPendingModelFetch()
     const { stack: nextStack, effect } = handleBackNavigation(state.screenStack)
 
     if (effect?.type === 'resetProviderFocus') {
