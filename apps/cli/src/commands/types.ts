@@ -53,6 +53,12 @@ export type LocalJSXCommandResult =
       /** Request best-effort TTS after the corresponding assistant turn. */
       voiceResponse?: boolean
     }
+  | {
+      /** Route an aggregate command to an existing slash command without adding an extra transcript entry. */
+      type: 'delegate-command'
+      commandName: string
+      args: string
+    }
 
 // The callback is intentionally bivariant for backwards-compatible commands
 // whose completion handler only accepts text. New interactive commands can

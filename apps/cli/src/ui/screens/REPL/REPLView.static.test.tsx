@@ -84,6 +84,11 @@ function renderReplView(args: {
   startupHeaderKey?: string
   showStartupHeader?: boolean
   transientItems?: TranscriptItem[]
+  toolJSX?: {
+    jsx: React.ReactNode | null
+    shouldHidePromptInput: boolean
+    displayMode?: 'inline' | 'fullscreen'
+  } | null
   isLoading?: boolean
   shouldShowPromptInput?: boolean
   promptInputProps?: React.ComponentProps<typeof PromptInput>
@@ -100,7 +105,7 @@ function renderReplView(args: {
       showStartupHeader={args.showStartupHeader}
       transientItems={args.transientItems ?? []}
       assistantStreamStore={assistantStreamStore}
-      toolJSX={null}
+      toolJSX={args.toolJSX ?? null}
       toolUseConfirm={null}
       setToolUseConfirm={() => {}}
       toast={null}
@@ -237,6 +242,43 @@ describe('REPLView Static output epoch', () => {
     harness.rerender(renderReplView({ staticOutputEpoch: 1, staticItems }))
     await harness.wait(20)
     expect(harness.getOutput()).toContain('static-a')
+  })
+
+  test('does not reprint completed output above the viewport after a fullscreen tool closes', async () => {
+    const olderItems = [makeStaticItem('older-output')]
+    const completedItems = [...olderItems, makeStaticItem('completed-output')]
+    const harness = createHarness(
+      renderReplView({ staticOutputEpoch: 0, staticItems: olderItems }),
+    )
+
+    await harness.wait(40)
+    harness.clearOutput()
+    harness.rerender(
+      renderReplView({
+        staticOutputEpoch: 0,
+        staticItems: completedItems,
+        toolJSX: {
+          jsx: <Text>fullscreen-tool</Text>,
+          shouldHidePromptInput: true,
+          displayMode: 'fullscreen',
+        },
+      }),
+    )
+    await harness.wait(40)
+    expect(harness.getOutput()).not.toContain('completed-output')
+
+    harness.clearOutput()
+    harness.rerender(
+      renderReplView({
+        staticOutputEpoch: 0,
+        staticItems: completedItems,
+      }),
+    )
+    await harness.wait(40)
+
+    const output = harness.getOutput()
+    expect(output).toContain('completed-output')
+    expect(output).not.toContain('older-output')
   })
 
   test('reserves the transient viewport while a request is active', async () => {

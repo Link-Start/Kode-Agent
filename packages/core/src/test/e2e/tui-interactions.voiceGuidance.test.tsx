@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import React from 'react'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { getGlobalConfig, resolveVoiceConfig } from '#core/utils/config'
+import {
+  clearSessionApiKey,
+  getGlobalConfig,
+  readVoiceApiKey,
+  resolveVoiceConfig,
+} from '#core/utils/config'
 import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
 
@@ -98,5 +106,81 @@ describe('TUI E2E: reviewed voice control delivery', () => {
 
     expect(submitted).toEqual(['Prioritize the cancellation race.'])
     expect(doneResult).toBe('Guidance queued.')
+  })
+
+  test('opens credential settings from the error and starts recording after save', async () => {
+    const previousConfigDir = process.env.KODE_CONFIG_DIR
+    const credentialRoot = mkdtempSync(join(tmpdir(), 'kode-voice-recovery-'))
+    const directApiKey = 'mimo-recovery-test-key'
+    let recordingStarts = 0
+    process.env.KODE_CONFIG_DIR = credentialRoot
+    delete process.env[apiKeyEnv]
+    clearSessionApiKey(apiKeyEnv)
+
+    mock.module('@kode/runtime', () => ({
+      startMacOSVoiceRecording: async () => {
+        recordingStarts += 1
+        return {
+          stop: async () => ({
+            bytes: new Uint8Array([1, 2, 3]),
+            mimeType: 'audio/wav',
+            durationMs: 500,
+          }),
+          cancel: async () => {},
+        }
+      },
+    }))
+    mock.module('@kode/ai', () => ({
+      VoiceConfigurationError: class VoiceConfigurationError extends Error {},
+      createMiMoVoiceProvider: () => ({
+        async *transcribeStream() {
+          yield 'Configured voice input.'
+        },
+      }),
+    }))
+    mock.module('#cli-services/voice', () => ({
+      interruptVoicePlayback: () => false,
+    }))
+
+    try {
+      const { VoiceScreen } =
+        await import('#ui-ink/screens/overlays/VoiceScreen')
+      const h = createInkTestHarness(
+        <KeypressProvider>
+          <VoiceScreen onDone={() => {}} />
+        </KeypressProvider>,
+      )
+      harnessManager.track(h)
+
+      await waitForOutput(h, 'Press Enter to begin recording')
+      h.stdin.write('\r')
+      await waitForOutput(h, 'Press Enter to open Voice settings')
+      expect(h.getOutput()).toContain('Enter opens settings')
+      expect(h.getOutput()).not.toContain('/voice config opens settings')
+
+      h.clearOutput()
+      h.stdin.write('\r')
+      await waitForOutput(h, '↑/↓ select')
+      expect(h.getOutput()).toContain('MiMo API key: not configured')
+
+      await h.wait(80)
+      h.stdin.write('\r')
+      await h.wait(80)
+      h.stdin.write(directApiKey)
+      await h.wait(100)
+      expect(h.getOutput()).not.toContain(directApiKey)
+      h.stdin.write('\r')
+
+      await waitForOutput(h, '● Listening')
+      expect(recordingStarts).toBe(1)
+      const resolved = resolveVoiceConfig(getGlobalConfig().voice)
+      if (!resolved.ok) throw new Error(resolved.message)
+      expect(readVoiceApiKey(resolved.config)).toBe(directApiKey)
+    } finally {
+      clearSessionApiKey(apiKeyEnv)
+      if (previousConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
+      else process.env.KODE_CONFIG_DIR = previousConfigDir
+      rmSync(credentialRoot, { recursive: true, force: true })
+    }
   })
 })

@@ -68,8 +68,10 @@ describe('public contracts (refactor safety net)', () => {
         'config',
         'cost',
         'doctor',
+        'extensions',
         'help',
         'init',
+        'inspect',
         'output-style',
         'statusline',
         'mcp',
@@ -79,6 +81,8 @@ describe('public contracts (refactor safety net)', () => {
         'onboarding',
         'pr-comments',
         'rename',
+        'session',
+        'settings',
         'tag',
         'refresh-commands',
         'bug',
@@ -99,6 +103,41 @@ describe('public contracts (refactor safety net)', () => {
 
       const aliasTokens = builtins.flatMap(c => c.aliases ?? [])
       expect(new Set(aliasTokens).size).toBe(aliasTokens.length)
+
+      for (const name of [
+        'work',
+        'session',
+        'settings',
+        'extensions',
+        'inspect',
+      ]) {
+        expect(byName.get(name)?.isHidden).toBe(false)
+      }
+      for (const name of [
+        'automation',
+        'browser',
+        'bug',
+        'checkpoint',
+        'console',
+        'config',
+        'cost',
+        'doctor',
+        'files',
+        'goal',
+        'loop',
+        'memory',
+        'open',
+        'plugin',
+        'plugins',
+        'pr-comments',
+        'rename',
+        'rollback',
+        'tasks',
+        'theme',
+        'worktree',
+      ]) {
+        expect(byName.get(name)?.isHidden).toBe(true)
+      }
     } finally {
       if (previousConfigDir === undefined) delete process.env.KODE_CONFIG_DIR
       else process.env.KODE_CONFIG_DIR = previousConfigDir

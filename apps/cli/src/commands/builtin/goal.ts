@@ -189,7 +189,7 @@ const goal = {
   argumentHint:
     '[start <objective> | edit <id> <objective> | status|history [id] | pause|resume|retry|run|cancel <id> | list]',
   isEnabled: true,
-  isHidden: false,
+  isHidden: true,
   aliases: ['goals'],
   async call(args) {
     const raw = args.trim()
