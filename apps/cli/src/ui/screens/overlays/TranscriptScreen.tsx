@@ -58,6 +58,8 @@ export function TranscriptScreen({
   const [status, setStatus] = useState<string | null>(null)
   const [savedPath, setSavedPath] = useState<string | null>(null)
   const [verbose, setVerbose] = useState(false)
+  const isOpeningRef = useRef(false)
+  const mountedRef = useRef(true)
 
   const lastMessagesRef = useRef<Message[] | null>(null)
   const [messagesSnapshot, setMessagesSnapshot] = useState<Message[]>(() =>
@@ -77,6 +79,14 @@ export function TranscriptScreen({
     const interval = setInterval(() => refreshSnapshot(), REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [follow, refreshSnapshot])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      isOpeningRef.current = false
+    }
+  }, [])
 
   const rawLines = useMemo(
     () =>
@@ -141,13 +151,28 @@ export function TranscriptScreen({
   }, [label, rawLines])
 
   const openSaved = useCallback(async () => {
+    if (isOpeningRef.current) return
     const path = savedPath ?? save()
     if (!path) return
-    const result = await launchExternalEditorForFilePath(path)
-    if (result.ok === true) {
-      setStatus(`Opened in ${result.editorLabel}`)
-    } else {
-      setStatus(result.error.message || 'Failed to open file')
+
+    isOpeningRef.current = true
+    setStatus('Opening external editor…')
+
+    try {
+      const result = await launchExternalEditorForFilePath(path)
+      if (!mountedRef.current) return
+
+      if (result.ok === true) {
+        setStatus(`Opened in ${result.editorLabel}`)
+      } else {
+        setStatus(result.error.message || 'Failed to open file')
+      }
+    } catch {
+      if (mountedRef.current) {
+        setStatus('Unable to open the external editor. Check $EDITOR and try again.')
+      }
+    } finally {
+      isOpeningRef.current = false
     }
   }, [save, savedPath])
 
