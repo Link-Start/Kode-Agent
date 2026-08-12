@@ -142,6 +142,56 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
     ])
   })
 
+  test('opens only one editor while the prompt is entering external edit mode', async () => {
+    let launches = 0
+    let resolveEditor: ((value: { text: string | null }) => void) | null = null
+    const finishEditor = (): void => {
+      resolveEditor?.({ text: null })
+    }
+
+    mock.module('#cli-utils/externalEditor', () => ({
+      launchExternalEditor: () => {
+        launches += 1
+        return new Promise<{ text: string | null }>(resolve => {
+          resolveEditor = resolve
+        })
+      },
+    }))
+
+    const { useExternalEdit } =
+      await import('#ui-ink/components/PromptInput/useExternalEdit')
+
+    function ExternalEditHarness(): React.ReactNode {
+      const didStartRef = useRef(false)
+      const { handleExternalEdit } = useExternalEdit({
+        input: 'draft',
+        isDisabled: false,
+        isLoading: false,
+        onInputChange: () => {},
+        setCursorOffset: () => {},
+        setMessage: () => {},
+      })
+
+      useEffect(() => {
+        if (didStartRef.current) return
+        didStartRef.current = true
+        void handleExternalEdit()
+        void handleExternalEdit()
+      }, [handleExternalEdit])
+
+      return <Text>external-edit</Text>
+    }
+
+    const h = createInkTestHarness(<ExternalEditHarness />)
+    harnessManager.track(h)
+
+    await h.wait(50)
+    expect(launches).toBe(1)
+
+    h.unmount()
+    finishEditor()
+  })
+
   test('external edit reports launcher failures without leaving the prompt blocked', async () => {
     mock.module('#cli-utils/externalEditor', () => ({
       launchExternalEditor: async () => {

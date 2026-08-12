@@ -23,6 +23,7 @@ export function useExternalEdit(args: {
     setMessage,
   } = args
   const [isEditingExternally, setIsEditingExternally] = useState(false)
+  const isEditingExternallyRef = useRef(false)
   const mountedRef = useRef(true)
   const messageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -52,7 +53,15 @@ export function useExternalEdit(args: {
   }, [clearMessageTimeout])
 
   const handleExternalEdit = useCallback(async () => {
-    if (isEditingExternally || isLoading || isDisabled) return
+    if (
+      isEditingExternallyRef.current ||
+      isEditingExternally ||
+      isLoading ||
+      isDisabled
+    )
+      return
+
+    isEditingExternallyRef.current = true
     setIsEditingExternally(true)
     clearMessageTimeout()
     setMessage({ show: true, text: 'Opening external editor...' })
@@ -86,6 +95,7 @@ export function useExternalEdit(args: {
       })
       scheduleMessageDismiss(4000)
     } finally {
+      isEditingExternallyRef.current = false
       if (mountedRef.current) setIsEditingExternally(false)
     }
   }, [
