@@ -15,21 +15,31 @@ type Suggestion = {
   metadata?: { color?: string }
 }
 
+type SuggestionItemProps = {
+  suggestion: Suggestion
+  isSelected: boolean
+  theme: Theme
+  maxWidth: number
+}
+
 const MAX_COMPLETION_PANEL_ROWS = 10
+
+export function __areSuggestionItemPropsEqualForTests(
+  prevProps: SuggestionItemProps,
+  nextProps: SuggestionItemProps,
+): boolean {
+  return (
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.suggestion.value === nextProps.suggestion.value &&
+    prevProps.suggestion.displayValue === nextProps.suggestion.displayValue &&
+    prevProps.theme.suggestion === nextProps.theme.suggestion &&
+    prevProps.maxWidth === nextProps.maxWidth
+  )
+}
 
 // 使用 React.memo 优化建议列表渲染
 const SuggestionItem = React.memo(
-  ({
-    suggestion,
-    isSelected,
-    theme,
-    maxWidth,
-  }: {
-    suggestion: Suggestion
-    isSelected: boolean
-    theme: Theme
-    maxWidth: number
-  }) => {
+  ({ suggestion, isSelected, theme, maxWidth }: SuggestionItemProps) => {
     const isAgent = suggestion.type === 'agent'
     const displayColor = isSelected
       ? theme.suggestion
@@ -51,15 +61,7 @@ const SuggestionItem = React.memo(
       </Box>
     )
   },
-  (prevProps, nextProps) => {
-    // 只在选中状态或建议内容改变时重新渲染
-    return (
-      prevProps.isSelected === nextProps.isSelected &&
-      prevProps.suggestion.value === nextProps.suggestion.value &&
-      prevProps.suggestion.displayValue === nextProps.suggestion.displayValue &&
-      prevProps.maxWidth === nextProps.maxWidth
-    )
-  },
+  __areSuggestionItemPropsEqualForTests,
 )
 
 SuggestionItem.displayName = 'SuggestionItem'
