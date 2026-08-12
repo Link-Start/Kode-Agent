@@ -83,7 +83,10 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
           )
         }
         if (typeof functionDelta.arguments === 'string') {
-          state.arguments += functionDelta.arguments
+          state.arguments = this.mergeStreamMetadata(
+            state.arguments,
+            functionDelta.arguments,
+          )
         }
       }
 
@@ -365,13 +368,19 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       const fullDelta = delta + reasoningDelta
 
       if (fullDelta) {
-        const textEvents = this.handleTextDelta(
+        const newTextDelta = this.mergeStreamMetadata(
+          accumulatedContent,
           fullDelta,
-          responseId,
-          hasStarted,
-        )
-        for (const event of textEvents) {
-          yield event
+        ).slice(accumulatedContent.length)
+        if (newTextDelta) {
+          const textEvents = this.handleTextDelta(
+            newTextDelta,
+            responseId,
+            hasStarted,
+          )
+          for (const event of textEvents) {
+            yield event
+          }
         }
       }
     }
@@ -426,7 +435,7 @@ export class ChatCompletionsAdapter extends OpenAIAdapter {
       const fullDelta = delta + reasoningDelta
 
       if (fullDelta) {
-        state.content = accumulatedContent + fullDelta
+        state.content = this.mergeStreamMetadata(accumulatedContent, fullDelta)
         state.hasStarted = true
       }
     }

@@ -266,6 +266,9 @@ export function getTurnVerificationState(
     latestMutationMessageIndex,
     hasMutation: latestMutationMessageIndex >= 0,
     evidence,
-    hasTerminalEvidence: evidence.some(receipt => receipt.status !== 'started'),
+    // Only a passed check counts as terminal evidence. A failed, blocked, or
+    // interrupted run is exactly the situation the recovery prompt asks the
+    // model to fix and re-run, so it must not satisfy the completion gate.
+    hasTerminalEvidence: evidence.some(receipt => receipt.status === 'passed'),
   }
 }

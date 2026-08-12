@@ -16,6 +16,9 @@ describe('WebFetch network boundary', () => {
       '10.0.0.1',
       '100.64.0.1',
       '0.0.0.0',
+      // 0.0.0.0/8 routes to the loopback interface on Linux.
+      '0.1.2.3',
+      '0.255.255.255',
       '::1',
       'fc00::1',
       'fe80::1',

@@ -114,15 +114,26 @@ function atomicWriteText(path: string, content: string): void {
 
 function acquireLock(lockPath: string): () => void {
   safeMkdir(dirname(lockPath))
+  const lockToken = `${process.pid} ${randomUUID()} ${Date.now()}\n`
   for (let attempt = 0; attempt < LOCK_RETRIES; attempt += 1) {
     try {
       const descriptor = openSync(lockPath, 'wx', 0o600)
       try {
-        writeFileSync(descriptor, `${process.pid} ${Date.now()}\n`, 'utf8')
+        writeFileSync(descriptor, lockToken, 'utf8')
       } finally {
         closeSync(descriptor)
       }
-      return () => safeUnlink(lockPath)
+      return () => {
+        // Only remove the lock while it is still ours; a competitor may have
+        // declared it stale and taken over during a long write.
+        try {
+          if (readFileSync(lockPath, 'utf8') === lockToken) {
+            safeUnlink(lockPath)
+          }
+        } catch {
+          // The lock was already removed by a competitor or owner.
+        }
+      }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException | undefined)?.code
       if (code !== 'EEXIST') throw error

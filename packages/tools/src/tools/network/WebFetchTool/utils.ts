@@ -67,6 +67,9 @@ export function isPublicNetworkAddress(address: string): boolean {
         parsed.isBroadcast() ||
         parsed.isCGNAT() ||
         parsed.isMulticast() ||
+        // 0.0.0.0/8 routes to the loopback interface on Linux; only the
+        // all-zeros address is covered by isUnspecified().
+        first === 0 ||
         first! >= 224 ||
         (first === 192 && second === 0) ||
         (first === 198 && (second === 18 || second === 19)) ||

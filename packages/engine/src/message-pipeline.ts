@@ -415,8 +415,20 @@ async function* messagePipelineCore(
     }
 
     // Auto-compact check
+    // Defer compaction while the active turn has written to the workspace
+    // without terminal verification evidence: compaction replaces the
+    // transcript with a summary, which would silently discard the mutation and
+    // verification receipts the completion gate relies on. The gate resolves
+    // within the same turn (recovery or a hard error), so the deferral is
+    // bounded and cannot grow the transcript unboundedly.
+    const preCompactVerificationState = getTurnVerificationState(messages)
+    const shouldDeferAutoCompact =
+      preCompactVerificationState.hasMutation &&
+      !preCompactVerificationState.hasTerminalEvidence
     const { messages: processedMessages, wasCompacted } =
-      await checkAutoCompact(messages, toolUseContext)
+      shouldDeferAutoCompact
+        ? { messages, wasCompacted: false as const }
+        : await checkAutoCompact(messages, toolUseContext)
     if (wasCompacted) {
       messages = processedMessages
     }

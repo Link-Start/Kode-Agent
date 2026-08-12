@@ -72,14 +72,27 @@ function safeUnlink(path: string): void {
 }
 
 function acquireLock(lockPath: string): (() => void) | null {
+  const lockToken = `${process.pid} ${randomUUID()} ${Date.now()}\n`
   for (let attempt = 0; attempt < LOCK_RETRIES; attempt += 1) {
     try {
-      writeFileSync(lockPath, `${process.pid} ${Date.now()}\n`, {
+      writeFileSync(lockPath, lockToken, {
         encoding: 'utf8',
         flag: 'wx',
         mode: 0o600,
       })
-      return () => safeUnlink(lockPath)
+      return () => {
+        // Only remove the lock if it is still ours. If a competing process
+        // declared our lock stale and took over while we were still working,
+        // unlinking unconditionally would release THEIR lock and let a third
+        // writer enter the critical section concurrently.
+        try {
+          if (readFileSync(lockPath, 'utf8') === lockToken) {
+            safeUnlink(lockPath)
+          }
+        } catch {
+          // The lock was already removed by a competitor or owner.
+        }
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException | undefined)?.code !== 'EEXIST') {
         return null
@@ -736,4 +749,14 @@ export function __setProjectLearningStorageRootForTests(
 ): void {
   testStorageRoot = storageRoot ? resolve(storageRoot) : undefined
   eventsCache.clear()
+}
+
+/**
+ * Test-only hook exposing the store lock so ownership semantics can be
+ * verified without interleaving full store operations.
+ */
+export function __acquireProjectLearningLockForTests(
+  directory: string,
+): (() => void) | null {
+  return acquireLock(join(directory, LOCK_FILENAME))
 }

@@ -10,6 +10,7 @@ export {
   getRelevantProjectLearnings,
 } from './retrieval'
 export {
+  __acquireProjectLearningLockForTests,
   __resetProjectLearningStoreForTests,
   __setProjectLearningStorageRootForTests,
   captureProjectContextSnapshot,

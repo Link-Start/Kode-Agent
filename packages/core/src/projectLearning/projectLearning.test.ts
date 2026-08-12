@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  __acquireProjectLearningLockForTests,
   extractProjectLearningCandidates,
   formatProjectLearningContext,
   getRelevantProjectLearnings,
@@ -284,5 +292,53 @@ describe('project learning', () => {
         query: 'Which focused memory test should I run?',
       }),
     ).toEqual([])
+  })
+
+  test('releasing a lock never removes a lock taken over by a competitor', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'kode-learning-lock-'))
+    const lockPath = join(directory, '.lock')
+    try {
+      const release = __acquireProjectLearningLockForTests(directory)
+      expect(release).not.toBeNull()
+      expect(existsSync(lockPath)).toBe(true)
+      const ownerToken = readFileSync(lockPath, 'utf8')
+
+      // Simulate a competitor declaring our lock stale and taking over while
+      // we were still working.
+      writeFileSync(lockPath, `99999 taken-over-${Date.now()}\n`, {
+        encoding: 'utf8',
+        mode: 0o600,
+      })
+      release!()
+
+      // Our release must NOT delete the competitor's lock.
+      expect(existsSync(lockPath)).toBe(true)
+      expect(readFileSync(lockPath, 'utf8')).not.toBe(ownerToken)
+
+      // The actual owner can still release its own lock.
+      const competitorRelease = __acquireProjectLearningLockForTests(directory)
+      expect(competitorRelease).toBeNull()
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  test('releasing a lock removes it while it is still owned', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'kode-learning-lock-own-'))
+    const lockPath = join(directory, '.lock')
+    try {
+      const release = __acquireProjectLearningLockForTests(directory)
+      expect(release).not.toBeNull()
+      expect(existsSync(lockPath)).toBe(true)
+      release!()
+      expect(existsSync(lockPath)).toBe(false)
+
+      // After release the next acquisition succeeds.
+      const second = __acquireProjectLearningLockForTests(directory)
+      expect(second).not.toBeNull()
+      second!()
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

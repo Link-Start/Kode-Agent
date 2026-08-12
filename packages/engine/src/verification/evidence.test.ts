@@ -297,6 +297,37 @@ describe('goal verification evidence', () => {
     })
   })
 
+  test('does not treat failed or interrupted checks as terminal evidence', () => {
+    const base: Message[] = [
+      userPrompt('Implement the change.'),
+      toolUse([{ id: 'edit-1', name: 'Edit', input: { file_path: 'a.ts' } }]),
+      toolResult({}, 'edit-1'),
+    ]
+
+    for (const status of ['failed', 'blocked', 'interrupted'] as const) {
+      const withNonPassedVerification = [
+        ...base,
+        toolUse([
+          {
+            id: receipt.toolUseId,
+            name: 'Bash',
+            input: { command: 'bun test' },
+          },
+        ]),
+        toolResult({
+          verification: { ...receipt, status },
+        }),
+      ]
+      expect(
+        getTurnVerificationState(withNonPassedVerification),
+      ).toMatchObject({
+        hasMutation: true,
+        hasTerminalEvidence: false,
+        evidence: [{ ...receipt, status }],
+      })
+    }
+  })
+
   test('does not let an engine recovery prompt hide the original mutation', () => {
     const state = getTurnVerificationState([
       userPrompt('Implement the change.'),
