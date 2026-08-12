@@ -1,4 +1,4 @@
-import type { VoiceConfig } from '@kode/config'
+import { readVoiceApiKey, type VoiceConfig } from '@kode/config'
 
 import {
   VoiceConfigurationError,
@@ -31,10 +31,10 @@ function apiEndpoint(baseURL: string): string {
 }
 
 function apiKey(config: VoiceConfig): string {
-  const value = process.env[config.apiKeyEnv]
+  const value = readVoiceApiKey(config)
   if (!value?.trim()) {
     throw new VoiceConfigurationError(
-      `Voice is not configured: set the ${config.apiKeyEnv} environment variable.`,
+      `Voice is not configured: set ${config.apiKeyEnv} or save a MiMo key in /voice config.`,
     )
   }
   return value.trim()

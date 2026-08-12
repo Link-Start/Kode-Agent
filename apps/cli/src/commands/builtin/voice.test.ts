@@ -11,13 +11,13 @@ afterEach(() => {
 })
 
 describe('/voice configuration commands', () => {
-  test('accepts settings without ever accepting a raw API key', () => {
+  test('accepts settings while refusing raw API keys in shell arguments', () => {
     expect(
       updateVoiceConfiguration('config set api-key-env KODE_MIMO_KEY'),
     ).toContain('Voice configuration updated.')
     expect(getGlobalConfig().voice?.apiKeyEnv).toBe('KODE_MIMO_KEY')
     expect(updateVoiceConfiguration('config set api-key wrong')).toContain(
-      'Unknown voice configuration field: api-key',
+      'never accepted as credentials',
     )
   })
 

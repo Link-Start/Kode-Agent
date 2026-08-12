@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { DEFAULT_VOICE_CONFIG } from '@kode/config'
+import {
+  clearSessionApiKey,
+  DEFAULT_VOICE_CONFIG,
+  storeVoiceApiKey,
+} from '@kode/config'
 
 import {
   createMiMoVoiceProvider,
@@ -10,10 +17,18 @@ import {
 
 const ENV_KEY = 'KODE_VOICE_TEST_KEY'
 const previousKey = process.env[ENV_KEY]
+const previousConfigDirectory = process.env.KODE_CONFIG_DIR
+const temporaryDirectories: string[] = []
 
 afterEach(() => {
+  clearSessionApiKey(ENV_KEY)
   if (previousKey === undefined) delete process.env[ENV_KEY]
   else process.env[ENV_KEY] = previousKey
+  if (previousConfigDirectory === undefined) delete process.env.KODE_CONFIG_DIR
+  else process.env.KODE_CONFIG_DIR = previousConfigDirectory
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 function config() {
@@ -81,6 +96,32 @@ describe('MiMo voice adapter', () => {
     await expect(malformed.synthesize('hello')).rejects.toBeInstanceOf(
       VoiceProviderError,
     )
+  })
+
+  test('uses an owner-only persisted MiMo credential when no environment key exists', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'kode-mimo-credential-'))
+    temporaryDirectories.push(directory)
+    process.env.KODE_CONFIG_DIR = directory
+    delete process.env[ENV_KEY]
+    storeVoiceApiKey(config(), 'stored-mimo-key')
+    let request: RequestInit | undefined
+    const provider = createMiMoVoiceProvider(config(), async (_url, init) => {
+      request = init
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '已保存' } }] }),
+      )
+    })
+
+    await expect(
+      provider.transcribe({
+        bytes: new Uint8Array([1]),
+        mimeType: 'audio/wav',
+      }),
+    ).resolves.toBe('已保存')
+    expect(request?.headers).toEqual({
+      'content-type': 'application/json',
+      'api-key': 'stored-mimo-key',
+    })
   })
 
   test('uses the documented non-streaming TTS request and decodes WAV bytes', async () => {

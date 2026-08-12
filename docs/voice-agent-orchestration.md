@@ -18,8 +18,11 @@ KODE_EXPERIMENTAL_VOICE=1 kode
 
 The process must be restarted after changing this environment variable. The
 flag exposes `/voice`; it does not bypass microphone permissions, transcript
-review, normal tool approval, or the MiMo API-key requirement. Set the named
-key through the environment (for example `MIMO_API_KEY`), never in Kode config.
+review, normal tool approval, or the MiMo API-key requirement. Open
+`/voice config` to paste a MiMo key; the masked value is stored only in Kode's
+owner-only credential store. An environment value such as `MIMO_API_KEY` still
+takes precedence for managed or CI use. Keys are never accepted as slash-command
+arguments and never written to regular Kode configuration.
 
 It is deliberately **not** a second command interpreter, a bypass of tool
 permissions, or proof that a task plan has launched subagents.
@@ -288,9 +291,10 @@ denial rate, and stale-audio discard rate are the release metrics.
 
 ## Security and correctness controls
 
-- The global configuration stores only `apiKeyEnv`, never an API-key value;
-  `/voice status` redacts configuration and reports only whether the variable is
-  present.
+- The global configuration stores only `apiKeyEnv`, never an API-key value. A
+  pasted key is written atomically to Kode's owner-only credential store (0700
+  directory, 0600 file on POSIX); `/voice status` reports only a credential
+  source (`environment`, `kode-storage`, or `missing`) and never a value.
 - HTTPS is required except for an explicitly loopback development proxy.
 - Provider response bodies are not inserted into errors or the transcript;
   malformed JSON/base64, empty audio, and unsafe byte counts fail closed.

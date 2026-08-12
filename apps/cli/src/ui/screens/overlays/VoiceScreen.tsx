@@ -8,6 +8,7 @@ import {
 } from '@kode/runtime'
 import {
   getGlobalConfig,
+  readVoiceApiKey,
   resolveVoiceConfig,
   type VoiceConfig,
 } from '#core/utils/config'
@@ -91,10 +92,10 @@ export function VoiceScreen({
       setState({ kind: 'error', message: resolved.message })
       return
     }
-    if (!process.env[resolved.config.apiKeyEnv]?.trim()) {
+    if (!readVoiceApiKey(resolved.config)?.trim()) {
       setState({
         kind: 'error',
-        message: `Set ${resolved.config.apiKeyEnv} before recording. The API key is never stored in Kode configuration.`,
+        message: `Configure ${resolved.config.apiKeyEnv} in the environment or paste it in /voice config before recording. The key is never stored in regular Kode configuration.`,
       })
       return
     }

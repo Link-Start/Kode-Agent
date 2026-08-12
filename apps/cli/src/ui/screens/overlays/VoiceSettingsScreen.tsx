@@ -5,8 +5,10 @@ import figures from 'figures'
 import {
   DEFAULT_VOICE_CONFIG,
   getGlobalConfig,
+  getVoiceCredentialStatus,
   resolveVoiceConfig,
   saveGlobalConfig,
+  storeVoiceApiKey,
   type VoiceConfig,
 } from '#core/utils/config'
 import type { LocalJSXCommandResult } from '#cli-commands/types'
@@ -29,16 +31,24 @@ type EditableField =
   | 'maxRecordingSeconds'
   | 'maxReplyCharacters'
 
+type VoiceSettingsField = EditableField | 'apiKey'
+
 const FIELDS: Array<{
-  key: EditableField
+  key: VoiceSettingsField
   label: string
   hint: string
   editable: boolean
 }> = [
   {
+    key: 'apiKey',
+    label: 'MiMo API key',
+    hint: 'Paste to Kode credential storage. It is masked, owner-only, and never saved in regular configuration.',
+    editable: true,
+  },
+  {
     key: 'apiKeyEnv',
     label: 'API key environment',
-    hint: 'Name only; key values are never stored.',
+    hint: 'Optional environment-variable override. Its value takes precedence over the saved local credential.',
     editable: true,
   },
   {
@@ -91,7 +101,15 @@ const FIELDS: Array<{
   },
 ]
 
-function displayValue(config: VoiceConfig, key: EditableField): string {
+function displayValue(config: VoiceConfig, key: VoiceSettingsField): string {
+  if (key === 'apiKey') {
+    const status = getVoiceCredentialStatus(config)
+    return status === 'environment'
+      ? `environment ${config.apiKeyEnv}`
+      : status === 'kode-storage'
+        ? 'saved in Kode credential storage'
+        : 'not configured'
+  }
   if (key === 'speakResponses')
     return config.speakResponses ? 'enabled' : 'disabled'
   return String(config[key])
@@ -116,7 +134,7 @@ export function VoiceSettingsScreen({
     current.ok ? current.config : DEFAULT_VOICE_CONFIG,
   )
   const [selected, setSelected] = useState(0)
-  const [editing, setEditing] = useState<EditableField | null>(null)
+  const [editing, setEditing] = useState<VoiceSettingsField | null>(null)
   const [editValue, setEditValue] = useState('')
   const [cursorOffset, setCursorOffset] = useState(0)
   const [error, setError] = useState<string | null>(
@@ -131,6 +149,12 @@ export function VoiceSettingsScreen({
   const beginEdit = useCallback(() => {
     const field = FIELDS[selected]
     if (!field) return
+    if (field.key === 'apiKey') {
+      setEditing('apiKey')
+      setEditValue('')
+      setCursorOffset(0)
+      return
+    }
     if (field.key === 'language') {
       update({ language: cycleLanguage(config.language) })
       return
@@ -150,7 +174,31 @@ export function VoiceSettingsScreen({
       if (!editing) return
       const trimmed = value.trim()
       if (!trimmed) {
-        setError(`${editing} cannot be empty.`)
+        setError(
+          editing === 'apiKey'
+            ? 'A MiMo API key is required.'
+            : `${editing} cannot be empty.`,
+        )
+        return
+      }
+      if (editing === 'apiKey') {
+        const validated = resolveVoiceConfig(config)
+        if (!validated.ok) {
+          setError(validated.message)
+          return
+        }
+        try {
+          storeVoiceApiKey(validated.config, trimmed)
+        } catch {
+          setError(
+            'Kode could not save the MiMo API key. Check the permissions of ~/.kode and retry.',
+          )
+          return
+        }
+        setEditValue('')
+        setCursorOffset(0)
+        setEditing(null)
+        setError(null)
         return
       }
       if (
@@ -167,7 +215,7 @@ export function VoiceSettingsScreen({
       }
       setEditing(null)
     },
-    [editing, update],
+    [config, editing, update],
   )
 
   const save = useCallback(() => {
@@ -178,7 +226,7 @@ export function VoiceSettingsScreen({
     }
     saveGlobalConfig({ ...getGlobalConfig(), voice: validated.config })
     onDone(
-      `Voice settings saved. Set ${validated.config.apiKeyEnv} in the current shell before recording; it is not stored in Kode.`,
+      `Voice settings saved. MiMo credential: ${displayValue(validated.config, 'apiKey')}.`,
     )
   }, [config, onDone])
 
@@ -234,12 +282,6 @@ export function VoiceSettingsScreen({
         </Text>
         {FIELDS.map((field, index) => {
           const isSelected = index === selected
-          const keyStatus =
-            field.key === 'apiKeyEnv'
-              ? process.env[config.apiKeyEnv]
-                ? ' (set)'
-                : ' (missing)'
-              : ''
           return (
             <Text
               key={field.key}
@@ -249,7 +291,6 @@ export function VoiceSettingsScreen({
             >
               {isSelected ? figures.pointer : ' '} {field.label}:{' '}
               {displayValue(config, field.key)}
-              {keyStatus}
             </Text>
           )
         })}
@@ -266,6 +307,7 @@ export function VoiceSettingsScreen({
               columns={Math.max(1, columns - layout.paddingX * 2 - 2)}
               cursorOffset={cursorOffset}
               onChangeCursorOffset={setCursorOffset}
+              mask={editing === 'apiKey' ? '•' : undefined}
               focus={true}
             />
           </Box>

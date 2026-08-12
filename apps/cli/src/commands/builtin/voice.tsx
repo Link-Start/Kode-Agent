@@ -25,7 +25,7 @@ const USAGE = [
   '        speak-responses, max-recording-seconds, max-reply-characters',
   '',
   'Example: /voice config set api-key-env MIMO_API_KEY',
-  'Then set MIMO_API_KEY in your shell. Keys are never accepted or persisted by this command.',
+  'Use /voice config to paste a MiMo key into Kode credential storage. Keys are never accepted through command arguments.',
 ].join('\n')
 
 function voiceStatus(): string {
@@ -40,6 +40,11 @@ function configValue(
   value: string,
 ): Record<string, unknown> | { error: string } {
   switch (field) {
+    case 'api-key':
+      return {
+        error:
+          'For security, paste the MiMo API key in /voice config. Command arguments are saved in shell history and are never accepted as credentials.',
+      }
     case 'base-url':
       return { baseURL: value }
     case 'api-key-env':

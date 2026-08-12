@@ -1,8 +1,16 @@
+import {
+  hasStoredApiKey,
+  readApiKey,
+  readApiKeyFromEnvironment,
+  storeApiKey,
+} from './models/credentials'
+
 /**
  * Persisted settings for the built-in voice path.
  *
  * Credentials deliberately never belong here: `apiKeyEnv` is only the name of
- * an environment variable. This makes ~/.kode.json safe to inspect and share.
+ * an environment variable and credential-store entry. This keeps ~/.kode.json
+ * safe to inspect and share.
  */
 export type VoiceLanguage = 'auto' | 'zh' | 'en'
 
@@ -46,6 +54,8 @@ export type VoiceConfigValidation =
   { ok: true; config: VoiceConfig } | { ok: false; message: string }
 
 type VoiceConfigError = Extract<VoiceConfigValidation, { ok: false }>
+
+export type VoiceCredentialStatus = 'environment' | 'kode-storage' | 'missing'
 
 function stringSetting(
   value: unknown,
@@ -228,11 +238,13 @@ export function resolveVoiceConfig(value: unknown): VoiceConfigValidation {
 export function redactVoiceConfig(
   config: VoiceConfig,
 ): Record<string, unknown> {
+  const credentialStatus = getVoiceCredentialStatus(config)
   return {
     provider: config.provider,
     baseURL: config.baseURL,
     apiKeyEnv: config.apiKeyEnv,
-    apiKeyConfigured: Boolean(process.env[config.apiKeyEnv]),
+    apiKeyConfigured: credentialStatus !== 'missing',
+    apiKeySource: credentialStatus,
     asrModel: config.asrModel,
     ttsModel: config.ttsModel,
     ttsVoice: config.ttsVoice,
@@ -241,4 +253,27 @@ export function redactVoiceConfig(
     maxRecordingSeconds: config.maxRecordingSeconds,
     maxReplyCharacters: config.maxReplyCharacters,
   }
+}
+
+/**
+ * An environment value takes precedence so managed runtime configuration can
+ * override the local owner-only credential without exposing either value.
+ */
+export function getVoiceCredentialStatus(
+  config: VoiceConfig,
+): VoiceCredentialStatus {
+  if (readApiKeyFromEnvironment(config.apiKeyEnv)) return 'environment'
+  return hasStoredApiKey(config.apiKeyEnv) ? 'kode-storage' : 'missing'
+}
+
+export function readVoiceApiKey(config: VoiceConfig): string | undefined {
+  return readApiKey(config.apiKeyEnv)
+}
+
+/**
+ * Persist a user-pasted key in Kode's owner-only credential store, never in
+ * the ordinary global configuration file.
+ */
+export function storeVoiceApiKey(config: VoiceConfig, apiKey: string): void {
+  storeApiKey(config.apiKeyEnv, apiKey)
 }
