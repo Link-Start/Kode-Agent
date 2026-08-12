@@ -320,6 +320,7 @@ export const DaemonAgentDefinitionSchema = z
     model: z.string().trim().min(1).max(512).optional(),
     permissionMode: DaemonAgentPermissionModeSchema.optional(),
     forkContext: z.boolean().optional(),
+    maxExecutionTimeMs: z.number().int().min(1_000).max(3_600_000).optional(),
     color: z.string().trim().min(1).max(64).optional(),
   })
   .strict()
@@ -399,20 +400,74 @@ export type DaemonGoalScheduleKind = z.infer<
   typeof DaemonGoalScheduleKindSchema
 >
 
+export const DaemonGoalStatusSchema = z.enum([
+  'scheduled',
+  'running',
+  'awaiting_approval',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+])
+export type DaemonGoalStatus = z.infer<typeof DaemonGoalStatusSchema>
+
+export const DaemonGoalEventTypeSchema = z.enum([
+  'created',
+  'updated',
+  'claimed',
+  'continued',
+  'released',
+  'resumed',
+  'retried',
+  'run_requested',
+  'completed',
+  'paused',
+  'failed',
+  'cancelled',
+  'approval_requested',
+  'recovered',
+])
+export type DaemonGoalEventType = z.infer<typeof DaemonGoalEventTypeSchema>
+
 export const DaemonGoalScheduleSummarySchema = z
   .object({
-    id: z.string().min(1),
-    goalId: z.string().min(1),
+    id: z.string().min(1).max(256),
+    goalId: z.string().min(1).max(128),
     kind: DaemonGoalScheduleKindSchema,
-    status: z.string().min(1),
-    revision: z.number().int().positive(),
-    nextRunAt: z.number().int().nullable(),
-    createdAt: z.number().int().nonnegative(),
-    updatedAt: z.number().int().nonnegative(),
-    objective: z.string(),
-    runAt: z.number().int().optional(),
-    everyMs: z.number().int().positive().optional(),
-    anchorAt: z.number().int().optional(),
+    status: DaemonGoalStatusSchema,
+    revision: z.number().int().safe().positive(),
+    nextRunAt: z.number().int().safe().nonnegative().nullable(),
+    retryAt: z.number().int().safe().nonnegative().nullable().default(null),
+    createdAt: z.number().int().safe().nonnegative(),
+    updatedAt: z.number().int().safe().nonnegative(),
+    objective: z.string().trim().min(1).max(4_000),
+    // Default keeps newer clients compatible with older daemon summaries.
+    acceptanceCriteria: z
+      .array(z.string().trim().min(1).max(1_000))
+      .max(32)
+      .default([]),
+    maxIterations: z.number().int().min(1).max(64).default(8),
+    turnCount: z.number().int().safe().nonnegative().nullable().default(null),
+    pausedReason: z.string().min(1).max(4_000).nullable().default(null),
+    lastError: z
+      .object({
+        code: z.string().min(1).max(128),
+        message: z.string().min(1).max(4_000),
+        at: z.number().int().safe().nonnegative(),
+      })
+      .strict()
+      .nullable()
+      .default(null),
+    lastClaimedAt: z
+      .number()
+      .int()
+      .safe()
+      .nonnegative()
+      .nullable()
+      .default(null),
+    runAt: z.number().int().safe().nonnegative().optional(),
+    everyMs: z.number().int().safe().positive().optional(),
+    anchorAt: z.number().int().safe().nonnegative().optional(),
   })
   .strict()
 export type DaemonGoalScheduleSummary = z.infer<
@@ -434,4 +489,30 @@ export const DaemonGoalScheduleMutationResponseSchema = z
   .strict()
 export type DaemonGoalScheduleMutationResponse = z.infer<
   typeof DaemonGoalScheduleMutationResponseSchema
+>
+
+export const DaemonGoalScheduleEventSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    goalId: z.string().min(1).max(128),
+    type: DaemonGoalEventTypeSchema,
+    at: z.number().int().safe().nonnegative(),
+    revision: z.number().int().safe().positive(),
+    from: DaemonGoalStatusSchema.optional(),
+    to: DaemonGoalStatusSchema.optional(),
+    message: z.string().min(1).max(4_000).optional(),
+  })
+  .strict()
+export type DaemonGoalScheduleEvent = z.infer<
+  typeof DaemonGoalScheduleEventSchema
+>
+
+export const DaemonGoalScheduleEventsResponseSchema = z
+  .object({
+    scheduleId: z.string().min(1),
+    events: z.array(DaemonGoalScheduleEventSchema),
+  })
+  .strict()
+export type DaemonGoalScheduleEventsResponse = z.infer<
+  typeof DaemonGoalScheduleEventsResponseSchema
 >

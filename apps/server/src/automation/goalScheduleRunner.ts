@@ -71,6 +71,16 @@ export class GoalScheduleRunner {
         for (const schedule of schedules) {
           try {
             await this.options.dispatch({ session, schedule })
+            // The normal engine pipeline applies a terminal evaluator decision
+            // before dispatch returns. Echo/test transports and defensive host
+            // adapters may return without doing so; never leave that claimed
+            // run stuck until its lease expires. runId fencing makes this a
+            // no-op when the engine already completed, paused, or replaced it.
+            this.service.releaseAfterTurn(schedule.goalId, {
+              runId: schedule.runId,
+              reason:
+                'Scheduled turn returned without a terminal goal decision.',
+            })
           } catch (error) {
             // Do not leave a claimed run silently stuck. Interval schedules are
             // released to their next cadence; one-off runs pause for review.

@@ -6,6 +6,17 @@
 
 export const GOAL_SCHEMA_VERSION = 1 as const
 
+/** Runtime and persistence limits for unattended goal execution. */
+export const MAX_GOAL_ID_CHARS = 128
+export const MAX_GOAL_OBJECTIVE_CHARS = 4_000
+export const MAX_GOAL_PROMPT_CHARS = 8_000
+export const MAX_GOAL_REASON_CHARS = 4_000
+export const MAX_GOAL_ERROR_CODE_CHARS = 128
+export const MAX_GOAL_ACCEPTANCE_CRITERIA = 32
+export const MAX_GOAL_CRITERION_CHARS = 1_000
+export const MAX_GOAL_CONTINUATION_PROMPT_CHARS = 4_000
+export const MAX_GOAL_CONTINUATIONS = 64
+
 export type GoalStatus =
   | 'scheduled'
   | 'running'
@@ -58,6 +69,12 @@ export type Schedule = OnceSchedule | IntervalSchedule
  */
 export type ClaimedSchedule = Schedule & {
   runId: string
+}
+
+export type GoalSchedulePollResult = {
+  schedule: ClaimedSchedule
+  /** `unstarted` re-surfaces a direct GoalRun without issuing a new lease. */
+  source: 'claimed' | 'unstarted'
 }
 
 export type ScheduleInput =
@@ -155,15 +172,17 @@ export type CreateScheduledGoalControlPlaneInput = {
   sessionId: string
   objective: string
   acceptanceCriteria?: string[]
+  maxIterations?: number
   schedule: ControlPlaneGoalScheduleInput
 }
 
 /**
  * Durable schedule state changes exposed to the daemon control plane. These
- * actions intentionally cannot start work or alter a prompt, workspace,
- * session, loop, or workflow definition.
+ * actions never execute work directly. `run_now` only marks an idle schedule
+ * due so the normal scheduler, session gate, and permission path still apply.
  */
-export type ControlPlaneGoalScheduleAction = 'pause' | 'resume' | 'cancel'
+export type ControlPlaneGoalScheduleAction =
+  'pause' | 'resume' | 'retry' | 'run_now' | 'cancel'
 
 export type ControlPlaneGoalScheduleTransitionInput = {
   cwd: string
@@ -188,11 +207,45 @@ export type ControlPlaneGoalScheduleTransitionResult =
         | 'invalid_request'
     }
 
+/**
+ * Editable definition fields for an idle daemon-owned goal. Routing identity,
+ * schedule IDs, continuation prompts, metadata, leases, and GoalRuns remain
+ * server-owned and cannot be changed through this contract.
+ */
+export type ControlPlaneGoalScheduleUpdateInput = {
+  cwd: string
+  sessionId: string
+  scheduleId: string
+  expectedRevision: number
+  objective?: string
+  acceptanceCriteria?: string[]
+  maxIterations?: number
+  schedule?: ControlPlaneGoalScheduleInput
+  /** Test/embedded-runtime override. HTTP callers never supply this. */
+  now?: number
+}
+
+export type ControlPlaneGoalScheduleUpdateResult =
+  | { ok: true; goal: Goal }
+  | {
+      ok: false
+      reason:
+        | 'not_found'
+        | 'revision_conflict'
+        | 'active_run'
+        | 'invalid_state'
+        | 'invalid_request'
+    }
+
 export type GoalEventType =
   | 'created'
+  | 'updated'
   | 'claimed'
   | 'continued'
   | 'released'
+  | 'resumed'
+  | 'retried'
+  | 'run_requested'
   | 'completed'
   | 'paused'
   | 'failed'

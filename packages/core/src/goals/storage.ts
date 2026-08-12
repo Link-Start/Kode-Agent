@@ -2,8 +2,10 @@ import {
   appendFileSync,
   closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
   openSync,
+  readSync,
   readFileSync,
   readdirSync,
   renameSync,
@@ -18,6 +20,15 @@ import { getKodeRoot } from '#config/dataRoots'
 
 import {
   GOAL_SCHEMA_VERSION,
+  MAX_GOAL_ACCEPTANCE_CRITERIA,
+  MAX_GOAL_CONTINUATION_PROMPT_CHARS,
+  MAX_GOAL_CONTINUATIONS,
+  MAX_GOAL_CRITERION_CHARS,
+  MAX_GOAL_ERROR_CODE_CHARS,
+  MAX_GOAL_ID_CHARS,
+  MAX_GOAL_OBJECTIVE_CHARS,
+  MAX_GOAL_PROMPT_CHARS,
+  MAX_GOAL_REASON_CHARS,
   type Goal,
   type GoalEvent,
   type GoalStatus,
@@ -44,13 +55,29 @@ const GOAL_STATUSES = new Set<GoalStatus>([
   'failed',
   'cancelled',
 ])
+const GOAL_EVENT_TYPES = new Set<GoalEvent['type']>([
+  'created',
+  'updated',
+  'claimed',
+  'continued',
+  'released',
+  'resumed',
+  'retried',
+  'run_requested',
+  'completed',
+  'paused',
+  'failed',
+  'cancelled',
+  'approval_requested',
+  'recovered',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
+function isSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value)
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -59,7 +86,17 @@ function isNonEmptyString(value: unknown): value is string {
 
 function cleanStringArray(value: unknown): string[] | null {
   if (!Array.isArray(value)) return null
-  return value.filter(isNonEmptyString).map(value => value.trim())
+  if (
+    value.length > MAX_GOAL_ACCEPTANCE_CRITERIA ||
+    value.some(
+      item =>
+        !isNonEmptyString(item) ||
+        item.trim().length > MAX_GOAL_CRITERION_CHARS,
+    )
+  ) {
+    return null
+  }
+  return value.map(item => item.trim())
 }
 
 function clone<T>(value: T): T {
@@ -147,9 +184,13 @@ function parseSchedule(value: unknown): Schedule | null {
     isNonEmptyString(value.cwd) &&
     isNonEmptyString(value.sessionId) &&
     isNonEmptyString(value.prompt) &&
-    (value.nextRunAt === null || isFiniteNumber(value.nextRunAt)) &&
-    (value.retryAt === undefined || isFiniteNumber(value.retryAt)) &&
-    (value.lastClaimedAt === undefined || isFiniteNumber(value.lastClaimedAt))
+    value.prompt.trim().length <= MAX_GOAL_PROMPT_CHARS &&
+    (value.nextRunAt === null ||
+      (isSafeInteger(value.nextRunAt) && value.nextRunAt >= 0)) &&
+    (value.retryAt === undefined ||
+      (isSafeInteger(value.retryAt) && value.retryAt >= 0)) &&
+    (value.lastClaimedAt === undefined ||
+      (isSafeInteger(value.lastClaimedAt) && value.lastClaimedAt >= 0))
   if (!commonValid) return null
 
   const base = {
@@ -159,20 +200,21 @@ function parseSchedule(value: unknown): Schedule | null {
     sessionId: String(value.sessionId).trim(),
     prompt: String(value.prompt).trim(),
     nextRunAt: value.nextRunAt as number | null,
-    ...(isFiniteNumber(value.retryAt) ? { retryAt: value.retryAt } : {}),
-    ...(isFiniteNumber(value.lastClaimedAt)
+    ...(isSafeInteger(value.retryAt) ? { retryAt: value.retryAt } : {}),
+    ...(isSafeInteger(value.lastClaimedAt)
       ? { lastClaimedAt: value.lastClaimedAt }
       : {}),
   }
 
-  if (value.kind === 'once' && isFiniteNumber(value.runAt)) {
+  if (value.kind === 'once' && isSafeInteger(value.runAt) && value.runAt >= 0) {
     return { ...base, kind: 'once', runAt: value.runAt } satisfies OnceSchedule
   }
   if (
     value.kind === 'interval' &&
-    isFiniteNumber(value.everyMs) &&
+    isSafeInteger(value.everyMs) &&
     value.everyMs > 0 &&
-    isFiniteNumber(value.anchorAt)
+    isSafeInteger(value.anchorAt) &&
+    value.anchorAt >= 0
   ) {
     return {
       ...base,
@@ -192,10 +234,15 @@ function parseGoal(value: unknown): Goal | null {
     !isNonEmptyString(value.cwd) ||
     !isNonEmptyString(value.sessionId) ||
     !isNonEmptyString(value.objective) ||
+    value.id.trim().length > MAX_GOAL_ID_CHARS ||
+    value.objective.trim().length > MAX_GOAL_OBJECTIVE_CHARS ||
     !GOAL_STATUSES.has(value.status as GoalStatus) ||
-    !isFiniteNumber(value.revision) ||
-    !isFiniteNumber(value.createdAt) ||
-    !isFiniteNumber(value.updatedAt)
+    !isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    !isSafeInteger(value.createdAt) ||
+    value.createdAt < 0 ||
+    !isSafeInteger(value.updatedAt) ||
+    value.updatedAt < 0
   ) {
     return null
   }
@@ -209,9 +256,12 @@ function parseGoal(value: unknown): Goal | null {
   const loopRecord = isRecord(value.loop) ? value.loop : null
   if (
     !loopRecord ||
-    !isFiniteNumber(loopRecord.maxIterations) ||
+    !isSafeInteger(loopRecord.maxIterations) ||
     loopRecord.maxIterations < 1 ||
-    !isNonEmptyString(loopRecord.continuationPrompt)
+    loopRecord.maxIterations > MAX_GOAL_CONTINUATIONS ||
+    !isNonEmptyString(loopRecord.continuationPrompt) ||
+    loopRecord.continuationPrompt.trim().length >
+      MAX_GOAL_CONTINUATION_PROMPT_CHARS
   ) {
     return null
   }
@@ -226,64 +276,123 @@ function parseGoal(value: unknown): Goal | null {
     status: value.status as GoalStatus,
     schedule,
     loop: {
-      maxIterations: Math.max(1, Math.floor(loopRecord.maxIterations)),
+      maxIterations: loopRecord.maxIterations,
       continuationPrompt: loopRecord.continuationPrompt.trim(),
     },
-    revision: Math.max(0, Math.floor(value.revision)),
+    revision: value.revision,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
   }
 
-  if (isFiniteNumber(value.completedAt)) goal.completedAt = value.completedAt
-  if (isNonEmptyString(value.pausedReason))
+  if (value.completedAt !== undefined) {
+    if (!isSafeInteger(value.completedAt) || value.completedAt < 0) return null
+    goal.completedAt = value.completedAt
+  }
+  if (value.pausedReason !== undefined) {
+    if (
+      !isNonEmptyString(value.pausedReason) ||
+      value.pausedReason.trim().length > MAX_GOAL_REASON_CHARS
+    ) {
+      return null
+    }
     goal.pausedReason = value.pausedReason.trim()
-  if (isRecord(value.lastError)) {
+  }
+  if (value.lastError !== undefined) {
     if (
-      isNonEmptyString(value.lastError.code) &&
-      isNonEmptyString(value.lastError.message) &&
-      isFiniteNumber(value.lastError.at)
+      !isRecord(value.lastError) ||
+      !(
+        isNonEmptyString(value.lastError.code) &&
+        value.lastError.code.trim().length <= MAX_GOAL_ERROR_CODE_CHARS &&
+        isNonEmptyString(value.lastError.message) &&
+        value.lastError.message.trim().length <= MAX_GOAL_REASON_CHARS &&
+        isSafeInteger(value.lastError.at) &&
+        value.lastError.at >= 0
+      )
     ) {
-      goal.lastError = {
-        code: value.lastError.code.trim(),
-        message: value.lastError.message.trim(),
-        at: value.lastError.at,
-      }
+      return null
+    }
+    goal.lastError = {
+      code: value.lastError.code.trim(),
+      message: value.lastError.message.trim(),
+      at: value.lastError.at,
     }
   }
-  if (isRecord(value.lease)) {
+  if (value.lease !== undefined) {
     if (
-      isNonEmptyString(value.lease.ownerId) &&
-      isNonEmptyString(value.lease.runId) &&
-      isFiniteNumber(value.lease.acquiredAt) &&
-      isFiniteNumber(value.lease.expiresAt)
+      !isRecord(value.lease) ||
+      !(
+        isNonEmptyString(value.lease.ownerId) &&
+        isNonEmptyString(value.lease.runId) &&
+        isSafeInteger(value.lease.acquiredAt) &&
+        value.lease.acquiredAt >= 0 &&
+        isSafeInteger(value.lease.expiresAt) &&
+        value.lease.expiresAt > value.lease.acquiredAt
+      )
     ) {
-      goal.lease = {
-        ownerId: value.lease.ownerId.trim(),
-        runId: value.lease.runId.trim(),
-        acquiredAt: value.lease.acquiredAt,
-        expiresAt: value.lease.expiresAt,
-      }
+      return null
+    }
+    goal.lease = {
+      ownerId: value.lease.ownerId.trim(),
+      runId: value.lease.runId.trim(),
+      acquiredAt: value.lease.acquiredAt,
+      expiresAt: value.lease.expiresAt,
     }
   }
-  if (isRecord(value.activeRun)) {
+  if (value.activeRun !== undefined) {
     if (
-      isNonEmptyString(value.activeRun.id) &&
-      isNonEmptyString(value.activeRun.scheduleId) &&
-      isFiniteNumber(value.activeRun.scheduledFor) &&
-      isFiniteNumber(value.activeRun.startedAt) &&
-      isFiniteNumber(value.activeRun.turnCount) &&
-      value.activeRun.turnCount >= 0
+      !isRecord(value.activeRun) ||
+      !(
+        isNonEmptyString(value.activeRun.id) &&
+        isNonEmptyString(value.activeRun.scheduleId) &&
+        isSafeInteger(value.activeRun.scheduledFor) &&
+        value.activeRun.scheduledFor >= 0 &&
+        isSafeInteger(value.activeRun.startedAt) &&
+        value.activeRun.startedAt >= 0 &&
+        isSafeInteger(value.activeRun.turnCount) &&
+        value.activeRun.turnCount >= 0 &&
+        value.activeRun.turnCount <= goal.loop.maxIterations
+      )
     ) {
-      goal.activeRun = {
-        id: value.activeRun.id.trim(),
-        scheduleId: value.activeRun.scheduleId.trim(),
-        scheduledFor: value.activeRun.scheduledFor,
-        startedAt: value.activeRun.startedAt,
-        turnCount: Math.floor(value.activeRun.turnCount),
-      }
+      return null
+    }
+    goal.activeRun = {
+      id: value.activeRun.id.trim(),
+      scheduleId: value.activeRun.scheduleId.trim(),
+      scheduledFor: value.activeRun.scheduledFor,
+      startedAt: value.activeRun.startedAt,
+      turnCount: value.activeRun.turnCount,
     }
   }
-  if (isRecord(value.metadata)) goal.metadata = clone(value.metadata)
+  if (value.metadata !== undefined) {
+    if (!isRecord(value.metadata)) return null
+    goal.metadata = clone(value.metadata)
+  }
+
+  if (
+    schedule.cwd !== goal.cwd ||
+    schedule.sessionId !== goal.sessionId ||
+    (goal.activeRun !== undefined &&
+      goal.activeRun.scheduleId !== schedule.id) ||
+    (goal.lease && goal.activeRun?.id !== goal.lease.runId)
+  ) {
+    return null
+  }
+  if (goal.status === 'running' && (!goal.lease || !goal.activeRun)) {
+    return null
+  }
+  if (
+    goal.status === 'awaiting_approval' &&
+    (goal.lease !== undefined || !goal.activeRun)
+  ) {
+    return null
+  }
+  if (
+    goal.status !== 'running' &&
+    goal.status !== 'awaiting_approval' &&
+    (goal.lease !== undefined || goal.activeRun !== undefined)
+  ) {
+    return null
+  }
 
   return goal
 }
@@ -294,8 +403,18 @@ function parseGoalEvent(value: unknown): GoalEvent | null {
     !isNonEmptyString(value.id) ||
     !isNonEmptyString(value.goalId) ||
     !isNonEmptyString(value.type) ||
-    !isFiniteNumber(value.at) ||
-    !isFiniteNumber(value.revision)
+    !GOAL_EVENT_TYPES.has(value.type as GoalEvent['type']) ||
+    !isSafeInteger(value.at) ||
+    value.at < 0 ||
+    !isSafeInteger(value.revision) ||
+    value.revision < 1 ||
+    (value.from !== undefined &&
+      !GOAL_STATUSES.has(value.from as GoalStatus)) ||
+    (value.to !== undefined && !GOAL_STATUSES.has(value.to as GoalStatus)) ||
+    (value.message !== undefined &&
+      (!isNonEmptyString(value.message) ||
+        value.message.trim().length > MAX_GOAL_REASON_CHARS)) ||
+    (value.data !== undefined && !isRecord(value.data))
   ) {
     return null
   }
@@ -304,13 +423,29 @@ function parseGoalEvent(value: unknown): GoalEvent | null {
     goalId: value.goalId.trim(),
     type: value.type as GoalEvent['type'],
     at: value.at,
-    revision: Math.max(0, Math.floor(value.revision)),
+    revision: value.revision,
   }
   if (isNonEmptyString(value.from)) event.from = value.from as GoalStatus
   if (isNonEmptyString(value.to)) event.to = value.to as GoalStatus
-  if (isNonEmptyString(value.message)) event.message = value.message.trim()
+  if (isNonEmptyString(value.message)) {
+    event.message = value.message.trim()
+  }
   if (isRecord(value.data)) event.data = clone(value.data)
   return event
+}
+
+function parseGoalEventsText(value: string): GoalEvent[] {
+  return value
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .flatMap(line => {
+      try {
+        const event = parseGoalEvent(JSON.parse(line))
+        return event ? [event] : []
+      } catch {
+        return []
+      }
+    })
 }
 
 export function sanitizeGoalId(value: string): string {
@@ -467,21 +602,51 @@ export class GoalStorage {
     })
   }
 
-  listEvents(goalId: string): GoalEvent[] {
+  listEvents(goalId: string, options: { limit?: number } = {}): GoalEvent[] {
     const path = this.getEventsFilePath(goalId)
     if (!existsSync(path)) return []
+    const limit = options.limit
+    if (
+      limit !== undefined &&
+      (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000)
+    ) {
+      throw new Error('Goal event limit must be an integer between 1 and 1000.')
+    }
     try {
-      return readFileSync(path, 'utf8')
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .flatMap(line => {
-          try {
-            const event = parseGoalEvent(JSON.parse(line))
-            return event ? [event] : []
-          } catch {
-            return []
+      if (limit === undefined) {
+        return parseGoalEventsText(readFileSync(path, 'utf8'))
+      }
+
+      // Read backwards in bounded chunks until enough complete JSONL records
+      // are available. Schedule histories can grow indefinitely, so the Web
+      // control plane must not read the whole journal for every expansion.
+      const descriptor = openSync(path, 'r')
+      try {
+        const fileSize = fstatSync(descriptor).size
+        const chunks: Buffer[] = []
+        let position = fileSize
+        let lineBreaks = 0
+        while (position > 0 && lineBreaks <= limit) {
+          const size = Math.min(64 * 1024, position)
+          position -= size
+          const chunk = Buffer.allocUnsafe(size)
+          const bytesRead = readSync(descriptor, chunk, 0, size, position)
+          const selected =
+            bytesRead === size ? chunk : chunk.subarray(0, bytesRead)
+          for (const byte of selected) {
+            if (byte === 0x0a) lineBreaks += 1
           }
-        })
+          chunks.unshift(selected)
+        }
+        let raw = Buffer.concat(chunks).toString('utf8')
+        if (position > 0) {
+          const firstCompleteLine = raw.indexOf('\n')
+          raw = firstCompleteLine >= 0 ? raw.slice(firstCompleteLine + 1) : ''
+        }
+        return parseGoalEventsText(raw).slice(-limit)
+      } finally {
+        closeSync(descriptor)
+      }
     } catch {
       return []
     }

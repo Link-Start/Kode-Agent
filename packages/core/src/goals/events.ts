@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
 
-import type { Goal, GoalEvent, GoalEventType, GoalStatus } from './types'
+import {
+  MAX_GOAL_REASON_CHARS,
+  type Goal,
+  type GoalEvent,
+  type GoalEventType,
+  type GoalStatus,
+} from './types'
 import { GoalStorage } from './storage'
 
 export function createGoalEvent(args: {
@@ -12,6 +18,12 @@ export function createGoalEvent(args: {
   message?: string
   data?: Record<string, unknown>
 }): GoalEvent {
+  const message = args.message?.trim()
+  if (message && message.length > MAX_GOAL_REASON_CHARS) {
+    throw new Error(
+      `Goal event message cannot exceed ${MAX_GOAL_REASON_CHARS} characters.`,
+    )
+  }
   return {
     id: randomUUID(),
     goalId: args.goal.id,
@@ -20,7 +32,7 @@ export function createGoalEvent(args: {
     revision: args.goal.revision,
     ...(args.from ? { from: args.from } : {}),
     ...(args.to ? { to: args.to } : {}),
-    ...(args.message?.trim() ? { message: args.message.trim() } : {}),
+    ...(message ? { message } : {}),
     ...(args.data ? { data: args.data } : {}),
   }
 }

@@ -1149,16 +1149,39 @@ describe('HttpClient', () => {
       id: 'schedule-local-loop',
       goalId: 'local-loop',
       kind: 'interval' as const,
-      status: 'scheduled',
+      status: 'scheduled' as const,
       revision: 1,
       nextRunAt: 100,
+      retryAt: null,
       createdAt: 1,
       updatedAt: 2,
       objective: 'Watch CI',
+      acceptanceCriteria: ['Report CI status'],
+      maxIterations: 8,
+      turnCount: null,
+      pausedReason: null,
+      lastError: null,
+      lastClaimedAt: null,
       everyMs: 60_000,
       anchorAt: 100,
     }
-    const paused = { ...schedule, status: 'paused', revision: 2 }
+    const paused = { ...schedule, status: 'paused' as const, revision: 2 }
+    const updated = {
+      ...schedule,
+      revision: 2,
+      objective: 'Watch CI and tests',
+      maxIterations: 12,
+    }
+    const events = [
+      {
+        id: 'event-1',
+        goalId: schedule.goalId,
+        type: 'created' as const,
+        at: 1,
+        revision: 1,
+        to: 'scheduled' as const,
+      },
+    ]
     const calls: Array<{ url: string; method?: string; body?: string }> = []
     const client = new HttpClient({
       baseUrl: 'http://localhost:32123',
@@ -1178,8 +1201,14 @@ describe('HttpClient', () => {
         if (url.pathname === '/api/goal-schedules' && init?.method === 'POST') {
           return Response.json({ ok: true, schedule }, { status: 201 })
         }
+        if (url.pathname.endsWith('/events') && !init?.method) {
+          return Response.json({ scheduleId: schedule.id, events })
+        }
         if (url.pathname.endsWith('/actions') && init?.method === 'POST') {
           return Response.json({ ok: true, schedule: paused })
+        }
+        if (init?.method === 'PATCH') {
+          return Response.json({ ok: true, schedule: updated })
         }
         return new Response('not found', { status: 404 })
       },
@@ -1194,9 +1223,25 @@ describe('HttpClient', () => {
       client.createGoalSchedule({
         sessionId: '11111111-1111-4111-8111-111111111111',
         objective: 'Watch CI',
+        acceptanceCriteria: ['Report CI status'],
+        maxIterations: 8,
         schedule: { kind: 'interval', everyMs: 60_000 },
       }),
     ).resolves.toEqual(schedule)
+    await expect(
+      client.updateGoalSchedule(schedule.id, {
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        expectedRevision: 1,
+        objective: 'Watch CI and tests',
+        maxIterations: 12,
+      }),
+    ).resolves.toEqual(updated)
+    await expect(
+      client.listGoalScheduleEvents(schedule.id, {
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        limit: 40,
+      }),
+    ).resolves.toEqual(events)
     await expect(
       client.transitionGoalSchedule(schedule.id, {
         sessionId: '11111111-1111-4111-8111-111111111111',
@@ -1208,6 +1253,18 @@ describe('HttpClient', () => {
     expect(calls.some(call => call.url.includes('/api/goal-schedules'))).toBe(
       true,
     )
+    expect(
+      calls.some(call =>
+        String(call.body).includes('"acceptanceCriteria":["Report CI status"]'),
+      ),
+    ).toBe(true)
+    expect(calls.some(call => call.method === 'PATCH')).toBe(true)
+    expect(
+      calls.some(
+        call =>
+          call.url.includes('/events?') && call.url.includes('sessionId='),
+      ),
+    ).toBe(true)
   })
 
   test('surfaces daemon JSON errors for goal schedule mutations', async () => {

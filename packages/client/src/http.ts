@@ -8,6 +8,7 @@ import type {
   DaemonAgentSource,
   DaemonAgentUpdateRequest,
   DaemonGoalScheduleSummary,
+  DaemonGoalScheduleEvent,
   DaemonManagedAgent,
   DaemonPermissionSnapshot,
   DaemonPermissionUpdate,
@@ -27,6 +28,7 @@ import {
   DaemonAgentSourceSchema,
   DaemonAgentUpdateRequestSchema,
   DaemonGoalScheduleListResponseSchema,
+  DaemonGoalScheduleEventsResponseSchema,
   DaemonGoalScheduleMutationResponseSchema,
   DaemonPermissionSnapshotResponseSchema,
   DaemonPermissionUpdateResponseSchema,
@@ -51,6 +53,7 @@ import type {
   GoalScheduleActionRequest,
   GoalScheduleControlKodeClient,
   GoalScheduleCreateRequest,
+  GoalScheduleUpdateRequest,
   TaskControlKodeClient,
   TaskOutputOptions,
   TaskQueryOptions,
@@ -636,7 +639,9 @@ export class HttpClient
     for (const listener of this.eventListeners) {
       try {
         listener(event)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   }
 
@@ -684,7 +689,9 @@ export class HttpClient
     for (const listener of this.connectionListeners) {
       try {
         listener(connected)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   }
 
@@ -717,7 +724,9 @@ export class HttpClient
       try {
         ws.removeEventListener?.('close', onClose)
         ws.removeEventListener?.('error', onError)
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   }
 
@@ -731,7 +740,9 @@ export class HttpClient
 
     try {
       socket?.close()
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     if (wasConnected) this.emitConnectionChange(false)
   }
@@ -803,7 +814,9 @@ export class HttpClient
         if (historySyncTimeout) clearTimeout(historySyncTimeout)
         try {
           ws.removeEventListener?.('open', onOpen)
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
 
       const completeIfReady = () => {
@@ -833,7 +846,9 @@ export class HttpClient
         }
         try {
           ws.close()
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
         reject(error)
       }
 
@@ -1231,6 +1246,12 @@ export class HttpClient
         body: JSON.stringify({
           sessionId,
           objective,
+          ...(request.acceptanceCriteria
+            ? { acceptanceCriteria: request.acceptanceCriteria }
+            : {}),
+          ...(request.maxIterations !== undefined
+            ? { maxIterations: request.maxIterations }
+            : {}),
           schedule: request.schedule,
         }),
       },
@@ -1252,6 +1273,63 @@ export class HttpClient
     return parsed.data.schedule
   }
 
+  async updateGoalSchedule(
+    scheduleId: string,
+    request: GoalScheduleUpdateRequest,
+  ): Promise<DaemonGoalScheduleSummary> {
+    const id = scheduleId.trim()
+    if (!id) throw new Error('Invalid schedule id')
+    const sessionId = request.sessionId.trim()
+    if (!isUuid(sessionId)) throw new Error('Invalid session id')
+    if (
+      !Number.isSafeInteger(request.expectedRevision) ||
+      request.expectedRevision < 1
+    ) {
+      throw new Error('Invalid expected revision')
+    }
+    const response = await this.getFetchImpl()(
+      this.toApiUrl(`/api/goal-schedules/${encodeURIComponent(id)}`),
+      {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${this.options.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId,
+          expectedRevision: request.expectedRevision,
+          ...(request.objective !== undefined
+            ? { objective: request.objective }
+            : {}),
+          ...(request.acceptanceCriteria !== undefined
+            ? { acceptanceCriteria: request.acceptanceCriteria }
+            : {}),
+          ...(request.maxIterations !== undefined
+            ? { maxIterations: request.maxIterations }
+            : {}),
+          ...(request.schedule !== undefined
+            ? { schedule: request.schedule }
+            : {}),
+        }),
+      },
+    )
+    if (!response.ok) {
+      throw new Error(
+        await httpErrorMessage(
+          response,
+          `Failed to update goal schedule (${response.status})`,
+        ),
+      )
+    }
+    const parsed = DaemonGoalScheduleMutationResponseSchema.safeParse(
+      await response.json(),
+    )
+    if (!parsed.success) {
+      throw new Error('Invalid update goal schedule response')
+    }
+    return parsed.data.schedule
+  }
+
   async transitionGoalSchedule(
     scheduleId: string,
     request: GoalScheduleActionRequest,
@@ -1269,6 +1347,8 @@ export class HttpClient
     if (
       request.action !== 'pause' &&
       request.action !== 'resume' &&
+      request.action !== 'retry' &&
+      request.action !== 'run_now' &&
       request.action !== 'cancel'
     ) {
       throw new Error('Invalid schedule action')
@@ -1304,6 +1384,49 @@ export class HttpClient
       throw new Error('Invalid goal schedule action response')
     }
     return parsed.data.schedule
+  }
+
+  async listGoalScheduleEvents(
+    scheduleId: string,
+    options: { sessionId: string; limit?: number },
+  ): Promise<DaemonGoalScheduleEvent[]> {
+    const id = scheduleId.trim()
+    if (!id) throw new Error('Invalid schedule id')
+    const sessionId = options.sessionId.trim()
+    if (!isUuid(sessionId)) throw new Error('Invalid session id')
+    if (
+      options.limit !== undefined &&
+      (!Number.isSafeInteger(options.limit) ||
+        options.limit < 1 ||
+        options.limit > 100)
+    ) {
+      throw new Error('Invalid goal event limit')
+    }
+    const url = this.toApiUrl(
+      `/api/goal-schedules/${encodeURIComponent(id)}/events`,
+    )
+    url.searchParams.set('sessionId', sessionId)
+    if (options.limit !== undefined) {
+      url.searchParams.set('limit', String(options.limit))
+    }
+    const response = await this.getFetchImpl()(url, {
+      headers: { authorization: `Bearer ${this.options.token}` },
+    })
+    if (!response.ok) {
+      throw new Error(
+        await httpErrorMessage(
+          response,
+          `Failed to list goal schedule events (${response.status})`,
+        ),
+      )
+    }
+    const parsed = DaemonGoalScheduleEventsResponseSchema.safeParse(
+      await response.json(),
+    )
+    if (!parsed.success || parsed.data.scheduleId !== id) {
+      throw new Error('Invalid goal schedule events response')
+    }
+    return parsed.data.events
   }
 
   async getTask(
