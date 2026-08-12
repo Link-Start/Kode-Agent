@@ -263,7 +263,9 @@ export async function routeChat(
               : {}),
             onError: message => wsSend(log('error', message)),
           })
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
     }
   })()

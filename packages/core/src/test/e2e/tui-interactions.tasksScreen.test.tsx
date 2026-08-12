@@ -3,6 +3,12 @@ import React from 'react'
 
 import { KeypressProvider } from '#ui-ink/contexts/KeypressContext'
 import { createInkHarnessManager, createInkTestHarness } from './inkTestHarness'
+import {
+  __removeBackgroundAgentTaskForTests,
+  getBackgroundAgentTaskSnapshot,
+  upsertBackgroundAgentTask,
+  type BackgroundAgentTaskRuntime,
+} from '#core/utils/backgroundTasks'
 
 const harnessManager = createInkHarnessManager()
 
@@ -37,6 +43,7 @@ async function waitFor(
 }
 
 afterEach(async () => {
+  __removeBackgroundAgentTaskForTests('agent-1')
   await harnessManager.cleanup()
   mock.restore()
 })
@@ -46,13 +53,16 @@ function mockTasksDependencies(): void {
     getBackgroundTaskOutputFilePath: (taskId: string) =>
       `/tmp/kode-task-${taskId}.log`,
     killBackgroundTask: () => false,
-    listBackgroundTaskSnapshots: () => [
+    listOwnedBackgroundTaskSnapshots: () => [
       {
         taskId: 'agent-1',
         taskType: 'local_agent',
         status: 'running',
         description: 'Test agent task',
         cwd: '/tmp/kode-tasks-test',
+        sessionId: 'captured-session-1',
+        subagentType: 'reviewer',
+        model: 'task',
         outputFile: '/tmp/kode-task-agent-1.log',
         startedAt: 0,
         prompt: 'test prompt',
@@ -60,14 +70,12 @@ function mockTasksDependencies(): void {
     ],
     readBackgroundTaskOutputTailLines: () => [],
   }))
-  mock.module('#core/utils/state', () => ({
-    getOriginalCwd: () => '/tmp/kode-tasks-test',
-  }))
-  mock.module('#protocol/utils/kodeAgentSessionId', () => ({
-    getKodeAgentSessionId: () => 'session-1',
-  }))
   mock.module('#protocol/utils/kodeAgentSessionLog', () => ({
-    getAgentLogFilePath: () => '/tmp/kode-agent-1.jsonl',
+    getAgentLogFilePath: (args: {
+      cwd: string
+      sessionId: string
+      agentId: string
+    }) => `${args.cwd}/.kode/${args.sessionId}/${args.agentId}.jsonl`,
   }))
 }
 
@@ -90,8 +98,7 @@ describe('TUI E2E regression (Ink render): TasksScreen', () => {
       },
     }))
 
-    const { TasksScreen } =
-      await import('#ui-ink/screens/overlays/TasksScreen')
+    const { TasksScreen } = await import('#ui-ink/screens/overlays/TasksScreen')
     const h = createInkTestHarness(
       <KeypressProvider>
         <TasksScreen onDone={() => {}} />
@@ -115,17 +122,18 @@ describe('TUI E2E regression (Ink render): TasksScreen', () => {
 
   test('reports unexpected editor launcher failures and permits retry', async () => {
     let launches = 0
+    const launchedPaths: string[] = []
 
     mockTasksDependencies()
     mock.module('#cli-utils/externalEditor', () => ({
-      launchExternalEditorForFilePath: async () => {
+      launchExternalEditorForFilePath: async (path: string) => {
         launches += 1
+        launchedPaths.push(path)
         throw new Error('temporary editor failure')
       },
     }))
 
-    const { TasksScreen } =
-      await import('#ui-ink/screens/overlays/TasksScreen')
+    const { TasksScreen } = await import('#ui-ink/screens/overlays/TasksScreen')
     const h = createInkTestHarness(
       <KeypressProvider>
         <TasksScreen onDone={() => {}} />
@@ -145,5 +153,81 @@ describe('TUI E2E regression (Ink render): TasksScreen', () => {
     h.stdin.write('l')
     await waitFor(() => launches === 2, 'retry launcher call')
     expect(launches).toBe(2)
+    expect(launchedPaths[1]).toBe(
+      '/tmp/kode-tasks-test/.kode/captured-session-1/agent-1.jsonl',
+    )
+  })
+
+  test('shows captured execution identity in task details', async () => {
+    mockTasksDependencies()
+    mock.module('#cli-utils/externalEditor', () => ({
+      launchExternalEditorForFilePath: async () => ({
+        ok: true as const,
+        editorLabel: 'test-editor',
+      }),
+    }))
+
+    const { TasksScreen } = await import('#ui-ink/screens/overlays/TasksScreen')
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <TasksScreen onDone={() => {}} />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'workspace: /tmp/kode-tasks-test')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'Workspace: /tmp/kode-tasks-test')
+    expect(h.getOutput()).toContain('Agent type: reviewer')
+    expect(h.getOutput()).toContain('Model: task')
+    expect(h.getOutput()).toContain('Session: captured-session-1')
+  })
+
+  test('queues reviewed guidance for the selected running agent', async () => {
+    mockTasksDependencies()
+    const task: BackgroundAgentTaskRuntime = {
+      type: 'async_agent',
+      agentId: 'agent-1',
+      parentAgentId: 'main',
+      description: 'Test agent task',
+      prompt: 'test prompt',
+      status: 'running',
+      cwd: '/tmp/kode-tasks-test',
+      sessionId: 'captured-session-1',
+      startedAt: Date.now(),
+      messages: [],
+      guidance: [],
+      abortController: new AbortController(),
+      done: Promise.resolve(),
+    }
+    upsertBackgroundAgentTask(task)
+    mock.module('#cli-utils/externalEditor', () => ({
+      launchExternalEditorForFilePath: async () => ({
+        ok: true as const,
+        editorLabel: 'test-editor',
+      }),
+    }))
+
+    const { TasksScreen } = await import('#ui-ink/screens/overlays/TasksScreen')
+    const h = createInkTestHarness(
+      <KeypressProvider>
+        <TasksScreen onDone={() => {}} />
+      </KeypressProvider>,
+    )
+    harnessManager.track(h)
+
+    await waitForOutput(h, 'Agent: agent-1 (running)')
+    h.stdin.write('g')
+    await waitForOutput(h, 'Guidance for agent-1')
+    h.stdin.write('Prioritize the cancellation race.')
+    h.stdin.write('\r')
+    await waitForOutput(h, 'application is not immediate')
+
+    expect(
+      getBackgroundAgentTaskSnapshot('agent-1')?.guidance?.[0],
+    ).toMatchObject({
+      body: 'Prioritize the cancellation race.',
+      status: 'queued',
+    })
   })
 })

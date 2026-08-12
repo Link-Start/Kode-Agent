@@ -227,8 +227,8 @@ labels this as a continuation and reports it in lifecycle progress.
 
 This is intentionally not a way to send an instruction to an active background
 agent or to bypass approval. Foreground batch tasks finish before returning;
-active-agent messaging, cancellation, and restart recovery need their own
-durable session contract and remain separate from voice dispatch.
+active background Agents instead use the bounded runtime-guidance control below.
+That queue is process-local and deliberately does not claim restart recovery.
 
 This avoids three common failures: all agents receiving conflicting raw speech,
 parallel filesystem writes, and a UI that says "dispatched" while only a plan
@@ -260,8 +260,16 @@ The main Agent can use `TaskGuide` for the same runtime redirection. A queued
 record is injected only before the target's next model request and becomes
 `applied` after that request accepts it. It cannot undo a shell/tool action that
 already started. `TaskStop` remains the explicit immediate-interruption path.
+`TaskMonitor` is read-only, while `TaskGuide` keeps the normal permission gate
+so an already-running worker cannot be silently redirected into new work.
 `/tasks` provides the equivalent keyboard workflow: select a running Agent,
 press `g`, review the instruction, and press Enter to queue it.
+
+Live task monitoring and guidance are restricted to the current workspace and
+owning session. A different session cannot inspect, stop, or guide those local
+tasks by guessing an ID; it must communicate through the explicit, auditable
+session mailbox. A task with missing ownership metadata is hidden and cannot be
+controlled rather than falling back to workspace-only trust.
 
 Runtime guidance is deliberately process-local and bounded because the target
 background Agent is itself process-local. A process restart terminates that

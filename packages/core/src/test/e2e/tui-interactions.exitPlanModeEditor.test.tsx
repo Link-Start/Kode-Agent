@@ -75,9 +75,8 @@ describe('TUI E2E regression (Ink render): ExitPlanMode editor', () => {
       },
     }))
 
-    const { ExitPlanModePermissionRequest } = await import(
-      '#ui-ink/components/permissions/PlanModePermissionRequest/ExitPlanModePermissionRequest'
-    )
+    const { ExitPlanModePermissionRequest } =
+      await import('#ui-ink/components/permissions/PlanModePermissionRequest/ExitPlanModePermissionRequest')
     const h = createInkTestHarness(
       <KeypressProvider>
         <PermissionProvider
@@ -94,7 +93,11 @@ describe('TUI E2E regression (Ink render): ExitPlanMode editor', () => {
     )
     harnessManager.track(h)
 
-    await waitFor(h, () => h.getOutput().includes('Ready to code?'), 'plan view')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Ready to code?'),
+      'plan view',
+    )
     h.stdin.write('\u0007')
     h.stdin.write('\u0007')
     await waitFor(
@@ -123,9 +126,8 @@ describe('TUI E2E regression (Ink render): ExitPlanMode editor', () => {
       },
     }))
 
-    const { ExitPlanModePermissionRequest } = await import(
-      '#ui-ink/components/permissions/PlanModePermissionRequest/ExitPlanModePermissionRequest'
-    )
+    const { ExitPlanModePermissionRequest } =
+      await import('#ui-ink/components/permissions/PlanModePermissionRequest/ExitPlanModePermissionRequest')
     const h = createInkTestHarness(
       <KeypressProvider>
         <PermissionProvider
@@ -142,14 +144,20 @@ describe('TUI E2E regression (Ink render): ExitPlanMode editor', () => {
     )
     harnessManager.track(h)
 
-    await waitFor(h, () => h.getOutput().includes('Ready to code?'), 'plan view')
+    await waitFor(
+      h,
+      () => h.getOutput().includes('Ready to code?'),
+      'plan view',
+    )
     h.stdin.write('\u0007')
     await waitFor(
       h,
       () =>
         h
           .getOutput()
-          .includes('Unable to open the external editor. Check $EDITOR and try again.'),
+          .includes(
+            'Unable to open the external editor. Check $EDITOR and try again.',
+          ),
       'editor failure status',
     )
 

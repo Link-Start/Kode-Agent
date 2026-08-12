@@ -143,6 +143,7 @@ kode-acp          # stdio JSON-RPC，供 Toad/Zed 等客户端接入
 /model          更改 AI 模型设置
 /config         打开配置面板
 /agents         管理子代理
+/tasks          查看、停止本地实时任务并打开任务输出
 /plugin         管理技能与插件
 /output-style   切换输出风格
 /cost           查看 Token 用量与费用
@@ -233,6 +234,7 @@ name: reviewer
 description: "Review diffs for correctness, security, and simplicity"
 tools: ["Read", "Grep"]
 model: inherit
+maxExecutionTimeMs: 300000
 ---
 
 更严格一些：指出 bug / 风险点，优先推荐小而聚焦的修改。
@@ -241,6 +243,8 @@ model: inherit
 加载来源：`.kode/agents`（项目）→ `~/.kode/agents`（用户）→ 插件 → `--agents` 参数。
 
 `model` 字段支持：`inherit`、指针名（`main|task|compact|quick`）、profile 名称、`provider:modelName`。
+
+`maxExecutionTimeMs` 用于设置 Agent 的主动墙钟截止时间（1,000–3,600,000 毫秒，默认 300,000）。前台或后台任务超时后，Kode 会主动取消运行、记录终态并释放并发名额。使用 `/tasks` 查看或停止实时任务，使用 `/runs status` 查看持久化运行记录。
 
 ## 技能与插件
 

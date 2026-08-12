@@ -4,6 +4,26 @@ import type { PermissionMode, ToolPermissionContext } from './permissions'
 
 export type ToolRenderOutput = unknown
 
+/**
+ * Describes who owns verification for a tool that can affect project files.
+ *
+ * - `none`: the tool does not write the project workspace.
+ * - `direct`: the current agent may have changed the workspace and must verify.
+ * - `delegated`: a nested execution owns its own mutation/verification gate.
+ */
+export type WorkspaceMutationScope = 'none' | 'direct' | 'delegated'
+
+export type WorkspaceMutationReceipt = Readonly<{
+  version: 1
+  toolUseId: string
+  scope: WorkspaceMutationScope
+  basis: 'declared' | 'observed' | 'delegated'
+}>
+
+export type ToolResultMetadata = Readonly<{
+  workspaceMutation?: WorkspaceMutationReceipt
+}>
+
 export type ToolKeypress = Readonly<{
   ctrl: boolean
   meta: boolean
@@ -162,6 +182,15 @@ export interface ToolMetadata<
   cachedDescription?: string
   isEnabled: () => Promise<boolean>
   isReadOnly: (input?: z.infer<TInput>) => boolean
+  /**
+   * Optional workspace-specific classification. This is intentionally
+   * separate from `isReadOnly`: task bookkeeping or sending a message changes
+   * application state without changing project files.
+   */
+  workspaceMutationScope?: (
+    input?: z.infer<TInput>,
+    output?: TOutput,
+  ) => WorkspaceMutationScope
   isConcurrencySafe: (input?: z.infer<TInput>) => boolean
   needsPermissions: (input?: z.infer<TInput>) => boolean
   requiresUserInteraction?: (input?: z.infer<TInput>) => boolean

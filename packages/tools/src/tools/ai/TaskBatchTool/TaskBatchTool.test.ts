@@ -19,6 +19,32 @@ const readOnlyAgent: AgentConfig = {
 }
 
 describe('TaskBatch safety boundaries', () => {
+  test('allows only read-only batches through the parent concurrency lane', () => {
+    const readTask = {
+      id: 'inspect',
+      description: 'Inspect files',
+      prompt: 'Inspect files.',
+      subagent_type: 'Explore',
+      mode: 'read' as const,
+    }
+    const writeInput = {
+      tasks: [{ ...readTask, id: 'edit', mode: 'write' as const }],
+    }
+
+    expect(TaskBatchTool.isConcurrencySafe({ tasks: [readTask] })).toBe(true)
+    expect(TaskBatchTool.isConcurrencySafe(writeInput)).toBe(false)
+    expect(TaskBatchTool.workspaceMutationScope(writeInput)).toBe('direct')
+    expect(
+      TaskBatchTool.workspaceMutationScope(writeInput, {
+        status: 'partial',
+        groups: [],
+        tasks: [
+          { id: 'edit', status: 'failed', reason: 'verification failed' },
+        ],
+      }),
+    ).toBe('direct')
+  })
+
   test('recognizes only explicit allowlisted tool sets as safely parallelizable', () => {
     expect(isVerifiedReadOnlyAgent(readOnlyAgent)).toBe(true)
     expect(isVerifiedReadOnlyAgent({ ...readOnlyAgent, tools: '*' })).toBe(
@@ -375,5 +401,66 @@ describe('TaskBatch safety boundaries', () => {
       'result',
     ])
     expect(outputEvents.at(-1)?.data).toMatchObject({ status: 'completed' })
+  })
+
+  test('preserves a delegated child failure reason in batch output', async () => {
+    const context = {
+      abortController: new AbortController(),
+      readFileTimestamps: {},
+      messageId: 'batch-failure-message',
+      toolUseId: 'batch-failure',
+      __testCallTaskTool: async function* (input: { prompt: string }) {
+        yield {
+          type: 'result' as const,
+          data: {
+            status: 'failed' as const,
+            agentId: 'failed-agent',
+            prompt: input.prompt,
+            content: [],
+            error: 'Child verification failed on the auth boundary.',
+            totalToolUseCount: 0,
+            totalDurationMs: 1,
+            totalTokens: 0,
+            usage: {
+              input_tokens: 0,
+              output_tokens: 0,
+              cache_creation_input_tokens: null,
+              cache_read_input_tokens: null,
+              server_tool_use: null,
+              service_tier: null,
+              cache_creation: null,
+            },
+          },
+        }
+      },
+    }
+    const events = []
+    for await (const event of TaskBatchTool.call(
+      {
+        tasks: [
+          {
+            id: 'inspect-auth',
+            description: 'Inspect auth failure',
+            prompt: 'Inspect auth.',
+            subagent_type: 'Explore',
+            mode: 'read',
+          },
+        ],
+      },
+      context,
+    )) {
+      events.push(event)
+    }
+
+    expect(events.at(-1)?.data).toMatchObject({
+      status: 'partial',
+      tasks: [
+        {
+          id: 'inspect-auth',
+          status: 'failed',
+          reason: 'Child verification failed on the auth boundary.',
+        },
+      ],
+    })
   })
 })

@@ -152,7 +152,9 @@ describe('daemon git endpoints (WS)', () => {
                   }),
                 )
               }
-            } catch { /* no-op */ }
+            } catch {
+              /* no-op */
+            }
           })
 
           await new Promise<void>((resolve, reject) => {
@@ -205,7 +207,9 @@ describe('daemon git endpoints (WS)', () => {
 
           try {
             ws.close()
-          } catch { /* no-op */ }
+          } catch {
+            /* no-op */
+          }
         } finally {
           daemon.stop()
         }
@@ -272,7 +276,9 @@ describe('daemon git endpoints (WS)', () => {
                   }),
                 )
               }
-            } catch { /* no-op */ }
+            } catch {
+              /* no-op */
+            }
           })
 
           await new Promise<void>((resolve, reject) => {
@@ -388,7 +394,9 @@ describe('daemon git endpoints (WS)', () => {
 
           try {
             ws.close()
-          } catch { /* no-op */ }
+          } catch {
+            /* no-op */
+          }
         } finally {
           daemon.stop()
         }

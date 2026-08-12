@@ -266,7 +266,8 @@ export function useReplQuery(args: {
             const lastMessage = newMessages.at(-1)
             if (!lastMessage) return
 
-            // Text input interrupts a reply that is no longer useful.
+            // Text input is also an interruption: do not make a user listen to
+            // an obsolete spoken reply before the next turn can begin.
             if (lastMessage.type === 'user') interruptVoicePlayback()
 
             const firstMessage = newMessages[0]
@@ -376,8 +377,13 @@ export function useReplQuery(args: {
               shouldSpeakVoiceReply &&
               lastAssistantMessage?.type === 'assistant'
             ) {
+              // Playback is best effort and intentionally detached from the
+              // turn: a speaker, network, or TTS failure cannot fail chat.
               void speakVoiceReply(lastAssistantMessage).catch(error => {
                 logError(error)
+                debugLogger.error('REPL_VOICE_PLAYBACK_ERROR', {
+                  error: error instanceof Error ? error.name : typeof error,
+                })
               })
             }
 

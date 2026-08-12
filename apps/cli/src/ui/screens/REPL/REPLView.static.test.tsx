@@ -323,6 +323,35 @@ describe('REPLView Static output epoch', () => {
     expect(harness.getOutput()).toContain('transient-b')
   })
 
+  test('keeps the transient viewport mounted while an active request is remeasured', async () => {
+    const harness = createHarness(
+      renderReplView({
+        staticOutputEpoch: 0,
+        staticItems: [],
+        transientItems: [makeStaticItem('transient-a')],
+        isLoading: true,
+      }),
+      { columns: 100, rows: 30 },
+    )
+
+    await harness.wait(480)
+    expect(harness.getOutput()).toContain('transient-a')
+
+    harness.clearOutput()
+    harness.resize(80, 24)
+    harness.rerender(
+      renderReplView({
+        staticOutputEpoch: 0,
+        staticItems: [],
+        transientItems: [makeStaticItem('transient-b')],
+        isLoading: true,
+      }),
+    )
+    await harness.wait(80)
+
+    expect(harness.getOutput()).toContain('transient-b')
+  })
+
   test('keeps request status visible while resize measurement is settling', async () => {
     setRequestStatus({ kind: 'streaming' })
 

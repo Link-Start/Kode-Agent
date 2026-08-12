@@ -10,7 +10,11 @@ import type { UUID } from 'crypto'
 
 import type { ModelPointerType } from '#config'
 import type { CanUseToolFn as InterfaceCanUseToolFn } from '@kode/tool-interface/canUseTool'
-import type { Tool, ToolUseContext } from '@kode/tool-interface/Tool'
+import type {
+  Tool,
+  ToolResultMetadata,
+  ToolUseContext,
+} from '@kode/tool-interface/Tool'
 import type { ToolPermissionContext } from '@kode/tool-interface/permissions'
 import type {
   AnthropicUsage,
@@ -20,6 +24,7 @@ import type {
 export type FullToolUseResult = {
   data: unknown
   resultForAssistant: ToolResultBlockParam['content']
+  metadata?: ToolResultMetadata
   newMessages?: Message[]
   contextModifier?: { modifyContext: (ctx: any) => any }
 }

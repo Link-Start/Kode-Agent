@@ -194,6 +194,25 @@ function parseAgentFromLoadedMarkdown(
     }
     const forkContext = forkContextValue === true || forkContextValue === 'true'
 
+    const maxExecutionTimeRaw =
+      fm.maxExecutionTimeMs ??
+      fm['max-execution-time-ms'] ??
+      fm['max_execution_time_ms']
+    const maxExecutionTimeMs =
+      typeof maxExecutionTimeRaw === 'number' &&
+      Number.isSafeInteger(maxExecutionTimeRaw) &&
+      maxExecutionTimeRaw >= 1_000 &&
+      maxExecutionTimeRaw <= 3_600_000
+        ? maxExecutionTimeRaw
+        : undefined
+    if (maxExecutionTimeRaw !== undefined && maxExecutionTimeMs === undefined) {
+      debugLogger.warn('AGENT_LOADER_INVALID_EXECUTION_TIMEOUT', {
+        filePath: options.filePath,
+        maxExecutionTimeMs: String(maxExecutionTimeRaw),
+      })
+      return null
+    }
+
     if (forkContext && model && model !== 'inherit') {
       debugLogger.warn('AGENT_LOADER_FORK_CONTEXT_MODEL_OVERRIDE', {
         filePath: options.filePath,
@@ -249,6 +268,7 @@ function parseAgentFromLoadedMarkdown(
         ? { permissionMode: permissionModeValue as AgentPermissionMode }
         : {}),
       ...(forkContext ? { forkContext: true } : {}),
+      ...(maxExecutionTimeMs ? { maxExecutionTimeMs } : {}),
     }
 
     return agent
@@ -285,6 +305,7 @@ const agentJsonSchema = z.object({
   prompt: z.string().min(1, 'Prompt cannot be empty'),
   model: z.string().optional(),
   permissionMode: z.enum(VALID_PERMISSION_MODES).optional(),
+  maxExecutionTimeMs: z.number().int().min(1_000).max(3_600_000).optional(),
 })
 
 const agentsJsonSchema = z.record(z.string(), agentJsonSchema)
@@ -317,6 +338,9 @@ function parseAgentFromJson(
     ...(model ? { model: model as AgentModel } : {}),
     ...(parsed.data.permissionMode
       ? { permissionMode: parsed.data.permissionMode }
+      : {}),
+    ...(parsed.data.maxExecutionTimeMs
+      ? { maxExecutionTimeMs: parsed.data.maxExecutionTimeMs }
       : {}),
   }
 }

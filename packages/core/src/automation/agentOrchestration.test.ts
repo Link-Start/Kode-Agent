@@ -129,4 +129,45 @@ describe('agent execution planning', () => {
       'group_finished:1',
     ])
   })
+
+  test('emits a fast read result without waiting for a slower sibling', async () => {
+    const plan = planAgentExecution([
+      { id: 'fast', agentType: 'research', prompt: 'fast', mode: 'read' },
+      { id: 'slow', agentType: 'research', prompt: 'slow', mode: 'read' },
+    ])
+    let releaseFast!: () => void
+    let releaseSlow!: () => void
+    const fast = new Promise<void>(resolve => {
+      releaseFast = resolve
+    })
+    const slow = new Promise<void>(resolve => {
+      releaseSlow = resolve
+    })
+    const started: string[] = []
+    const iterator = executeAgentPlanEvents(plan, {
+      async launch(task) {
+        started.push(task.id)
+        await (task.id === 'fast' ? fast : slow)
+        return task.id
+      },
+    })
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      value: { type: 'group_started' },
+    })
+    const firstFinished = iterator.next()
+    await Promise.resolve()
+    expect(started).toEqual(['fast', 'slow'])
+
+    releaseFast()
+    await expect(firstFinished).resolves.toMatchObject({
+      value: {
+        type: 'task_finished',
+        outcome: { id: 'fast', status: 'completed' },
+      },
+    })
+
+    releaseSlow()
+    await iterator.return(undefined)
+  })
 })

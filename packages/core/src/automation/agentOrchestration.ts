@@ -243,12 +243,24 @@ export async function* executeAgentPlanEvents<T>(
         return { id: task.id, status: 'failed', error }
       }
     }
-    const outcomes =
-      group.kind === 'parallel-read'
-        ? await Promise.all(group.tasks.map(run))
-        : [await run(group.tasks[0]!)]
-    for (const outcome of outcomes) {
-      yield { type: 'task_finished', group, outcome }
+    if (group.kind === 'parallel-read') {
+      const pending = new Map(
+        group.tasks.map((task, index) => [
+          index,
+          run(task).then(outcome => ({ index, outcome })),
+        ]),
+      )
+      while (pending.size > 0) {
+        const finished = await Promise.race(pending.values())
+        pending.delete(finished.index)
+        yield { type: 'task_finished', group, outcome: finished.outcome }
+      }
+    } else {
+      yield {
+        type: 'task_finished',
+        group,
+        outcome: await run(group.tasks[0]!),
+      }
     }
     yield { type: 'group_finished', group }
   }

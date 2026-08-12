@@ -165,7 +165,9 @@ export function NotificationsScreen({
       }
     } catch {
       if (mountedRef.current) {
-        setStatus('Unable to open the external editor. Check $EDITOR and try again.')
+        setStatus(
+          'Unable to open the external editor. Check $EDITOR and try again.',
+        )
       }
     } finally {
       isOpeningRef.current = false

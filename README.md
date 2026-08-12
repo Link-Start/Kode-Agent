@@ -143,6 +143,7 @@ kode-acp          # stdio JSON-RPC for Toad/Zed clients
 /model          Change AI model settings
 /config         Open configuration panel
 /agents         Manage subagents
+/tasks          Inspect, stop, and open output for live local tasks
 /plugin         Manage skills & plugins
 /output-style   Switch output behavior
 /cost           Show token usage & costs
@@ -233,6 +234,7 @@ name: reviewer
 description: "Review diffs for correctness, security, and simplicity"
 tools: ["Read", "Grep"]
 model: inherit
+maxExecutionTimeMs: 300000
 ---
 
 Be strict. Point out bugs and risky changes. Prefer small, targeted fixes.
@@ -241,6 +243,8 @@ Be strict. Point out bugs and risky changes. Prefer small, targeted fixes.
 Sources: `.kode/agents` (project) → `~/.kode/agents` (user) → plugins → `--agents` flag.
 
 Model field accepts: `inherit`, pointer names (`main|task|compact|quick`), profile names, or `provider:modelName`.
+
+`maxExecutionTimeMs` sets an active wall-clock deadline for the Agent (1,000–3,600,000 ms; default 300,000). Kode aborts overdue foreground and background runs, records their terminal state, and releases their concurrency slot. Use `/tasks` to inspect or stop live work and `/runs status` for durable run history.
 
 ## Skills & Plugins
 

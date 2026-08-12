@@ -12,9 +12,12 @@ describe('public contracts (refactor safety net)', () => {
     const toolNames = getAllTools().map(t => t.name)
     expect(toolNames).toEqual([
       'Task',
+      'TaskBatch',
       'AskExpertModel',
       'Bash',
       'TaskOutput',
+      'TaskMonitor',
+      'TaskGuide',
       'TaskStop',
       'LS',
       'Glob',
@@ -36,6 +39,7 @@ describe('public contracts (refactor safety net)', () => {
       'ExitPlanMode',
       'SlashCommand',
       'Skill',
+      'SessionMessage',
       'ListMcpResourcesTool',
       'ReadMcpResourceTool',
       'MCPSearch',

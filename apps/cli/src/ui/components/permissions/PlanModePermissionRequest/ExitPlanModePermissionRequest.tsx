@@ -131,9 +131,10 @@ export function ExitPlanModePermissionRequest({
   })
   const [planSaved, setPlanSaved] = useState(false)
   const [editorLabel, setEditorLabel] = useState(() => getExternalEditorLabel())
-  const [editorStatus, setEditorStatus] = useState<
-    { kind: 'opening' | 'error'; message: string } | null
-  >(null)
+  const [editorStatus, setEditorStatus] = useState<{
+    kind: 'opening' | 'error'
+    message: string
+  } | null>(null)
   const [rejectDraft, setRejectDraft] = useState('')
   const [selectedAllowedPromptIndices, setSelectedAllowedPromptIndices] =
     useState<number[]>(() =>
@@ -446,7 +447,8 @@ export function ExitPlanModePermissionRequest({
       if (mountedRef.current) {
         setEditorStatus({
           kind: 'error',
-          message: 'Unable to open the external editor. Check $EDITOR and try again.',
+          message:
+            'Unable to open the external editor. Check $EDITOR and try again.',
         })
       }
     } finally {

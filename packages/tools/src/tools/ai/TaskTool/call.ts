@@ -8,11 +8,12 @@ import {
   getAgentTranscript,
   saveAgentTranscript,
 } from '#core/utils/agentTranscripts'
-import { getCwd } from '#core/utils/state'
+import { getCwd, getOriginalCwd } from '#core/utils/state'
 import { getMaxThinkingTokens } from '#core/utils/thinking'
 import { createDefaultToolPermissionContext } from '#core/types/toolPermissionContext'
 import { LEGACY_ENV } from '#core/compat/legacyEnv'
 import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
+import { getKodeAgentSessionForkInfo } from '#protocol/utils/kodeAgentSessionForkInfo'
 import { loadKodeAgentSidechainMessagesForResume } from '#protocol/utils/kodeAgentSessionLoad'
 import { AgentSupervisor } from '#core/utils/agentSupervisor'
 
@@ -39,7 +40,9 @@ type TaskToolUseContext = ToolUseContext & {
 
 /**
  * Raw speech can be fragmented or self-correcting. A main agent must turn it
- * into a validated TaskBatch voice brief before a subagent receives work.
+ * into a validated TaskBatch voice brief before a subagent receives work; this
+ * keeps an unreviewed transcript from becoming an executable delegation
+ * prompt. TaskBatch sets the second flag only after that validation succeeds.
  */
 export function getVoiceTaskDispatchError(
   context: Pick<ToolUseContext, 'options'>,
@@ -148,27 +151,25 @@ export async function* callTaskTool(
 
   const agentId = input.resume || generateAgentId()
 
-  // Acquire supervisor slot — enforces concurrency limit and timeout/turn caps
-  const supervisor = AgentSupervisor.acquire(agentId, {
-    maxExecutionTimeMs: (agentConfig as any).maxExecutionTimeMs,
-  })
-
   let baseTranscript: any[] = []
   if (input.resume) {
-    const cached = getAgentTranscript(input.resume)
+    const transcriptOwner = {
+      agentId: input.resume,
+      cwd: getCwd(),
+      sessionId: getKodeAgentSessionId(),
+    }
+    const cached = getAgentTranscript(transcriptOwner)
     if (cached) {
       baseTranscript = cached.filter(m => m.type !== 'progress')
     } else {
       const loaded = loadKodeAgentSidechainMessagesForResume({
-        cwd: getCwd(),
-        sessionId: getKodeAgentSessionId(),
-        agentId: input.resume,
+        ...transcriptOwner,
       })
       if (loaded.length === 0) {
         throw new Error(`No transcript found for agent ID: ${input.resume}`)
       }
       baseTranscript = loaded
-      saveAgentTranscript(input.resume, loaded as any)
+      saveAgentTranscript(transcriptOwner, loaded as any)
     }
   }
 
@@ -210,6 +211,19 @@ export async function* callTaskTool(
       safeMode,
     }) ?? baseToolPermissionContext
 
+  const launchIdentity = {
+    cwd: getCwd(),
+    originalCwd: getOriginalCwd(),
+    sessionId: getKodeAgentSessionId(),
+    sessionForkInfo: getKodeAgentSessionForkInfo(),
+  }
+
+  // Acquire only after fallible agent/config/context preparation so an
+  // initialization error cannot leak a concurrency slot.
+  const supervisor = AgentSupervisor.acquire(agentId, {
+    maxExecutionTimeMs: agentConfig.maxExecutionTimeMs,
+  })
+
   const queryOptions: TaskToolQueryOptions = {
     safeMode,
     forkNumber,
@@ -248,17 +262,23 @@ export async function* callTaskTool(
     abortController: toolUseContext.abortController,
     readFileTimestamps: toolUseContext.readFileTimestamps,
     startTime,
+    ...launchIdentity,
   }
 
   if (input.run_in_background) {
-    // Background agents manage their own supervisor release in callBackground
-    yield* callTaskToolBackground(input, prepared, {
-      parentAgentId: toolUseContext.agentId,
-      parentToolUseId: toolUseContext.toolUseId,
-      subagentType: input.subagent_type,
-      model: modelToUse,
-      supervisor,
-    })
+    try {
+      // Background agents manage their own supervisor release after launch.
+      yield* callTaskToolBackground(input, prepared, {
+        parentAgentId: toolUseContext.agentId,
+        parentToolUseId: toolUseContext.toolUseId,
+        subagentType: input.subagent_type,
+        model: modelToUse,
+        supervisor,
+      })
+    } catch (error) {
+      supervisor.release()
+      throw error
+    }
     return
   }
 
@@ -266,6 +286,7 @@ export async function* callTaskTool(
   const setToolJSX =
     typeof setToolJSXMaybe === 'function' ? (setToolJSXMaybe as any) : undefined
 
+  let backgroundOwnershipTransferred = false
   try {
     for await (const chunk of callTaskToolForeground(input, prepared, {
       setToolJSX,
@@ -278,11 +299,21 @@ export async function* callTaskTool(
       supervisor,
     })) {
       if (chunk.type === 'result') {
-        saveAgentTranscript(prepared.agentId, prepared.transcriptMessages)
+        saveAgentTranscript(
+          {
+            agentId: prepared.agentId,
+            cwd: prepared.cwd,
+            sessionId: prepared.sessionId,
+          },
+          prepared.transcriptMessages,
+        )
+        if (chunk.backgroundOwnershipTransferred) {
+          backgroundOwnershipTransferred = true
+        }
       }
       yield chunk
     }
   } finally {
-    supervisor.release()
+    if (!backgroundOwnershipTransferred) supervisor.release()
   }
 }
