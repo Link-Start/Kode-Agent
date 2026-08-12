@@ -602,11 +602,13 @@ export function ResumeSessionSelector(props: {
 
   const didSubmitRef = useRef(false)
   const mountedRef = useRef(true)
+  const crossProjectCopyIdRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      crossProjectCopyIdRef.current += 1
     }
   }, [])
 
@@ -931,6 +933,7 @@ export function ResumeSessionSelector(props: {
 
   const close = useCallback(() => {
     didSubmitRef.current = true
+    crossProjectCopyIdRef.current += 1
     onCancel()
   }, [onCancel])
 
@@ -1004,12 +1007,19 @@ export function ResumeSessionSelector(props: {
       setView('crossProject')
       setSubmitError(null)
 
+      const copyId = crossProjectCopyIdRef.current + 1
+      crossProjectCopyIdRef.current = copyId
+      const isCurrentCopy = () =>
+        mountedRef.current && crossProjectCopyIdRef.current === copyId
+
       try {
         const result = await copyTextToClipboard(command)
+        if (!isCurrentCopy()) return
         const suffix =
           result.method === 'osc52' && result.truncated ? ' (truncated)' : ''
         setCrossProjectCopyStatus(`Copied to clipboard${suffix}.`)
       } catch (error) {
+        if (!isCurrentCopy()) return
         setCrossProjectCopyStatus(
           `Failed to copy to clipboard: ${error instanceof Error ? error.message : String(error)}`,
         )
@@ -1241,6 +1251,7 @@ export function ResumeSessionSelector(props: {
 
       if (view === 'crossProject') {
         if (key.escape || (key.ctrl && lower === 'c')) {
+          crossProjectCopyIdRef.current += 1
           setView('list')
           setCrossProjectCommand(null)
           setCrossProjectCwd(null)

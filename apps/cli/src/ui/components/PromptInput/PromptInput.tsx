@@ -56,10 +56,8 @@ import { getKodeAgentSessionId } from '#protocol/utils/kodeAgentSessionId'
 import { buildPromptInputStatusLine } from './inputModeDisplay'
 import { useThrottledTokenUsage } from './useThrottledTokenUsage'
 import { useCliExit } from '#ui-ink/hooks/useCliExit'
-import {
-  buildPromptStatusLineInput,
-  getPromptStatusLineUsage,
-} from './statusLineModel'
+import { buildPromptStatusLineInput } from './statusLineModel'
+import { useThrottledStatusLineUsage } from './useThrottledStatusLineUsage'
 import {
   getPromptModeForTypedPrefix,
   shouldEmptyPromptModeExitToPrompt,
@@ -247,13 +245,7 @@ export function PromptInput({
 
   const theme = getTheme()
   const tokenUsage = useThrottledTokenUsage(messages)
-  const totalCostUSD = useMemo(() => {
-    let total = 0
-    for (const message of messages) {
-      if (message.type === 'assistant') total += message.costUSD
-    }
-    return total
-  }, [messages])
+  const statusLineUsage = useThrottledStatusLineUsage(messages)
 
   const modelInfo = useMemo(() => {
     void submitCount
@@ -269,10 +261,7 @@ export function PromptInput({
       : null
   }, [submitCount, tokenUsage, uiRefreshCounter])
 
-  const statusLineUsage = useMemo(
-    () => getPromptStatusLineUsage(messages),
-    [messages],
-  )
+  const totalCostUSD = statusLineUsage.totalCostUSD
 
   const statusLineInput = useMemo(() => {
     void submitCount
@@ -1042,12 +1031,21 @@ export function PromptInput({
       pastedImages: imagesForSubmit,
       clearPastes,
       resetHistory,
+      onProcessingError: message => handleInlineMessage(true, message),
       setCurrentPwd,
       exit,
     })
   }
 
   const [isQueueDrainInFlight, setIsQueueDrainInFlight] = useState(false)
+  const pendingPromptInputs = useMemo(
+    () => pendingPrompts.map(prompt => prompt.input),
+    [pendingPrompts],
+  )
+  const queuedPromptInputs = useMemo(
+    () => queuedPrompts.map(prompt => prompt.input),
+    [queuedPrompts],
+  )
   const lastCancelRequestKeyRef = useRef(cancelRequestKey)
   useEffect(() => {
     if (lastCancelRequestKeyRef.current !== cancelRequestKey) {
@@ -1126,6 +1124,7 @@ export function PromptInput({
           pastedImages: imagesForSubmit,
           clearPastes: () => {},
           resetHistory: () => {},
+          onProcessingError: message => handleInlineMessage(true, message),
           setCurrentPwd,
           exit,
         })
@@ -1155,6 +1154,7 @@ export function PromptInput({
     queuedPrompts,
     readFileTimestamps,
     reportMissingImageData,
+    handleInlineMessage,
     isQueueDrainInFlight,
     setAbortController,
     setCurrentPwd,
@@ -1295,8 +1295,8 @@ export function PromptInput({
       isEditingExternally={isEditingExternally}
       isDisabled={isDisabled}
       isLoading={isLoading}
-      pendingPrompts={pendingPrompts.map(item => item.input)}
-      queuedPrompts={queuedPrompts.map(item => item.input)}
+      pendingPrompts={pendingPromptInputs}
+      queuedPrompts={queuedPromptInputs}
       completionActive={completionVisible}
       historyIndex={historyIndex}
       suggestions={visibleSuggestions}
