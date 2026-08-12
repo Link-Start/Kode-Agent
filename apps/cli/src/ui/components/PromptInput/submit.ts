@@ -60,6 +60,33 @@ function addPromptToHistory(args: {
   addToHistory(args.display)
 }
 
+export function getPromptPreparationFailureMessage(
+  hasImageAttachments: boolean,
+): string {
+  if (hasImageAttachments) {
+    return 'Unable to prepare the prompt. The text was saved to history; press Up Arrow to restore it and retry. Reattach any images before retrying.'
+  }
+
+  return 'Unable to prepare the prompt. Your prompt was saved to history; press Up Arrow to restore it and retry.'
+}
+
+export function recoverPromptPreparationFailure(args: {
+  savePromptToHistory: () => void
+  resetHistory: () => void
+  setAbortController: (abortController: AbortController | null) => void
+  setIsLoading: (isLoading: boolean) => void
+  hasImageAttachments: boolean
+  onProcessingError?: (message: string) => void
+}): void {
+  args.savePromptToHistory()
+  args.resetHistory()
+  args.setAbortController(null)
+  args.setIsLoading(false)
+  args.onProcessingError?.(
+    getPromptPreparationFailureMessage(args.hasImageAttachments),
+  )
+}
+
 function getKodingContext(): string {
   return [
     'The user is using Koding mode.',
@@ -102,6 +129,7 @@ export async function submitPrompt(args: {
   pastedImages: PastedImageAttachment[]
   clearPastes: () => void
   resetHistory: () => void
+  onProcessingError?: (message: string) => void
   setCurrentPwd: (pwd: string) => void
   exit: () => void
 }): Promise<void> {
@@ -203,7 +231,19 @@ export async function submitPrompt(args: {
     releasePastedImageAttachments(args.pastedImages)
   } catch (error) {
     releasePastedImageAttachments(args.pastedImages)
-    args.setIsLoading(false)
+    recoverPromptPreparationFailure({
+      savePromptToHistory: () => {
+        addPromptToHistory({
+          display: args.input,
+          pastedTexts: args.pastedTexts,
+        })
+      },
+      resetHistory: args.resetHistory,
+      setAbortController: args.setAbortController,
+      setIsLoading: args.setIsLoading,
+      hasImageAttachments: args.pastedImages.length > 0,
+      onProcessingError: args.onProcessingError,
+    })
     logError(error)
     return
   }
@@ -211,6 +251,7 @@ export async function submitPrompt(args: {
   if (newMessages.length === 0) {
     addPromptToHistory({ display: args.input, pastedTexts: args.pastedTexts })
     args.resetHistory()
+    args.setAbortController(null)
     args.setIsLoading(false)
     return
   }

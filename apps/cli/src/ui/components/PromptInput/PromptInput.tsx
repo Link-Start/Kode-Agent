@@ -1036,6 +1036,7 @@ export function PromptInput({
       pastedImages: imagesForSubmit,
       clearPastes,
       resetHistory,
+      onProcessingError: message => handleInlineMessage(true, message),
       setCurrentPwd,
       exit,
     })
@@ -1128,6 +1129,7 @@ export function PromptInput({
           pastedImages: imagesForSubmit,
           clearPastes: () => {},
           resetHistory: () => {},
+          onProcessingError: message => handleInlineMessage(true, message),
           setCurrentPwd,
           exit,
         })
@@ -1157,6 +1159,7 @@ export function PromptInput({
     queuedPrompts,
     readFileTimestamps,
     reportMissingImageData,
+    handleInlineMessage,
     isQueueDrainInFlight,
     setAbortController,
     setCurrentPwd,
