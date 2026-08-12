@@ -270,7 +270,14 @@ export function useReplController(props: REPLProps) {
     },
     [],
   )
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoadingState] = useState(false)
+  const isLoadingRef = useRef(false)
+  const setIsLoading = useCallback((nextIsLoading: boolean) => {
+    isLoadingRef.current = nextIsLoading
+    setIsLoadingState(current =>
+      current === nextIsLoading ? current : nextIsLoading,
+    )
+  }, [])
   const [cancelRequestKey, setCancelRequestKey] = useState(0)
   type ToolView = {
     jsx: React.ReactNode | null
@@ -982,11 +989,12 @@ export function useReplController(props: REPLProps) {
   }, [])
 
   const onCancel = useCallback(() => {
-    if (!isLoading) return
+    if (!isLoadingRef.current) return
+    const activeAbortController = abortControllerRef.current
     setCancelRequestKey(prev => prev + 1)
     setIsLoading(false)
-    if (abortController) {
-      assistantStreamStore.endTurn(abortController)
+    if (activeAbortController) {
+      assistantStreamStore.endTurn(activeAbortController)
     }
     if (toolUseConfirm) {
       toolUseConfirm.onAbort()
@@ -994,28 +1002,33 @@ export function useReplController(props: REPLProps) {
       showToast('Interrupted')
       return
     }
-    if (abortController && !abortController.signal.aborted) {
-      abortController.abort()
+    if (activeAbortController && !activeAbortController.signal.aborted) {
+      activeAbortController.abort()
     }
     setAbortController(null)
     showToast('Interrupted')
   }, [
-    abortController,
     assistantStreamStore,
-    isLoading,
     setAbortController,
+    setIsLoading,
     showToast,
     toolUseConfirm,
   ])
+
+  const getIsLoading = useCallback(() => isLoadingRef.current, [])
+  const getAbortSignal = useCallback(
+    () => abortControllerRef.current?.signal,
+    [],
+  )
 
   useCancelRequest(
     setToolJSXWithClear,
     setToolUseConfirm,
     setBinaryFeedbackContext,
     onCancel,
-    isLoading,
+    getIsLoading,
     isMessageSelectorVisible,
-    abortController?.signal,
+    getAbortSignal,
   )
 
   useEffect(() => {
@@ -1272,6 +1285,7 @@ export function useReplController(props: REPLProps) {
     isLoading,
     isMessageSelectorVisible,
     onQuery,
+    setIsLoading,
     showToast,
     toolJSX,
     toolUseConfirm,
@@ -1555,6 +1569,7 @@ export function useReplController(props: REPLProps) {
       restorePastes,
       setAbortController,
       setForkConvoWithMessagesOnTheNextRender,
+      setIsLoading,
       setToolJSXWithClear,
       submitCount,
       uiRefreshCounter,

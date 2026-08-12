@@ -3,10 +3,16 @@ import { getContext } from '@kode/context'
 import { getMaxThinkingTokens } from '#core/utils/thinking'
 import { getLastAssistantMessageId } from '#core/utils/messages'
 import { buildSystemPromptForSession, runTurn } from '@kode/engine'
-import { handleHashCommand } from '#core/utils/hashCommand'
 import { logError } from '#core/utils/log'
 import { debug as debugLogger } from '#core/utils/debugLogger'
-import { createAssistantMessage } from '#core/utils/messages'
+import {
+  createAssistantAPIErrorMessage,
+  createAssistantMessage,
+} from '#core/utils/messages'
+import {
+  handleHashCommand,
+  HASH_COMMAND_SAVE_FAILURE_MESSAGE,
+} from '#core/utils/hashCommand'
 import { getToolPermissionContextForConversationKey } from '#core/utils/toolPermissionContextState'
 import type {
   AssistantMessage,
@@ -27,6 +33,33 @@ import type {
   AssistantStreamUpdateEvent,
 } from './assistantStreamStore'
 
+// REPL message arrays are immutable snapshots. Reusing their progress indexes
+// avoids rescanning long transcripts without retaining inactive conversations.
+const progressMessageIndexes = new WeakMap<MessageType[], Map<string, number>>()
+
+function buildProgressMessageIndexes(
+  messages: MessageType[],
+): Map<string, number> {
+  const indexes = new Map<string, number>()
+  for (const [index, message] of messages.entries()) {
+    if (message.type === 'progress' && !indexes.has(message.toolUseID)) {
+      indexes.set(message.toolUseID, index)
+    }
+  }
+  return indexes
+}
+
+function getProgressMessageIndexes(
+  messages: MessageType[],
+): Map<string, number> {
+  const cached = progressMessageIndexes.get(messages)
+  if (cached) return cached
+
+  const indexes = buildProgressMessageIndexes(messages)
+  progressMessageIndexes.set(messages, indexes)
+  return indexes
+}
+
 export function appendMessagesForReplState(
   oldMessages: MessageType[],
   newMessages: MessageType[],
@@ -34,25 +67,47 @@ export function appendMessagesForReplState(
   if (newMessages.length === 0) return oldMessages
 
   let next: MessageType[] | null = null
+  let progressIndexes: Map<string, number> | null = null
   const getNext = () => {
     next ??= [...oldMessages]
     return next
+  }
+  const getProgressIndexes = () => {
+    progressIndexes ??= getProgressMessageIndexes(next ?? oldMessages)
+    return progressIndexes
   }
 
   for (const message of newMessages) {
     if (message.type === 'progress') {
       const current = next ?? oldMessages
-      const existingIndex = current.findIndex(
-        item =>
-          item.type === 'progress' && item.toolUseID === message.toolUseID,
-      )
-      if (existingIndex >= 0) {
+      let existingIndex = getProgressIndexes().get(message.toolUseID)
+      const existingMessage =
+        existingIndex === undefined ? undefined : current[existingIndex]
+      if (
+        existingIndex !== undefined &&
+        (existingMessage?.type !== 'progress' ||
+          existingMessage.toolUseID !== message.toolUseID)
+      ) {
+        progressIndexes = buildProgressMessageIndexes(current)
+        progressMessageIndexes.set(current, progressIndexes)
+        existingIndex = progressIndexes.get(message.toolUseID)
+      }
+      if (existingIndex !== undefined) {
         getNext()[existingIndex] = message
         continue
       }
+
+      const nextMessages = getNext()
+      getProgressIndexes().set(message.toolUseID, nextMessages.length)
+      nextMessages.push(message)
+      continue
     }
 
     getNext().push(message)
+  }
+
+  if (next && progressIndexes) {
+    progressMessageIndexes.set(next, progressIndexes)
   }
 
   return next ?? oldMessages
@@ -61,6 +116,38 @@ export function appendMessagesForReplState(
 export const DEFAULT_REPL_TURN_TIMEOUT_MS = 15 * 60 * 1000
 const REPL_TURN_TIMEOUT_MESSAGE =
   'Request timed out before the model or a tool completed. The turn was cancelled; check the provider or tool and retry.'
+export const REPL_QUERY_FAILURE_MESSAGE =
+  'API Error: Request ended before completion. Your last prompt is saved in history; press Up Arrow to restore it and retry after checking the model configuration or connection.'
+
+export function shouldAppendReplQueryFailure(args: {
+  timedOut: boolean
+  aborted: boolean
+  error: unknown
+}): boolean {
+  return (
+    !args.timedOut &&
+    !args.aborted &&
+    !(args.error instanceof Error && args.error.name === 'AbortError')
+  )
+}
+
+export function appendReplQueryFailureMessage(
+  oldMessages: MessageType[],
+): MessageType[] {
+  return appendMessagesForReplState(oldMessages, [
+    createAssistantAPIErrorMessage(REPL_QUERY_FAILURE_MESSAGE),
+  ])
+}
+
+export function appendKodingSaveFailureMessage(
+  oldMessages: MessageType[],
+): MessageType[] {
+  return appendMessagesForReplState(oldMessages, [
+    createAssistantMessage(
+      `<local-command-stderr>${HASH_COMMAND_SAVE_FAILURE_MESSAGE}</local-command-stderr>`,
+    ),
+  ])
+}
 
 export async function runReplQueryWithCleanup<T>(args: {
   controller: AbortController
@@ -283,13 +370,16 @@ export function useReplQuery(args: {
                         .join('\n')
 
                 if (content && content.trim().length > 0) {
-                  handleHashCommand(content)
+                  if (!handleHashCommand(content)) {
+                    setMessages(appendKodingSaveFailureMessage)
+                  }
                 }
               } catch (error) {
                 logError(error)
                 debugLogger.error('REPL_KODING_SAVE_PROJECT_DOCS_ERROR', {
                   error,
                 })
+                setMessages(appendKodingSaveFailureMessage)
               }
             }
           } catch (error) {
@@ -299,6 +389,14 @@ export function useReplQuery(args: {
                   createAssistantMessage(REPL_TURN_TIMEOUT_MESSAGE),
                 ]),
               )
+            } else if (
+              shouldAppendReplQueryFailure({
+                timedOut,
+                aborted: controllerToUse.signal.aborted,
+                error,
+              })
+            ) {
+              setMessages(appendReplQueryFailureMessage)
             }
             logError(error)
             debugLogger.error('REPL_QUERY_ERROR', { error })

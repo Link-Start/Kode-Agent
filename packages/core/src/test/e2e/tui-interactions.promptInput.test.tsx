@@ -141,9 +141,9 @@ function PromptInputCancelHarnessInner({
       setCancelled(true)
       setIsLoading(false)
     },
-    isLoading,
+    () => isLoading,
     false,
-    abortController?.signal,
+    () => abortController?.signal,
   )
 
   return (

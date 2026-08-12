@@ -15,21 +15,31 @@ type Suggestion = {
   metadata?: { color?: string }
 }
 
+type SuggestionItemProps = {
+  suggestion: Suggestion
+  isSelected: boolean
+  theme: Theme
+  maxWidth: number
+}
+
 const MAX_COMPLETION_PANEL_ROWS = 10
+
+export function __areSuggestionItemPropsEqualForTests(
+  prevProps: SuggestionItemProps,
+  nextProps: SuggestionItemProps,
+): boolean {
+  return (
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.suggestion.value === nextProps.suggestion.value &&
+    prevProps.suggestion.displayValue === nextProps.suggestion.displayValue &&
+    prevProps.theme.suggestion === nextProps.theme.suggestion &&
+    prevProps.maxWidth === nextProps.maxWidth
+  )
+}
 
 // 使用 React.memo 优化建议列表渲染
 const SuggestionItem = React.memo(
-  ({
-    suggestion,
-    isSelected,
-    theme,
-    maxWidth,
-  }: {
-    suggestion: Suggestion
-    isSelected: boolean
-    theme: Theme
-    maxWidth: number
-  }) => {
+  ({ suggestion, isSelected, theme, maxWidth }: SuggestionItemProps) => {
     const isAgent = suggestion.type === 'agent'
     const displayColor = isSelected
       ? theme.suggestion
@@ -51,32 +61,37 @@ const SuggestionItem = React.memo(
       </Box>
     )
   },
-  (prevProps, nextProps) => {
-    // 只在选中状态或建议内容改变时重新渲染
-    return (
-      prevProps.isSelected === nextProps.isSelected &&
-      prevProps.suggestion.value === nextProps.suggestion.value &&
-      prevProps.suggestion.displayValue === nextProps.suggestion.displayValue &&
-      prevProps.maxWidth === nextProps.maxWidth
-    )
-  },
+  __areSuggestionItemPropsEqualForTests,
 )
 
 SuggestionItem.displayName = 'SuggestionItem'
 
+type HelpTextProps = {
+  emptyDirMessage: string
+  selectedSuggestion?: Suggestion
+  maxWidth: number
+  theme: Theme
+}
+
+export function __areHelpTextPropsEqualForTests(
+  prevProps: HelpTextProps,
+  nextProps: HelpTextProps,
+): boolean {
+  return (
+    prevProps.emptyDirMessage === nextProps.emptyDirMessage &&
+    prevProps.selectedSuggestion?.type === nextProps.selectedSuggestion?.type &&
+    prevProps.selectedSuggestion?.value ===
+      nextProps.selectedSuggestion?.value &&
+    prevProps.selectedSuggestion?.description ===
+      nextProps.selectedSuggestion?.description &&
+    prevProps.maxWidth === nextProps.maxWidth &&
+    prevProps.theme === nextProps.theme
+  )
+}
+
 // 使用 React.memo 优化帮助文本组件
 const HelpText = React.memo(
-  ({
-    emptyDirMessage,
-    selectedSuggestion,
-    maxWidth,
-    theme,
-  }: {
-    emptyDirMessage: string
-    selectedSuggestion?: Suggestion
-    maxWidth: number
-    theme: Theme
-  }) => {
+  ({ emptyDirMessage, selectedSuggestion, maxWidth, theme }: HelpTextProps) => {
     const getHelpMessage = () => {
       if (emptyDirMessage) return emptyDirMessage
       if (!selectedSuggestion) {
@@ -130,17 +145,7 @@ const HelpText = React.memo(
       </Text>
     )
   },
-  (prevProps, nextProps) => {
-    return (
-      prevProps.emptyDirMessage === nextProps.emptyDirMessage &&
-      prevProps.selectedSuggestion?.value ===
-        nextProps.selectedSuggestion?.value &&
-      prevProps.selectedSuggestion?.description ===
-        nextProps.selectedSuggestion?.description &&
-      prevProps.maxWidth === nextProps.maxWidth &&
-      prevProps.theme === nextProps.theme
-    )
-  },
+  __areHelpTextPropsEqualForTests,
 )
 
 HelpText.displayName = 'HelpText'
