@@ -7,6 +7,8 @@ import {
 import type { ClipboardImage } from '#core/utils/image/media'
 
 const IMAGE_PLACEHOLDER = '[Image pasted]'
+const IMAGE_PASTE_FAILED_MESSAGE =
+  'Unable to paste the image. Copy it again and retry.'
 
 export function tryImagePaste({
   cursor,
@@ -59,15 +61,22 @@ export async function resolveImagePastePlaceholder({
   }
 
   onMessage?.(true, 'Reading image from clipboard...')
-  const image = await getImageFromClipboardAsync()
-  if (image === null) {
-    onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
+  try {
+    const image = await getImageFromClipboardAsync()
+    if (image === null) {
+      onMessage?.(true, CLIPBOARD_ERROR_MESSAGE)
+      clearImagePasteErrorTimeout()
+      scheduleImagePasteErrorClear()
+      return null
+    }
+
+    onMessage?.(false)
+    const placeholder = onImagePaste?.(image)
+    return typeof placeholder === 'string' ? placeholder : IMAGE_PLACEHOLDER
+  } catch {
+    onMessage?.(true, IMAGE_PASTE_FAILED_MESSAGE)
     clearImagePasteErrorTimeout()
     scheduleImagePasteErrorClear()
     return null
   }
-
-  onMessage?.(false)
-  const placeholder = onImagePaste?.(image)
-  return typeof placeholder === 'string' ? placeholder : IMAGE_PLACEHOLDER
 }

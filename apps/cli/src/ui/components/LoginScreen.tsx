@@ -92,20 +92,24 @@ export function LoginScreen({
   const [codexRecommendationApplied, setCodexRecommendationApplied] =
     React.useState<boolean | null>(null)
   const activeCodexLoginIdRef = React.useRef(0)
+  const checkForLoginRef = React.useRef<(() => Promise<void>) | null>(null)
 
-  const refreshCodexStatus = React.useCallback(async () => {
-    try {
-      const nextStatus = await codexAuth.getStatus()
-      setCodexStatus(nextStatus)
-      return nextStatus
-    } catch {
-      const unavailable: CodexLoginStatus = { kind: 'unavailable' }
-      setCodexStatus(unavailable)
-      return unavailable
-    } finally {
-      setCheckingStatus(false)
-    }
-  }, [codexAuth])
+  const refreshCodexStatus = React.useCallback(
+    async (canUpdate: () => boolean = () => true) => {
+      try {
+        const nextStatus = await codexAuth.getStatus()
+        if (canUpdate()) setCodexStatus(nextStatus)
+        return nextStatus
+      } catch {
+        const unavailable: CodexLoginStatus = { kind: 'unavailable' }
+        if (canUpdate()) setCodexStatus(unavailable)
+        return unavailable
+      } finally {
+        if (canUpdate()) setCheckingStatus(false)
+      }
+    },
+    [codexAuth],
+  )
 
   const loadCodexRecommendation = React.useCallback(
     async (loginId: number) => {
@@ -129,17 +133,27 @@ export function LoginScreen({
   )
 
   React.useEffect(() => {
-    void refreshCodexStatus()
+    let cancelled = false
+    void refreshCodexStatus(() => !cancelled)
+    return () => {
+      cancelled = true
+    }
   }, [refreshCodexStatus])
 
   React.useEffect(() => {
     if (codexFlowState !== 'waiting') return undefined
 
     let cancelled = false
+    let checking = false
     const loginId = activeCodexLoginIdRef.current
+    const isCurrent = () =>
+      !cancelled && activeCodexLoginIdRef.current === loginId
     const checkForLogin = async () => {
-      const nextStatus = await refreshCodexStatus()
-      if (cancelled) return
+      if (checking) return
+      checking = true
+      const nextStatus = await refreshCodexStatus(isCurrent)
+      checking = false
+      if (!isCurrent()) return
 
       if (nextStatus.kind === 'authenticated') {
         await loadCodexRecommendation(loginId)
@@ -148,19 +162,23 @@ export function LoginScreen({
         setCodexFlowState('error')
       }
     }
+    checkForLoginRef.current = checkForLogin
 
     const interval = setInterval(
       () => void checkForLogin(),
       Math.max(50, pollIntervalMs),
     )
     const timeout = setTimeout(() => {
-      if (cancelled) return
+      if (!isCurrent()) return
       setCodexError('Timed out waiting for Codex sign-in to finish.')
       setCodexFlowState('error')
     }, CODEX_LOGIN_TIMEOUT_MS)
 
     return () => {
       cancelled = true
+      if (checkForLoginRef.current === checkForLogin) {
+        checkForLoginRef.current = null
+      }
       clearInterval(interval)
       clearTimeout(timeout)
     }
@@ -235,9 +253,12 @@ export function LoginScreen({
     if (codexFlowState === 'waiting') {
       if (key.escape) {
         activeCodexLoginIdRef.current += 1
+        checkForLoginRef.current = null
         setCodexFlowState('selection')
       }
-      if (key.return) void refreshCodexStatus()
+      if (key.return) {
+        void checkForLoginRef.current?.()
+      }
       return true
     }
 

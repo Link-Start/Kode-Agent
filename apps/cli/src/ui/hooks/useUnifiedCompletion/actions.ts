@@ -14,14 +14,14 @@ export function useCompletionActions(args: {
   completeWith: (
     suggestion: UnifiedSuggestion,
     context: CompletionContext,
-  ) => void
+  ) => string | null
   partialComplete: (prefix: string, context: CompletionContext) => void
 } {
   const { input, onInputChange, setCursorOffset } = args
 
   const completeWith = useCallback(
     (suggestion: UnifiedSuggestion, context: CompletionContext) => {
-      if (isLoadingSuggestion(suggestion)) return
+      if (isLoadingSuggestion(suggestion)) return null
 
       let completion: string
 
@@ -77,6 +77,7 @@ export function useCompletionActions(args: {
         input.slice(actualEndPos)
       onInputChange(newInput)
       setCursorOffset(context.startPos + completion.length)
+      return newInput
     },
     [input, onInputChange, setCursorOffset],
   )

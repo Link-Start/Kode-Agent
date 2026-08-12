@@ -36,6 +36,13 @@ import type { AssistantStreamStore } from './assistantStreamStore'
 const VIEWPORT_SAFE_MARGIN_ROWS = 1
 const MEASURE_DEBOUNCE_MS = 400
 
+export function getMessageSelectorLayoutSignature(
+  isVisible: boolean,
+  messageCount: number,
+): number {
+  return isVisible ? messageCount : 0
+}
+
 export function REPLView({
   conversationKey,
   safeMode,
@@ -126,6 +133,10 @@ export function REPLView({
   const hasToolUseConfirm = Boolean(toolUseConfirm)
   const hasBinaryFeedback = Boolean(binaryFeedbackContext)
   const hasToast = Boolean(toast)
+  const messageSelectorLayoutSignature = getMessageSelectorLayoutSignature(
+    isMessageSelectorVisible,
+    messageSelectorMessages.length,
+  )
   const promptInputMeasureSignature = useMemo(() => {
     if (!shouldShowPromptInput) return ''
 
@@ -200,7 +211,7 @@ export function REPLView({
         startupHeaderMeasureSignature,
         isLoading ? 1 : 0,
         promptInputMeasureSignature,
-        messageSelectorMessages.length,
+        messageSelectorLayoutSignature,
       ].join(':'),
     [
       rows,
@@ -217,7 +228,7 @@ export function REPLView({
       startupHeaderMeasureSignature,
       isLoading,
       promptInputMeasureSignature,
-      messageSelectorMessages.length,
+      messageSelectorLayoutSignature,
     ],
   )
   const isLayoutMeasurementStale =

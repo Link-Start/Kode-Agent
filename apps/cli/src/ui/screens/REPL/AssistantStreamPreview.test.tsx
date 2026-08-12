@@ -4,7 +4,10 @@ import React from 'react'
 import { PassThrough } from 'node:stream'
 import stripAnsi from 'strip-ansi'
 import * as markdown from '#core/utils/markdown'
-import { AssistantStreamPreview } from './AssistantStreamPreview'
+import {
+  AssistantStreamPreview,
+  getBoundedAssistantStreamPreviewText,
+} from './AssistantStreamPreview'
 import { createAssistantStreamStore } from './assistantStreamStore'
 
 async function renderToText(element: React.ReactElement): Promise<string> {
@@ -56,6 +59,33 @@ test('does not reserve a blank viewport before the first token', async () => {
     output.indexOf('below'),
   )
   expect(betweenSentinels).toBe('\n')
+})
+
+test('bounds large live previews to the visible terminal budget', () => {
+  const text = `${'a'.repeat(900)}tail`
+
+  const preview = getBoundedAssistantStreamPreviewText({
+    text,
+    maxWidth: 80,
+    maxHeight: 2,
+  })
+
+  expect(preview).toStartWith('…')
+  expect(preview).toEndWith('tail')
+  expect(preview.length).toBe(641)
+})
+
+test('does not split a surrogate pair at the preview boundary', () => {
+  const text = `${'a'.repeat(100)}😀${'b'.repeat(511)}`
+
+  const preview = getBoundedAssistantStreamPreviewText({
+    text,
+    maxWidth: 1,
+    maxHeight: 1,
+  })
+
+  expect(preview).toStartWith('…b')
+  expect(preview).not.toContain('\uFFFD')
 })
 
 test('renders the first text delta in the preview', async () => {

@@ -127,6 +127,10 @@ export default function TextInput({
   const pasteWarningTimeoutRef = React.useRef<ReturnType<
     typeof setTimeout
   > | null>(null)
+  const deferredPasteTimersRef = React.useRef(
+    new Set<ReturnType<typeof setTimeout>>(),
+  )
+  const mountedRef = React.useRef(true)
   const onMessageRef = React.useRef<Props['onMessage']>(onMessage)
   const onPasteRef = React.useRef<Props['onPaste']>(onPaste)
 
@@ -143,6 +147,17 @@ export default function TextInput({
       onPasteRef.current?.(text, getCurrentInputState())
     },
     [getCurrentInputState],
+  )
+
+  const schedulePasteDelivery = React.useCallback(
+    (text: string) => {
+      const timer = setTimeout(() => {
+        deferredPasteTimersRef.current.delete(timer)
+        if (mountedRef.current) deliverPaste(text)
+      }, 0)
+      deferredPasteTimersRef.current.add(timer)
+    },
+    [deliverPaste],
   )
 
   const isPasteTrusted = React.useCallback(() => {
@@ -180,11 +195,16 @@ export default function TextInput({
 
   React.useEffect(
     () => () => {
+      mountedRef.current = false
       clearPasteWarning()
       if (pasteTimeoutRef.current) {
         clearTimeout(pasteTimeoutRef.current)
         pasteTimeoutRef.current = null
       }
+      for (const timer of deferredPasteTimersRef.current) {
+        clearTimeout(timer)
+      }
+      deferredPasteTimersRef.current.clear()
       pasteChunksRef.current = []
     },
     [clearPasteWarning],
@@ -200,10 +220,8 @@ export default function TextInput({
     pasteChunksRef.current = []
     if (!pastedText) return
 
-    setTimeout(() => {
-      deliverPaste(pastedText)
-    }, 0)
-  }, [deliverPaste])
+    schedulePasteDelivery(pastedText)
+  }, [schedulePasteDelivery])
 
   const shouldBlockEnter = React.useCallback(
     (key: Key): boolean => {
@@ -304,7 +322,7 @@ export default function TextInput({
         onPasteRef.current &&
         shouldTreatAsSpecialPaste(normalized, { terminalColumns: columns })
       ) {
-        setTimeout(() => deliverPaste(normalized), 0)
+        schedulePasteDelivery(normalized)
         return
       }
 

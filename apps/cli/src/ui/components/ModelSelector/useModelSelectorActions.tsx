@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import {
   clearSessionApiKey,
   getSuggestedApiKeyEnvVar,
@@ -27,6 +28,14 @@ type Args = {
 export function useModelSelectorActions({ props, state, onDone }: Args) {
   const modelFlow = useModelSelectorModelFlow(state)
   const textHandlers = useModelSelectorTextHandlers(state)
+  const activeConnectionTestIdRef = useRef(0)
+
+  useEffect(
+    () => () => {
+      activeConnectionTestIdRef.current += 1
+    },
+    [],
+  )
 
   async function saveConfiguration(
     provider: ProviderType,
@@ -96,6 +105,8 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
   }
 
   const handleBack = () => {
+    modelFlow.cancelPendingModelFetch()
+    cancelPendingConnectionTest()
     const { stack: nextStack, effect } = handleBackNavigation(state.screenStack)
 
     if (effect?.type === 'resetProviderFocus') {
@@ -150,7 +161,16 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
     }
   }
 
+  function cancelPendingConnectionTest(): void {
+    activeConnectionTestIdRef.current += 1
+    state.setIsTestingConnection(false)
+  }
+
   async function handleConnectionTest() {
+    const testId = activeConnectionTestIdRef.current + 1
+    activeConnectionTestIdRef.current = testId
+    const isCurrent = () => activeConnectionTestIdRef.current === testId
+
     state.setIsTestingConnection(true)
     state.setConnectionTestResult(null)
 
@@ -166,12 +186,16 @@ export function useModelSelectorActions({ props, state, onDone }: Args) {
           resourceName: state.resourceName,
           requestStrategy: state.requestStrategy,
         },
-        navigateTo: () => state.navigateTo('confirmation'),
-        onProgress: progress => state.setConnectionTestResult(progress),
+        navigateTo: () => {
+          if (isCurrent()) state.navigateTo('confirmation')
+        },
+        onProgress: progress => {
+          if (isCurrent()) state.setConnectionTestResult(progress)
+        },
       })
-      state.setConnectionTestResult(result)
+      if (isCurrent()) state.setConnectionTestResult(result)
     } finally {
-      state.setIsTestingConnection(false)
+      if (isCurrent()) state.setIsTestingConnection(false)
     }
   }
 
