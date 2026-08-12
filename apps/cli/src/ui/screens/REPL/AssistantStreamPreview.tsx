@@ -8,6 +8,28 @@ import { getTheme } from '#core/utils/theme'
 import type { TranscriptItem } from './useTranscriptItems'
 import type { AssistantStreamStore } from './assistantStreamStore'
 
+export const ASSISTANT_STREAM_PREVIEW_CHARS_PER_CELL = 4
+const MIN_ASSISTANT_STREAM_PREVIEW_CHARS = 512
+
+export function getBoundedAssistantStreamPreviewText(args: {
+  text: string
+  maxWidth: number
+  maxHeight: number
+}): string {
+  const maxChars = Math.max(
+    MIN_ASSISTANT_STREAM_PREVIEW_CHARS,
+    Math.max(1, args.maxWidth) *
+      Math.max(1, args.maxHeight) *
+      ASSISTANT_STREAM_PREVIEW_CHARS_PER_CELL,
+  )
+  if (args.text.length <= maxChars) return args.text
+
+  let start = args.text.length - maxChars
+  const codeUnit = args.text.charCodeAt(start)
+  if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) start += 1
+  return `…${args.text.slice(start)}`
+}
+
 export function AssistantStreamPreview({
   store,
   transientItems,
@@ -80,6 +102,11 @@ const AssistantStreamText = React.memo(function AssistantStreamText({
 }): React.ReactNode {
   const { columns } = useTerminalSize()
   const contentWidth = Math.max(1, columns - 6)
+  const previewText = getBoundedAssistantStreamPreviewText({
+    text,
+    maxWidth: contentWidth,
+    maxHeight,
+  })
 
   return (
     <Box
@@ -95,7 +122,7 @@ const AssistantStreamText = React.memo(function AssistantStreamText({
         </Box>
         <Box flexDirection="column" width={contentWidth}>
           <MaxSizedText
-            text={text}
+            text={previewText}
             maxHeight={maxHeight}
             maxWidth={contentWidth}
             overflowDirection="bottom"
