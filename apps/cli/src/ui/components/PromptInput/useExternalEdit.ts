@@ -3,6 +3,9 @@ import { launchExternalEditor } from '#cli-utils/externalEditor'
 
 type InlineMessageState = { show: boolean; text?: string }
 
+const EXTERNAL_EDITOR_FAILED_MESSAGE =
+  'Unable to open the external editor. Check $EDITOR and try again.'
+
 export function useExternalEdit(args: {
   input: string
   isLoading: boolean
@@ -75,6 +78,13 @@ export function useExternalEdit(args: {
         })
         scheduleMessageDismiss(4000)
       }
+    } catch {
+      if (!mountedRef.current) return
+      setMessage({
+        show: true,
+        text: EXTERNAL_EDITOR_FAILED_MESSAGE,
+      })
+      scheduleMessageDismiss(4000)
     } finally {
       if (mountedRef.current) setIsEditingExternally(false)
     }

@@ -139,4 +139,53 @@ describe('TUI E2E regression (Ink render): PromptInput hooks', () => {
       { show: true, text: 'Opening external editor...' },
     ])
   })
+
+  test('external edit reports launcher failures without leaving the prompt blocked', async () => {
+    mock.module('#cli-utils/externalEditor', () => ({
+      launchExternalEditor: async () => {
+        throw new Error('temporary editor file unavailable')
+      },
+    }))
+
+    const { useExternalEdit } =
+      await import('#ui-ink/components/PromptInput/useExternalEdit')
+
+    const messages: Array<{ show: boolean; text?: string }> = []
+
+    function ExternalEditFailureHarness(): React.ReactNode {
+      const didStartRef = useRef(false)
+      const { handleExternalEdit, isEditingExternally } = useExternalEdit({
+        input: 'draft',
+        isDisabled: false,
+        isLoading: false,
+        onInputChange: () => {},
+        setCursorOffset: () => {},
+        setMessage: message => {
+          messages.push(message)
+        },
+      })
+
+      useEffect(() => {
+        if (didStartRef.current) return
+        didStartRef.current = true
+        void handleExternalEdit()
+      }, [handleExternalEdit])
+
+      return <Text>{isEditingExternally ? 'editing' : 'ready'}</Text>
+    }
+
+    const h = createInkTestHarness(<ExternalEditFailureHarness />)
+    harnessManager.track(h)
+
+    await h.wait(50)
+
+    expect(messages).toEqual([
+      { show: true, text: 'Opening external editor...' },
+      {
+        show: true,
+        text: 'Unable to open the external editor. Check $EDITOR and try again.',
+      },
+    ])
+    expect(h.getOutput()).toContain('ready')
+  })
 })
