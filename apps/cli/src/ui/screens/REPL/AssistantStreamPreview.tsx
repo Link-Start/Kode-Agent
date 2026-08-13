@@ -16,6 +16,9 @@ export function getLivePreviewHeightBudget(args: {
   hasText: boolean
   maxHeight: number
 }): { thinking: number; text: number } {
+  if (!args.hasThinking && !args.hasText) {
+    return { thinking: 0, text: 0 }
+  }
   if (args.maxHeight <= 1) {
     return args.hasText ? { thinking: 0, text: 1 } : { thinking: 1, text: 0 }
   }
@@ -84,6 +87,12 @@ export function AssistantStreamPreview({
     return null
   }
 
+  // The live stream gets its own reserved height at the bottom of the frame so
+  // completed transient messages (which can be arbitrarily tall) can never
+  // push streaming output out of the viewport.
+  const liveHeight = heightBudget.thinking + heightBudget.text
+  const completedHeight = Math.max(0, maxHeight - liveHeight)
+
   return (
     <Box
       flexDirection="column"
@@ -92,7 +101,17 @@ export function AssistantStreamPreview({
       overflow="hidden"
       width="100%"
     >
-      {transientItems.map(item => item.jsx)}
+      {transientItems.length > 0 && completedHeight > 0 && (
+        <Box
+          flexDirection="column"
+          height={completedHeight}
+          justifyContent="flex-end"
+          overflow="hidden"
+          width="100%"
+        >
+          {transientItems.map(item => item.jsx)}
+        </Box>
+      )}
       {hasLiveThinking && heightBudget.thinking > 0 && (
         <AssistantStreamThinking
           text={snapshot.thinking}
