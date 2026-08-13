@@ -1514,6 +1514,9 @@ export function useReplController(props: REPLProps) {
     toolUseConfirm,
     isMessageSelectorVisible,
     forkNumber,
+    // Bottom-anchored frame only makes sense when the terminal has room for
+    // transcript content; tiny viewports keep everything in <Static>.
+    keepRecentInFrame: terminalRows > 4,
   })
 
   const startupHeaderKey = useMemo(
